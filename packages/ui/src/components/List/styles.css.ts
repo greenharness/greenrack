@@ -99,6 +99,15 @@ export const styles = css.create({
   itemClickable: {
     cursor: 'pointer',
   },
+  // The keyboard focus of the row's button or link, drawn around the whole row (its Leading and
+  // Actions too), inset so a Card that clips its content keeps it.
+  itemFocused: {
+    outlineWidth: borders.focusRing,
+    outlineStyle: 'solid',
+    outlineColor: colors.accent,
+    outlineOffset: `calc(${borders.focusRing} * -1)`,
+    borderRadius: radii.xs,
+  },
   itemDisabled: {
     opacity: 0.5,
     pointerEvents: 'none',
@@ -127,11 +136,8 @@ export const styles = css.create({
     font: 'inherit',
     color: 'inherit',
     cursor: 'inherit',
-    outlineWidth: {default: 0, ':focus-visible': borders.focusRing},
-    outlineStyle: {default: 'none', ':focus-visible': 'solid'},
-    outlineColor: {default: 'transparent', ':focus-visible': colors.accent},
-    outlineOffset: {default: 0, ':focus-visible': borders.focusOffset},
-    borderRadius: radii.xs,
+    // The row draws the focus ring (itemFocused).
+    outlineStyle: 'none',
   },
 
   // The Content of an Item with an href: an anchor that reads as the row's text.
@@ -139,11 +145,8 @@ export const styles = css.create({
     textDecorationLine: 'none',
     color: 'inherit',
     cursor: 'pointer',
-    outlineWidth: {default: 0, ':focus-visible': borders.focusRing},
-    outlineStyle: {default: 'none', ':focus-visible': 'solid'},
-    outlineColor: {default: 'transparent', ':focus-visible': colors.accent},
-    outlineOffset: {default: 0, ':focus-visible': borders.focusOffset},
-    borderRadius: radii.xs,
+    // The row draws the focus ring (itemFocused).
+    outlineStyle: 'none',
   },
 
   // --- Leading slot (icon or avatar) ---

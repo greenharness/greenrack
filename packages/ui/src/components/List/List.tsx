@@ -20,6 +20,7 @@ import {
 } from './ItemLink'
 import {styles, textColorStyles} from './styles.css'
 import {isNative} from '../../platform'
+import {focusRingHandlers} from './focusRing'
 import type {TextColor} from '../Text/Text'
 
 // --- Types ---
@@ -203,12 +204,17 @@ type ItemAction =
 
 const ItemActionContext = createContext<ItemAction | null>(null)
 
+// The Content tells its Item when its button or link has keyboard focus: the row draws the ring,
+// around its Leading and Actions too.
+const FocusRingContext = createContext<(shown: boolean) => void>(() => {})
+
 function Item({children, ref, selected, disabled, onClick, expanded, href, onNavigate}: ItemProps) {
   const {selectionMode} = useList()
   const isSelectable = selectionMode !== 'none'
   const isDisabled = disabled === true
   const isLast = useContext(LastItemContext)
   const [linkState] = useState(createItemLinkState)
+  const [focusRing, setFocusRing] = useState(false)
   const pressed = isSelectable ? selected === true : undefined
   const action = useMemo<ItemAction | null>(() => {
     if (href !== undefined) return {kind: 'link', href, onNavigate, disabled: isDisabled, linkState}
@@ -223,23 +229,26 @@ function Item({children, ref, selected, disabled, onClick, expanded, href, onNav
 
   return (
     <ItemActionContext.Provider value={action}>
-      <html.div
-        ref={ref}
-        role="listitem"
-        aria-disabled={disabled || undefined}
-        // A press anywhere on the row; the Content's button or link is what keyboards and
-        // screen readers reach.
-        onClick={disabled ? undefined : onRowClick}
-        style={[
-          styles.item,
-          (onClick != null || href !== undefined) && !disabled && styles.itemClickable,
-          selected && styles.itemSelected,
-          isLast && styles.itemLast,
-          disabled && styles.itemDisabled,
-        ]}
-      >
-        {children}
-      </html.div>
+      <FocusRingContext.Provider value={setFocusRing}>
+        <html.div
+          ref={ref}
+          role="listitem"
+          aria-disabled={disabled || undefined}
+          // A press anywhere on the row; the Content's button or link is what keyboards and
+          // screen readers reach.
+          onClick={disabled ? undefined : onRowClick}
+          style={[
+            styles.item,
+            (onClick != null || href !== undefined) && !disabled && styles.itemClickable,
+            selected && styles.itemSelected,
+            isLast && styles.itemLast,
+            disabled && styles.itemDisabled,
+            focusRing && styles.itemFocused,
+          ]}
+        >
+          {children}
+        </html.div>
+      </FocusRingContext.Provider>
     </ItemActionContext.Provider>
   )
 }
@@ -248,13 +257,19 @@ function Item({children, ref, selected, disabled, onClick, expanded, href, onNav
 
 function Content({children}: {children: ReactNode}) {
   const action = useContext(ItemActionContext)
+  const setFocusRing = useContext(FocusRingContext)
   // A disabled link is plain text: an anchor without an href is not a link.
   if (!action || (action.kind === 'link' && action.disabled)) {
     return <html.div style={styles.content}>{children}</html.div>
   }
   if (action.kind === 'link') {
     return (
-      <ItemLink state={action.linkState} href={action.href} onNavigate={action.onNavigate}>
+      <ItemLink
+        state={action.linkState}
+        href={action.href}
+        onNavigate={action.onNavigate}
+        onFocusRing={setFocusRing}
+      >
         {children}
       </ItemLink>
     )
@@ -270,6 +285,7 @@ function Content({children}: {children: ReactNode}) {
       aria-pressed={isNative ? undefined : action.pressed}
       aria-selected={isNative ? action.pressed : undefined}
       aria-expanded={action.expanded}
+      {...focusRingHandlers(setFocusRing)}
       onClick={(event) => {
         // The row handles a press too; this one has been answered.
         event.stopPropagation()

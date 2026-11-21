@@ -324,6 +324,11 @@ export const ClickableItems: Story = {
     // The keyboard reaches the item and presses it, once.
     await userEvent.tab()
     await expect(buttons[0]).toHaveFocus()
+    // The keyboard focus rings the whole row, its badge included, not the button alone.
+    const firstRow = buttons[0].closest<HTMLElement>('[role="listitem"]')!
+    await expect(getComputedStyle(firstRow).outlineStyle).toBe('solid')
+    await expect(getComputedStyle(buttons[0]).outlineStyle).toBe('none')
+    await expect(firstRow).toContainElement(canvas.getAllByText('Turn')[0])
     await userEvent.keyboard('{Enter}')
     await expect(canvas.getByText('Picked: t1')).toBeInTheDocument()
     // A press on the row outside the text is one press too.
