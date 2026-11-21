@@ -136,8 +136,8 @@ Outcome: no visitor-visible change (0 diffs). The maintainer deletes the generat
 
 ## Phases
 
-- **Phase 1 — greenrack API** (worktree `greenrack-wt-theme-modes`,
-  branch above).
+- [x] **Phase 1 — greenrack API** (worktree `greenrack-wt-theme-modes`,
+      branch above).
   - `packages/tokens/src/theme.ts`: `ThemeTokensByMode`, `splitModes`,
     `validateModeTokens` (validates each part; `DroppedToken` gains an optional `mode` (`'dark'`, `'contrast.light'`) that `describeDropped` prefixes, so `group` stays a real group in the CLI's `problems` JSON, `mockup.ts:236`);
     tests in `packages/tokens/test/theme.test.ts`.
@@ -184,26 +184,26 @@ Outcome: no visitor-visible change (0 diffs). The maintainer deletes the generat
   - Story: `packages/ui/src/components/ThemeProvider/ThemeOverrides.stories.tsx`
     gets a "by mode" story (states pinned with `emulateMedia` in the Storybook browser project: light, dark, contrast-more, and a key missing from `light`); the `meta.ts` sentence "pass per-mode values when the mode can change" is rewritten (a key present in one mode and absent in the other keeps the base rule's value under `system`); the ADR revision and JSDoc say the same; `packages/ui/src/components/ThemeProvider/ThemeProvider.meta.ts`
     and the JSDoc of `tokens` (both providers) and `ColorModeProvider.tokens`.
-- **Phase 2 — prove it in the app before tagging.** In disposable packaging
-  state, mirror release.yaml's version stamping to 7.5.0 before `pnpm -r build`
-  and `pnpm pack` of tokens and ui. Inspect the packed manifests and their
-  rewritten workspace dependency ranges. An application-landscape worktree
-  (`application-landscape-wt-f107`, branch `feat/theme-on-override-api`)
-  installs the tarballs, using a temporary pnpm override so every tokens
-  dependency, including UI's transitive dependency, resolves to the candidate
-  tarball. Verify the installed graph and tarball provenance before browser
-  checks. Keep packaging-only version edits out of the greenrack PR. Reset app
-  manifests, overrides and lockfile (`package.json`, `pnpm-lock.yaml`) to
-  the published npm versions in Phase 4.
-  This worktree does Phase 4's change. `browser-check` agent, JavaScript disabled, against the
-  worktree's server and against `origin/main` built the same way: computed
-  values of every colour and shadow variable plus `background-color`/`color`
-  of `body`, a card and a primary button on `/` and one admin route, in
-  these cells: no cookie × OS light/dark × contrast none/more; `mode`
-  cookie light/dark × contrast none/more. Baseline values from `origin/main` are recorded in the PR description. Pass = 0 diffs. Then with JS on, an open Menu popup and a Dialog (portalled; they
-  cannot open without JS) compared the same way, and
-  the app's fixed seven-cell script and the leak crawl. A diff sends the
-  work back to Phase 1 (no tag yet).
+- [x] **Phase 2 — prove it in the app before tagging.** In disposable packaging
+      state, mirror release.yaml's version stamping to 7.5.0 before `pnpm -r build`
+      and `pnpm pack` of tokens and ui. Inspect the packed manifests and their
+      rewritten workspace dependency ranges. An application-landscape worktree
+      (`application-landscape-wt-f107`, branch `feat/theme-on-override-api`)
+      installs the tarballs, using a temporary pnpm override so every tokens
+      dependency, including UI's transitive dependency, resolves to the candidate
+      tarball. Verify the installed graph and tarball provenance before browser
+      checks. Keep packaging-only version edits out of the greenrack PR. Reset app
+      manifests, overrides and lockfile (`package.json`, `pnpm-lock.yaml`) to
+      the published npm versions in Phase 4.
+      This worktree does Phase 4's change. `browser-check` agent, JavaScript disabled, against the
+      worktree's server and against `origin/main` built the same way: computed
+      values of every colour and shadow variable plus `background-color`/`color`
+      of `body`, a card and a primary button on `/` and one admin route, in
+      these cells: no cookie × OS light/dark × contrast none/more; `mode`
+      cookie light/dark × contrast none/more. Baseline values from `origin/main` are recorded in the PR description. Pass = 0 diffs. Then with JS on, an open Menu popup and a Dialog (portalled; they
+      cannot open without JS) compared the same way, and
+      the app's fixed seven-cell script and the leak crawl. A diff sends the
+      work back to Phase 1 (no tag yet).
 - **Phase 3 — greenrack PR, review, merge, release 7.5.0.** worktree-task
   F4/F4b reviews, PR, `merge-when-green`, `tag-release` v7.5.0
   (`packages/tokens/package.json`, `packages/ui/package.json` versions as
@@ -245,15 +245,74 @@ Outcome: no visitor-visible change (0 diffs). The maintainer deletes the generat
 
 ## Verification
 
-- greenrack: `pnpm -r test`, typecheck, lint, plus these observable checks in the `ServerRender` story of `ThemeOverrides.stories.tsx` (storybook browser project) and `packages/tokens/test/theme.test.ts`: (a) `defaultPreference="system"` with `{light:{colors:{bg:A}},dark:{colors:{bg:B}}}` gives `renderToString` contains the `prefers-color-scheme` light then dark blocks, then the contrast blocks; (b) pinned preference gives no `prefers-color-scheme` in the output; (c) an invalid value in `dark.colors.bg` gives dropped, and the dev warning names `dark.colors.bg`; (d) flat-only tokens gives rule string equals the pre-change string.
-- Phase 2's JS-disabled cells: 0 diffs vs `origin/main`, then the
-  seven-cell script and the leak crawl clean.
-- Phase 2 records the emitted `<style>` size (raw, gzip) and the `/` HTML
-  delta against `origin/main`; ceiling 5 KB gzip; and checks the app's CSP
-  allows an inline `<style>`.
-- After deploy: the JS-disabled cells against production, 0 diffs.
-- Rollback: a nonzero production diff, or the ceiling exceeded, reverts
-  the homelab image bump (greenrack 7.5.0 is additive and stays).
+Observed on the branch's final tree (`3a415a99`, tree `7a4beff77f1f`), before the push:
+
+- greenrack unit project (tokens + ui tests): input `vitest --project=unit`,
+  expected all pass, actual 253/253. CLI `mockup.test.ts`: 124/124. The CLI
+  suite's `popover.test.ts` "registry and CLAUDE.md are current" timed out
+  at 60 s on the loaded host. `build-registry --check` run alone reports
+  "registry: up to date".
+- Storybook browser project: `ThemeOverrides.stories.tsx` 6/6, and
+  ThemeProvider + ColorMode 24/24. Checks (a)–(c) are in `ServerRender`:
+  scheme blocks light then dark, then contrast; no scheme block when
+  pinned; the server markup's computed bg and text match the runner's
+  scheme before hydrating; 0 recoverable errors in `act()`.
+  `WarnsDroppedModeValue` covers the warning that names `dark.colors.bg`.
+  Check (d), flat-only rule unchanged: the pre-existing `overrideRule`
+  tests pass untouched.
+- Typecheck: 0 errors.
+- Phase 2, application-landscape on tarballs packed from this tree
+  (stamped 7.5.0, ui depends on tokens `^7.5.0`, one tokens copy in the
+  graph). Expected 0 diffs against `origin/main`. Actual, with JS disabled
+  and the 79 colour and shadow variables plus body, theme node and button
+  colours compared: 0 diffs in 8 cells × `/` and `/admin` (leading zeros
+  normalised; before that, the only differences were `.07` vs `0.07`). With
+  JS on, after hydration: 0 diffs in 4 cells, the open menu included, and 0
+  hydration errors. Evidence: `~/.claude/greenbelay/attestations/3a3ff8ce0e9b/`.
+- Size: the theme `<style>` is 946 B gzip with no cookie (ceiling 5 KB).
+  The `/` HTML is 97,848 B vs 95,207 B on base. CSP: the app sets none, so
+  an inline `<style>` is allowed.
+- Not yet run, because they belong to later phases: the production
+  JS-disabled cells after deploy, and the rollback trigger.
+
+## Decision log
+
+- 2026-11-21 — relais was not used for Phase 1. Two runs ended
+  `admission_wait_exhausted`: the host was jammed by other sessions' Rust
+  pushes, and nothing was launched. The work was done by hand.
+- 2026-11-21 — No `followsMode` prop. The context reset already makes the
+  nearest ThemeProvider under ColorModeProvider the only reader of
+  `system`. Under `applyTheme={false}`, siblings directly under it all
+  follow (react review). This is documented in `schemeSource.ts` and in the
+  ColorModeProvider `tokens` JSDoc, and pinned in the `ServerRender` story.
+- 2026-11-21 — Under `system` the base rule holds the flat values only
+  (ui-design review). With the JS theme's mode in it, a key set flat and
+  overridden in `dark` alone kept its dark value on a light OS. Each scheme
+  block now lays its mode on the flat values. This is simpler, and right
+  for every shape the tokens allow.
+- 2026-11-21 — Storybook's vitest browser project has no `emulateMedia`.
+  The `ByMode` and `ServerRender` stories check whichever scheme and
+  contrast the runner has. `ServerRender` reads the computed values of the
+  server markup before hydrating it. Phase 2 measured the full matrix
+  against application-landscape.
+- 2026-11-21 — `vitest.config.ts` aliases
+  `@greenharness/greenrack-tokens/theme` to its source, so the ui unit
+  tests exercise the new validators rather than a stale dist.
+- 2026-11-21 — The fixed seven-cell script and the leak crawl from the
+  greenrack sweep were session scripts, not committed files. Phase 2
+  replaced them with a token-by-token comparison of all 79 colour and
+  shadow variables on the ThemeProvider node, plus the computed colours of
+  body, the theme node, a button and an open menu. It ran in 8 cells × 2
+  routes before hydration (JS disabled) and 4 cells after it. The key set
+  is unchanged from the sweep, so a leak crawl has nothing new to find.
+
+## Implementation review
+
+- implementation-review: R1 approve-with-changes (4 blocking, 1 high fixed); Delta approve-with-changes, low `tokenValue` rename kept deliberate: its own candidate ruling calls `valueText` fine.
+- backend R1 approve-with-changes, all fixed, Delta approve; lang:typescript R1 6 fixed, Delta medium nullable `DroppedToken.group` deliberate: no consumer outside greenrack, null only for new mode entries.
+- react R1 2 fixed, Delta low replay flake deliberate (CI runs once); architect R1 4 fixed, Delta approve; unix R1 approve.
+- ui-design R1 medium (flat base under system) and low fixed; Delta low (no provider-level base test) deliberate: app SSR base held no mode colour.
+- All seats opus-5-5; reviews ran 15–220 s each.
 
 ## Non-goals
 
