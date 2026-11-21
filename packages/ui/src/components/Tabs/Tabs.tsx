@@ -1,8 +1,8 @@
-import {type ReactNode, useRef, useId, useEffect} from 'react'
+import {type ReactNode, useRef, useEffect} from 'react'
 import {html} from 'react-strict-dom'
 import {styles} from './styles.css'
 import {isNative} from '../../platform'
-import {TabsContext, useTabs} from './TabsContext'
+import {TabsContext, tabIds, useTabs} from './TabsContext'
 import {useTabsRoot} from './useTabsRoot'
 import {useTabIndicator} from './useTabIndicator'
 import {useTabKeys} from './useTabKeys'
@@ -41,9 +41,13 @@ function Root({
 
 interface ListProps {
   children: ReactNode
+  /** Names the tab list for assistive tech; `aria-labelledby` names it by a visible title. */
+  'aria-label'?: string
+  /** The id of the visible title that names the tab list (wins over `aria-label`). */
+  'aria-labelledby'?: string
 }
 
-function List({children}: ListProps) {
+function List({children, 'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy}: ListProps) {
   const {orientation, activeValue, onSelect, tabsRef, orderRef, setIndicatorActive} = useTabs()
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -59,6 +63,8 @@ function List({children}: ListProps) {
     <html.div
       ref={listRef}
       role="tablist"
+      aria-label={ariaLabelledBy ? undefined : ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       aria-orientation={orientation}
       style={[styles.list, orientation === 'vertical' && styles.listVertical]}
     >
@@ -88,10 +94,9 @@ interface TabProps {
 }
 
 function Tab({value, disabled = false, children}: TabProps) {
-  const {activeValue, onSelect, orientation, registerTab, indicatorActive} = useTabs()
+  const {activeValue, onSelect, orientation, registerTab, indicatorActive, baseId} = useTabs()
   const isActive = activeValue === value
-  const tabId = useId()
-  const panelId = `${tabId}-panel`
+  const {tabId, panelId} = tabIds(baseId, value)
 
   useEffect(() => {
     return registerTab(value, disabled)
@@ -110,7 +115,8 @@ function Tab({value, disabled = false, children}: TabProps) {
         role="tab"
         id={tabId}
         aria-selected={isActive}
-        aria-controls={panelId}
+        // Only the active tab's panel is rendered: an inactive tab names no panel.
+        aria-controls={isActive ? panelId : undefined}
         aria-disabled={disabled || undefined}
         data-tab-value={value}
         tabIndex={isActive ? 0 : -1}
@@ -139,13 +145,16 @@ interface PanelProps {
 }
 
 function Panel({value, children}: PanelProps) {
-  const {activeValue, orientation} = useTabs()
+  const {activeValue, orientation, baseId} = useTabs()
 
   if (activeValue !== value) return null
+  const {tabId, panelId} = tabIds(baseId, value)
 
   return (
     <html.div
       role="tabpanel"
+      id={panelId}
+      aria-labelledby={tabId}
       style={[styles.panel, orientation === 'vertical' && styles.panelVertical]}
     >
       {children}

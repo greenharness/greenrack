@@ -226,6 +226,57 @@ function DetailPanelDemo() {
 
 export const SingleSelection: Story = {
   render: () => <DetailPanelDemo />,
+  play: async ({canvas, userEvent}) => {
+    // aria-selected is not an attribute of a list item: the row's button carries the state.
+    for (const item of canvas.getAllByRole('listitem')) {
+      await expect(item).not.toHaveAttribute('aria-selected')
+    }
+    const bob = canvas.getByRole('button', {name: /Bob Smith/})
+    await expect(bob).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(bob)
+    await expect(bob).toHaveAttribute('aria-pressed', 'true')
+    await expect(canvas.getByRole('button', {name: /Alice Johnson/})).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  },
+}
+
+// --- A row that shows or hides what follows it ---
+
+function ExpandableDemo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <html.div style={narrowContainer.box}>
+      <List.Root aria-label="Command">
+        <List.Item expanded={open} onClick={() => setOpen((o) => !o)}>
+          <List.Content>
+            <List.Text>Advanced command editor</List.Text>
+          </List.Content>
+        </List.Item>
+        {open ? (
+          <List.Item>
+            <List.Content>
+              <List.Text>Arguments</List.Text>
+            </List.Content>
+          </List.Item>
+        ) : null}
+      </List.Root>
+    </html.div>
+  )
+}
+
+/** `expanded` on a pressable Item: its button tells assistive tech it shows or hides rows. */
+export const ExpandableRow: Story = {
+  render: () => <ExpandableDemo />,
+  play: async ({canvas, userEvent}) => {
+    const row = canvas.getByRole('button', {name: 'Advanced command editor'})
+    await expect(row).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(row)
+    await expect(row).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('Arguments')).toBeInTheDocument()
+    await expect(row.closest('[role="listitem"]')).not.toHaveAttribute('aria-expanded')
+  },
 }
 
 // --- Clickable items ---

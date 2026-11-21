@@ -56,6 +56,39 @@ export const Default: Story = {
   },
 }
 
+/**
+ * A named tab list, and each tab tied to its panel: the active tab's `aria-controls` is the
+ * panel's id, the panel is labelled by its tab. `aria-label` names the list (or
+ * `aria-labelledby`, the id of a visible title).
+ */
+export const NamedAndLinked: Story = {
+  render: () => (
+    <Tabs.Root defaultValue="by hand">
+      <Tabs.List aria-label="Ways to add a server">
+        <Tabs.Tab value="by hand">By hand</Tabs.Tab>
+        <Tabs.Tab value="from JSON">From JSON</Tabs.Tab>
+      </Tabs.List>
+      <Tabs.Panel value="by hand">Fill in the fields</Tabs.Panel>
+      <Tabs.Panel value="from JSON">Paste a configuration</Tabs.Panel>
+    </Tabs.Root>
+  ),
+  play: async ({canvas, userEvent}) => {
+    await expect(canvas.getByRole('tablist', {name: 'Ways to add a server'})).toBeInTheDocument()
+    const [byHand, fromJson] = canvas.getAllByRole('tab')
+    const check = async (tab: HTMLElement, other: HTMLElement) => {
+      const panel = canvas.getByRole('tabpanel')
+      await expect(panel.id).not.toBe('')
+      await expect(tab).toHaveAttribute('aria-controls', panel.id)
+      // An inactive tab's panel is not rendered: no reference to nothing.
+      await expect(other).not.toHaveAttribute('aria-controls')
+      await expect(panel).toHaveAccessibleName(tab.textContent ?? '')
+    }
+    await check(byHand, fromJson)
+    await userEvent.click(fromJson)
+    await check(fromJson, byHand)
+  },
+}
+
 export const KeyboardNavigation: Story = {
   render: () => (
     <Tabs.Root defaultValue="overview">

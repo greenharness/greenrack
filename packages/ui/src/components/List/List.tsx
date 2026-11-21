@@ -19,6 +19,7 @@ import {
   type RowPress,
 } from './ItemLink'
 import {styles, textColorStyles} from './styles.css'
+import {isNative} from '../../platform'
 import type {TextColor} from '../Text/Text'
 
 // --- Types ---
@@ -141,7 +142,11 @@ interface ItemBaseProps {
   children: ReactNode
   /** The row's element, e.g. to return focus to it (web: the DOM node; native: the host). */
   ref?: Ref<HTMLDivElement>
-  /** Whether this item is selected */
+  /**
+   * Whether this item is selected. In a selectable list (`selectionMode`) a pressable item's
+   * button tells assistive tech (aria-pressed); a list item cannot carry aria-selected. A row
+   * whose control is its own (a Checkbox) carries the state there; a link row shows it only.
+   */
   selected?: boolean
   /** Whether this item is disabled */
   disabled?: boolean
@@ -150,6 +155,11 @@ interface ItemBaseProps {
 interface PressItemProps extends ItemBaseProps {
   /** Click handler for the item */
   onClick?: () => void
+  /**
+   * The item shows or hides what follows it (an "Advanced" row opening fields below): its
+   * button tells assistive tech whether that is open (aria-expanded).
+   */
+  expanded?: boolean
   href?: undefined
   onNavigate?: undefined
 }
@@ -168,13 +178,21 @@ interface LinkItemProps extends ItemBaseProps {
    */
   onNavigate?: OnNavigate
   onClick?: undefined
+  expanded?: undefined
 }
 
 type ItemProps = PressItemProps | LinkItemProps
 
 // What a pressable or linked Item hands its Content, which becomes the item's button or link.
 type ItemAction =
-  | {kind: 'press'; onClick: () => void; disabled: boolean}
+  | {
+      kind: 'press'
+      onClick: () => void
+      disabled: boolean
+      /** aria-pressed: set in a selectable list only. */
+      pressed: boolean | undefined
+      expanded: boolean | undefined
+    }
   | {
       kind: 'link'
       href: string
@@ -185,16 +203,17 @@ type ItemAction =
 
 const ItemActionContext = createContext<ItemAction | null>(null)
 
-function Item({children, ref, selected, disabled, onClick, href, onNavigate}: ItemProps) {
+function Item({children, ref, selected, disabled, onClick, expanded, href, onNavigate}: ItemProps) {
   const {selectionMode} = useList()
   const isSelectable = selectionMode !== 'none'
   const isDisabled = disabled === true
   const isLast = useContext(LastItemContext)
   const [linkState] = useState(createItemLinkState)
+  const pressed = isSelectable ? selected === true : undefined
   const action = useMemo<ItemAction | null>(() => {
     if (href !== undefined) return {kind: 'link', href, onNavigate, disabled: isDisabled, linkState}
-    return onClick ? {kind: 'press', onClick, disabled: isDisabled} : null
-  }, [href, onNavigate, onClick, isDisabled, linkState])
+    return onClick ? {kind: 'press', onClick, disabled: isDisabled, pressed, expanded} : null
+  }, [href, onNavigate, onClick, isDisabled, linkState, pressed, expanded])
   // A press anywhere on a link row (its Leading icon, its padding) follows the link, as a
   // settings row does; a press on the Content's link is the link's own.
   const onRowClick =
@@ -207,7 +226,6 @@ function Item({children, ref, selected, disabled, onClick, href, onNavigate}: It
       <html.div
         ref={ref}
         role="listitem"
-        aria-selected={isSelectable ? selected : undefined}
         aria-disabled={disabled || undefined}
         // A press anywhere on the row; the Content's button or link is what keyboards and
         // screen readers reach.
@@ -247,6 +265,11 @@ function Content({children}: {children: ReactNode}) {
     <html.button
       type="button"
       disabled={action.disabled}
+      // React Native has no pressed state: its accessibilityState takes `selected`, valid on
+      // any view there. On the web aria-selected is not a button's attribute.
+      aria-pressed={isNative ? undefined : action.pressed}
+      aria-selected={isNative ? action.pressed : undefined}
+      aria-expanded={action.expanded}
       onClick={(event) => {
         // The row handles a press too; this one has been answered.
         event.stopPropagation()

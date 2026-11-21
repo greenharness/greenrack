@@ -2,7 +2,7 @@ import type {ComponentMeta} from '../component-meta'
 
 export const meta: ComponentMeta = {
   description:
-    'Tabbed interface with keyboard navigation. Supports horizontal and vertical orientation. Compound component — Root is required. On React Native the indicator follows each tab layout; there is no arrow-key navigation there, each tab is its own screen-reader stop.',
+    "Tabbed interface with keyboard navigation. Supports horizontal and vertical orientation. Compound component — Root is required. Tabs.List takes aria-label (or aria-labelledby, the id of a visible title) to name the tab list; the active tab's aria-controls names its panel, and the panel is labelled by its tab. On React Native the indicator follows each tab layout; there is no arrow-key navigation there, each tab is its own screen-reader stop.",
   whenToUse: [
     'Switching between content panels in the same view',
     'Settings pages with multiple sections',
@@ -28,7 +28,7 @@ export const meta: ComponentMeta = {
     },
   ],
   example: `<Tabs.Root defaultValue="general">
-  <Tabs.List>
+  <Tabs.List aria-label="Settings">
     <Tabs.Tab value="general">General</Tabs.Tab>
     <Tabs.Tab value="security">Security</Tabs.Tab>
     <Tabs.Tab value="billing" disabled>Billing</Tabs.Tab>
