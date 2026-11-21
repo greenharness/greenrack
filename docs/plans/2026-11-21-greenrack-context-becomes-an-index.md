@@ -165,6 +165,10 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
   gates now; a repository hook installed by `hook install` still serves it. The
   gates ask git for the root, so a `GIT_DIR` set by a calling hook can point
   them elsewhere. Carried, not changed here.
+- 2026-11-21 — the bin now writes nothing for an empty result, so
+  `doctor --session` on a clean run prints no blank line either. The generated
+  hook script reads both through command substitution, which drops a trailing
+  newline, so it sees the same text.
 - 2026-11-21 — carried, not changed here: the doctor cache is written through
   one fixed temporary name, so two sessions starting together in one repository
   can swap halves. It predates this change.

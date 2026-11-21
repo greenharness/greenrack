@@ -12,7 +12,11 @@ import {cliVersion} from './manifest.js'
 /** `index`: the short session context. `full`: the whole catalog, as printed before 7.6. */
 export type ContextView = 'index' | 'full'
 
-/** Claude Code saves hook context above 10,000 characters to a file: stay under this. */
+/**
+ * Claude Code saves hook context above 10,000 characters to a file: stay under
+ * this. Counted in UTF-16 units, like `String.length`; the index is ASCII but
+ * for a few dashes, so the byte count is within a few percent.
+ */
 export const CONTEXT_CAP = 9000
 
 export interface ContextOptions {
@@ -154,7 +158,7 @@ const NOT_A_CONSUMER = Object.freeze({consumer: false})
  */
 export function nonConsumerNote(result: CommandResult, isTTY: boolean, cwd: string): string | null {
   if (!isTTY || result.data !== NOT_A_CONSUMER) return null
-  return `greenrack: not a greenrack consumer: no @greenharness/greenrack-* dependency in ${cwd}`
+  return `greenrack: not a greenrack consumer: no @greenharness/greenrack-ui (or legacy @duro-app/ui) dependency in ${cwd}`
 }
 
 /**

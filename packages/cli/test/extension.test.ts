@@ -343,7 +343,7 @@ describe('greenrack context', () => {
     const outside = runContext(registry, {cwd: bystander(), cacheHome})
     expect(nonConsumerNote(outside, false, '/work')).toBeNull()
     expect(nonConsumerNote(outside, true, '/work')).toBe(
-      'greenrack: not a greenrack consumer: no @greenharness/greenrack-* dependency in /work',
+      'greenrack: not a greenrack consumer: no @greenharness/greenrack-ui (or legacy @duro-app/ui) dependency in /work',
     )
     const inside = runContext(registry, {cwd: consumer(), cacheHome})
     expect(nonConsumerNote(inside, true, '/work')).toBeNull()
