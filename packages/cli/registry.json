@@ -4450,7 +4450,7 @@
             "Text"
           ]
         },
-        "description": "Vertical list of interactive items. Ideal for narrow spaces (detail panels, sidebars) where Table would truncate. Supports selection, descriptions, and action slots. An Item with onClick is pressable anywhere on its row, and its Content becomes a button: focusable, pressed with Enter or Space, announced with its text, disabled with the Item; the Actions stay beside it, so a Button there never nests in it. An Item with href (and onNavigate for client-side routing, ADR-0002) makes its Content a real link instead: a settings-style row that goes somewhere; a disabled link Item is plain text. List.Leading holds an icon or an Avatar before the Content (decorative unless given an aria-label). List.Section groups items under a title (and an optional trailing accessory such as a count) inside one Root, as a labelled group on web and native. List.Item takes a ref to its row. List.Root takes a title, which names the list, and a footer of muted text under it.",
+        "description": "Vertical list of interactive items. Ideal for narrow spaces (detail panels, sidebars) where Table would truncate. Supports selection, descriptions, and action slots. An Item with onClick is pressable anywhere on its row, and its Content becomes a button: focusable, pressed with Enter or Space, announced with its text, disabled with the Item; the Actions stay beside it, so a Button there never nests in it. An Item with href (and onNavigate for client-side routing, ADR-0002) makes its Content a real link instead: a settings-style row that goes somewhere; a disabled link Item is plain text. List.Leading holds an icon or an Avatar before the Content (decorative unless given an aria-label). List.Section groups items under a title (and an optional trailing accessory such as a count) inside one Root, as a labelled group on web and native. In a selectable list (selectionMode) a pressable Item's button carries its selected state (aria-pressed on web, the selected accessibility state on native), never the list item; a row whose control is its own Checkbox carries it there. A pressable Item that shows or hides what follows it (an \"Advanced\" row) takes expanded, its button's aria-expanded. List.Item takes a ref to its row. List.Root takes a title, which names the list, and a footer of muted text under it.",
         "example": "<List.Root selectionMode=\"multiple\" aria-label=\"Certificates\">\n  <List.Item selected onClick={toggle}>\n    <Checkbox checked />\n    <List.Content>\n      <List.Text>web-server-prod-2024.pem</List.Text>\n      <List.Description>Issued: Jan 15, 2024 · Expires: Jan 15, 2025</List.Description>\n    </List.Content>\n    <List.Actions>\n      <Badge variant=\"success\">Active</Badge>\n      <Button variant=\"danger\" size=\"small\">Revoke</Button>\n    </List.Actions>\n  </List.Item>\n  <List.Empty>No certificates found.</List.Empty>\n</List.Root>",
         "relatedTo": [
           {
@@ -4535,6 +4535,12 @@
               "name": "onClick",
               "required": false,
               "type": "() => void"
+            },
+            {
+              "description": "The item shows or hides what follows it (an \"Advanced\" row opening fields below): its button tells assistive tech whether that is open (aria-expanded).",
+              "name": "expanded",
+              "required": false,
+              "type": "boolean"
             },
             {
               "description": "Makes the item's Content a link: a real `<a href>` on the web (a press through `followLink` on native, ADR-0002). An item is a link or pressable, never both: `href` excludes `onClick`.",
@@ -8123,8 +8129,8 @@
             "Panel"
           ]
         },
-        "description": "Tabbed interface with keyboard navigation. Supports horizontal and vertical orientation. Compound component — Root is required. On React Native the indicator follows each tab layout; there is no arrow-key navigation there, each tab is its own screen-reader stop.",
-        "example": "<Tabs.Root defaultValue=\"general\">\n  <Tabs.List>\n    <Tabs.Tab value=\"general\">General</Tabs.Tab>\n    <Tabs.Tab value=\"security\">Security</Tabs.Tab>\n    <Tabs.Tab value=\"billing\" disabled>Billing</Tabs.Tab>\n  </Tabs.List>\n  <Tabs.Panel value=\"general\">General settings content</Tabs.Panel>\n  <Tabs.Panel value=\"security\">Security settings content</Tabs.Panel>\n  <Tabs.Panel value=\"billing\">Billing content</Tabs.Panel>\n</Tabs.Root>",
+        "description": "Tabbed interface with keyboard navigation. Supports horizontal and vertical orientation. Compound component — Root is required. Tabs.List takes aria-label (or aria-labelledby, the id of a visible title) to name the tab list; the active tab's aria-controls names its panel, and the panel is labelled by its tab. On React Native the indicator follows each tab layout; there is no arrow-key navigation there, each tab is its own screen-reader stop.",
+        "example": "<Tabs.Root defaultValue=\"general\">\n  <Tabs.List aria-label=\"Settings\">\n    <Tabs.Tab value=\"general\">General</Tabs.Tab>\n    <Tabs.Tab value=\"security\">Security</Tabs.Tab>\n    <Tabs.Tab value=\"billing\" disabled>Billing</Tabs.Tab>\n  </Tabs.List>\n  <Tabs.Panel value=\"general\">General settings content</Tabs.Panel>\n  <Tabs.Panel value=\"security\">Security settings content</Tabs.Panel>\n  <Tabs.Panel value=\"billing\">Billing content</Tabs.Panel>\n</Tabs.Root>",
         "relatedTo": [
           {
             "component": "SideNav",
@@ -8157,6 +8163,18 @@
               "name": "children",
               "required": true,
               "type": "ReactNode"
+            },
+            {
+              "description": "Names the tab list for assistive tech; `aria-labelledby` names it by a visible title.",
+              "name": "aria-label",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "description": "The id of the visible title that names the tab list (wins over `aria-label`).",
+              "name": "aria-labelledby",
+              "required": false,
+              "type": "string"
             }
           ],
           "sourcePath": "packages/ui/src/components/Tabs/Tabs.tsx"

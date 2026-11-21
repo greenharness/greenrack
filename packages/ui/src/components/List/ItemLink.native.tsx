@@ -25,6 +25,8 @@ interface ItemLinkProps {
   state: ItemLinkState
   href: string
   onNavigate: OnNavigate | undefined
+  /** Web only: native draws no keyboard focus ring. */
+  onFocusRing?: (shown: boolean) => void
   children: ReactNode
 }
 

@@ -26,11 +26,13 @@ interface ItemLinkProps {
   state: ItemLinkState
   href: string
   onNavigate: OnNavigate | undefined
+  /** Whether the link has keyboard focus (:focus-visible): the row draws the ring. */
+  onFocusRing: (shown: boolean) => void
   children: ReactNode
 }
 
 /** The Content of a List.Item with an href: a real `<a href>` (ADR-0002). */
-export function ItemLink({state, href, onNavigate, children}: ItemLinkProps) {
+export function ItemLink({state, href, onNavigate, onFocusRing, children}: ItemLinkProps) {
   const handler = linkClickHandler(href, onNavigate)
   return (
     <html.a
@@ -38,6 +40,10 @@ export function ItemLink({state, href, onNavigate, children}: ItemLinkProps) {
         state.anchor = anchor
       }}
       href={href}
+      onFocus={(event: {currentTarget: HTMLElement}) =>
+        onFocusRing(event.currentTarget.matches(':focus-visible'))
+      }
+      onBlur={() => onFocusRing(false)}
       onClick={(event) => {
         // Marked rather than stopped: stopping it would hide the click from window listeners.
         state.linkPressed = true
