@@ -436,10 +436,10 @@ describe('runMockup seed + check on disk', () => {
         })
 
         it('writes flat plus each mode under its own selector, and high-contrast flat only', () => {
-          const result = seedWith(byMode)
-          expect(result.exitCode).toBeUndefined()
-          expect(result.notes).toBeUndefined()
-          expect(result.text).toContain(
+          const modeSeed = seedWith(byMode)
+          expect(modeSeed.exitCode).toBeUndefined()
+          expect(modeSeed.notes).toBeUndefined()
+          expect(modeSeed.text).toContain(
             'with overrides from o.json: colors 1; dark: colors 1, typography 1; light: colors 1.',
           )
           const block = tokenBlock(seeded())
@@ -456,8 +456,8 @@ describe('runMockup seed + check on disk', () => {
         })
 
         it('reads a file of mode entries only as the tokens shape', () => {
-          const result = seedWith('{"light": {"colors": {"bg": "#ffffff"}}}')
-          expect(result.exitCode).toBeUndefined()
+          const lightOnlySeed = seedWith('{"light": {"colors": {"bg": "#ffffff"}}}')
+          expect(lightOnlySeed.exitCode).toBeUndefined()
           expect(ruleOf(tokenBlock(seeded()), ':root[data-theme="light"]')).toContain(
             '--gr-color-bg: #ffffff;',
           )
@@ -485,8 +485,8 @@ describe('runMockup seed + check on disk', () => {
           const run = runBin('--json')
           expect(run.status).toBe(2)
           expect(run.stderr).toContain('dark.colors.bg: ')
-          const data = JSON.parse(run.stdout) as {problems: {group: string; mode?: string}[]}
-          expect(data.problems[0]).toMatchObject({group: 'colors', mode: 'dark'})
+          const report = JSON.parse(run.stdout) as {problems: {group: string; mode?: string}[]}
+          expect(report.problems[0]).toMatchObject({group: 'colors', mode: 'dark'})
           expect(existsSync(join(root, 'art', 'Main.dc.html'))).toBe(false)
         })
       })

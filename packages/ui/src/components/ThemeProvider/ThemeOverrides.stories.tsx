@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {act, useState} from 'react'
 import type {Meta, StoryObj} from '@storybook/react'
 import {expect, waitFor} from 'storybook/test'
 import {css, html} from 'react-strict-dom'
@@ -7,7 +7,7 @@ import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
 import {radii, spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 import {typography} from '@greenharness/greenrack-tokens/tokens/typography.css'
 import {renderToString} from 'react-dom/server'
-import {hydrateRoot} from 'react-dom/client'
+import {createRoot, hydrateRoot} from 'react-dom/client'
 import {
   ThemeProvider,
   type ColorOverrides,
@@ -265,30 +265,36 @@ export const ByMode: StoryObj = {
     </ColorModeProvider>
   ),
   play: async ({canvas}) => {
-    const dark = matchMedia('(prefers-color-scheme: dark)').matches
-    const more = matchMedia('(prefers-contrast: more)').matches
-    const mode = dark ? 'dark' : 'light'
-    const bg = mode === 'dark' ? '#14120d' : '#faf7f1'
-    const text = more
-      ? mode === 'dark'
-        ? '#ffffff'
-        : '#000000'
-      : mode === 'dark'
-        ? '#ece6da'
-        : '#1a1a1a'
+    const expected = expectedForRunner()
     const system = canvas.getByTestId('system')
-    await waitFor(() => expect(getComputedStyle(system).backgroundColor).toBe(RGB[bg]))
-    await expect(getComputedStyle(system).color).toBe(RGB[text])
+    await waitFor(() => expect(getComputedStyle(system).backgroundColor).toBe(expected.bg))
+    await expect(getComputedStyle(system).color).toBe(expected.text)
     const island = canvas.getByTestId('island')
     await expect(getComputedStyle(island).backgroundColor).toBe(RGB['#14120d'])
   },
 }
 
+/** The values the runner's own `prefers-color-scheme` and `prefers-contrast` pick from BY_MODE. */
+function expectedForRunner() {
+  const mode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  const more = matchMedia('(prefers-contrast: more)').matches
+  const bg = mode === 'dark' ? '#14120d' : '#faf7f1'
+  const text = more
+    ? mode === 'dark'
+      ? '#ffffff'
+      : '#000000'
+    : mode === 'dark'
+      ? '#ece6da'
+      : '#1a1a1a'
+  return {bg: RGB[bg], text: RGB[text]}
+}
+
 /**
  * The server render under `system` carries the scheme and contrast blocks, a
  * pinned preference and a nested provider carry no scheme block, two renders
- * give the same markup, and hydration reports nothing. It replaces the
- * canvas's content, so it runs as a test only.
+ * give the same markup, and the markup alone (before hydration, no script
+ * run) paints the runner's scheme. Then hydration reports nothing. It
+ * replaces the canvas's content, so it runs as a test only.
  */
 export const ServerRender: StoryObj = {
   tags: TEST_ONLY,
@@ -297,9 +303,9 @@ export const ServerRender: StoryObj = {
     const host = canvasElement.querySelector('[data-ssr-host]') as HTMLElement
     const tree = (
       <ColorModeProvider defaultPreference="system" storageKey={null} tokens={BY_MODE}>
-        <html.div data-testid="ssr-surface">
+        <html.div data-testid="ssr-surface" style={styles.surface}>
           <ThemeProvider theme="dark" tokens={{dark: {colors: {accent: '#ff5a1f'}}}}>
-            <html.div data-testid="ssr-island" />
+            <html.div data-testid="ssr-island" style={styles.surface} />
           </ThemeProvider>
         </html.div>
       </ColorModeProvider>
@@ -327,20 +333,81 @@ export const ServerRender: StoryObj = {
     await expect(pinned).not.toContain('prefers-color-scheme')
     await expect(pinned).toContain('@media (prefers-contrast: more)')
 
+    // Under applyTheme={false}, every provider directly under the
+    // ColorModeProvider follows the scheme, siblings included (documented).
+    const siblings = renderToString(
+      <ColorModeProvider defaultPreference="system" storageKey={null} applyTheme={false}>
+        <ThemeProvider theme="dark" tokens={BY_MODE}>
+          <html.div />
+        </ThemeProvider>
+        <ThemeProvider theme="dark" tokens={BY_MODE}>
+          <html.div />
+        </ThemeProvider>
+      </ColorModeProvider>,
+    )
+    await expect(siblings.split('@media (prefers-color-scheme: light)').length - 1).toBe(2)
+
+    // The markup alone, with no script run on it yet: the media blocks paint
+    // the runner's scheme on the follower, and the island stays dark.
     host.innerHTML = markup
+    const expected = expectedForRunner()
+    const surface = host.querySelector('[data-testid="ssr-surface"]') as HTMLElement
+    const islandSurface = host.querySelector('[data-testid="ssr-island"]') as HTMLElement
+    await expect(getComputedStyle(surface).backgroundColor).toBe(expected.bg)
+    await expect(getComputedStyle(surface).color).toBe(expected.text)
+    await expect(getComputedStyle(islandSurface).backgroundColor).toBe(RGB['#14120d'])
+
     const errors: unknown[] = []
     const consoleError = console.error
     console.error = (...args: unknown[]) => {
       errors.push(args)
       consoleError(...args)
     }
-    const root = hydrateRoot(host, tree, {onRecoverableError: (error) => errors.push(error)})
+    const actEnvironment = globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}
+    const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true
+    let root: ReturnType<typeof hydrateRoot> | undefined
     try {
-      await waitFor(() => expect(host.querySelector('[data-testid="ssr-island"]')).not.toBeNull())
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await act(async () => {
+        root = hydrateRoot(host, tree, {onRecoverableError: (error) => errors.push(error)})
+      })
       await expect(errors).toEqual([])
+      await expect(getComputedStyle(surface).backgroundColor).toBe(expected.bg)
     } finally {
       console.error = consoleError
+      root?.unmount()
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment
+    }
+  },
+}
+
+/**
+ * A bad value in a mode entry is dropped, and the provider itself warns with
+ * the mode in the path (the effect, not only the helper).
+ */
+export const WarnsDroppedModeValue: StoryObj = {
+  tags: TEST_ONLY,
+  render: () => <html.div data-warn-host="" />,
+  play: async ({canvasElement}) => {
+    const host = canvasElement.querySelector('[data-warn-host]') as HTMLElement
+    const warnings: string[] = []
+    const consoleWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '))
+    }
+    const root = createRoot(host)
+    try {
+      // A value no other story or test uses: the warning is once per process.
+      root.render(
+        <ThemeProvider theme="dark" tokens={{dark: {colors: {bg: 'warn-story-bad;'}}}}>
+          <html.div />
+        </ThemeProvider>,
+      )
+      await waitFor(() =>
+        expect(warnings.some((line) => line.includes('dark.colors.bg'))).toBe(true),
+      )
+    } finally {
+      console.warn = consoleWarn
       root.unmount()
     }
   },

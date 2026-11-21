@@ -56,11 +56,12 @@ interface ThemeProviderProps {
    * The same refused groups, keys and floors hold inside each mode entry.
    * The `high-contrast` theme takes the flat groups only. Under a
    * ColorModeProvider on `system` the server cannot see the OS scheme, so the
-   * provider it drives also emits `prefers-color-scheme` blocks and the first
-   * paint is right before hydration; a nested provider is pinned to its own
-   * theme. Give every colour and shadow key in both `light` and `dark`: a key
-   * given in `dark` only keeps its dark value on a light OS until hydration,
-   * and a key given in neither shows the theme's own value. A nested provider
+   * provider it drives holds the flat values in its base rule and lays each
+   * mode on them in a `prefers-color-scheme` block, so every value it sets is
+   * right before hydration; a nested provider is pinned to its own theme. The
+   * theme's own values (a colour or shadow key the tokens leave out) are the
+   * dark theme's until hydration, so give every colour and shadow key the page
+   * shows in both `light` and `dark`. A nested provider
    * that follows the mode (`theme={useColorMode().theme}`) paints `dark` until
    * hydration under `system`: pass the tokens to ColorModeProvider instead.
    * Native takes the flat groups and the theme's mode; `contrast` does not
@@ -130,8 +131,11 @@ export function ThemeProvider({theme = 'dark', overrides, tokens, children}: The
   )
   const rule = useMemo(() => {
     const mode = modeOf(theme)
+    // Under `system` the server cannot see the OS scheme, so the base rule
+    // holds the flat values only and each scheme block lays its mode on them.
+    const base = source === 'system' && mode ? effective.tokens : stateTokens(effective, mode)
     const rules = [
-      overrideRule(scope, stateTokens(effective, mode), variableOf),
+      overrideRule(scope, base, variableOf),
       modeRules(scope, effective.modes, mode, source, variableOf),
     ].filter((part): part is string => part !== null)
     return rules.length === 0 ? null : rules.join(' ')

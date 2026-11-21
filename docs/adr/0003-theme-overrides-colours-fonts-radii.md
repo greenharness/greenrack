@@ -71,7 +71,7 @@ shipping three groups first.
 - **Values per mode (2026-11-21).** `tokens` also takes `light`, `dark` and
   `contrast: {light, dark}` beside the groups (`ThemeTokensByMode`,
   `splitModes` and `validateModeTokens` in the tokens theme module). They
-  are reserved names, never groups: one inside a mode entry is dropped with
+  are reserved names, never groups, for good (a token group can never take one without a major release): one inside a mode entry is dropped with
   its path, and a dropped entry names its mode (`dark.colors.bg: …`). A
   state's values are the flat groups, then its mode, then its contrast
   layer, and a nested provider resolves its inherited state first, so a
@@ -82,9 +82,13 @@ shipping three groups first.
   pinned, one `prefers-contrast: more` block. Only the nearest
   ThemeProvider under a ColorModeProvider on `system` reads `system`
   (`ColorModeProvider tokens` forwards to it); it gives every nested
-  provider `pinned`. A colour or shadow key given in one mode only keeps
-  the server's mode value until hydration, so a consumer gives each key in
-  both. Native and the mockup seed do not apply `contrast` (the seed says
+  provider `pinned`. Under `system` that provider's base rule holds the
+  flat values only, and each scheme block lays its mode on them, so every
+  value the tokens set is right before hydration. A colour or shadow key the
+  tokens leave out shows the DS dark theme's value until hydration, so a
+  consumer gives each key the page shows in both modes. Under
+  `applyTheme={false}` every ThemeProvider not nested in another follows the
+  scheme, so an island sits inside the app's provider. Native and the mockup seed do not apply `contrast` (the seed says
   so on stderr). This extends the decision and supersedes nothing.
 
 ## Relation to other records

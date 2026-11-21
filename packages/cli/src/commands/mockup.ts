@@ -12,8 +12,10 @@ import {
   describeDropped,
   GROUP_ALIASES,
   kebab,
+  hasModeEntries,
   REFUSED_GROUPS,
   THEMABLE_GROUPS,
+  tokensForTheme,
   validateModeTokens,
   type DroppedToken,
   type ModeTokens,
@@ -196,16 +198,6 @@ export function tokenVariableName(group: ThemableGroup, key: string): string {
   return `--gr-${GROUP_ALIASES[group]}-${kebab(key)}`
 }
 
-/** `base` with `over` laid on it, group by group: a mode entry wins over flat for the same key. */
-function layered(base: ThemeTokens, over: ThemeTokens | undefined): ThemeTokens {
-  const merged: Record<string, Record<string, string>> = {}
-  for (const group of THEMABLE_GROUPS) {
-    const entries = {...base[group], ...over?.[group]} as Record<string, string>
-    if (Object.keys(entries).length > 0) merged[group] = entries
-  }
-  return merged as ThemeTokens
-}
-
 /** The declarations of one selector, group by group in the table's order. */
 function overrideDeclarations({tokens}: {tokens: ThemeTokens}): string {
   return THEMABLE_GROUPS.flatMap((group) =>
@@ -222,13 +214,18 @@ function overrideDeclarations({tokens}: {tokens: ThemeTokens}): string {
  * its `light` entry; high-contrast takes the flat tokens only.
  */
 function overridesBlock(overrides: SeedOverrides): string {
+  const byTheme = {
+    flat: overrides.tokens,
+    light: overrides.modes?.light ?? {},
+    dark: overrides.modes?.dark ?? {},
+  }
   const rules = [
     [
       ':root:not([data-theme="light"]):not([data-theme="high-contrast"])',
-      layered(overrides.tokens, overrides.modes?.dark),
+      tokensForTheme(byTheme, 'dark'),
     ],
-    [':root[data-theme="light"]', layered(overrides.tokens, overrides.modes?.light)],
-    [':root[data-theme="high-contrast"]', overrides.tokens],
+    [':root[data-theme="light"]', tokensForTheme(byTheme, 'light')],
+    [':root[data-theme="high-contrast"]', tokensForTheme(byTheme, 'high-contrast')],
   ] as const
   const lines = rules.flatMap(([selector, tokens]) => {
     const declarations = overrideDeclarations({tokens})
@@ -244,14 +241,14 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 /** Whether a parsed file is the `tokens` shape; otherwise it is the flat map of colours. */
 function isTokensShape(parsed: Record<string, unknown>): boolean {
-  return Object.entries(parsed).some(
-    ([key, value]) =>
-      (THEMABLE_GROUPS as readonly string[]).includes(key) ||
-      key in REFUSED_GROUPS ||
-      key === 'light' ||
-      key === 'dark' ||
-      key === 'contrast' ||
-      isObject(value),
+  return (
+    hasModeEntries(parsed) ||
+    Object.entries(parsed).some(
+      ([key, value]) =>
+        (THEMABLE_GROUPS as readonly string[]).includes(key) ||
+        key in REFUSED_GROUPS ||
+        isObject(value),
+    )
   )
 }
 
@@ -259,7 +256,7 @@ type ReadOverrides =
   | {overrides: SeedOverrides}
   | {
       error: string
-      problems: {group: string; key: string | null; reason: string; mode?: string}[]
+      problems: {group: string | null; key: string | null; reason: string; mode?: string}[]
     }
 
 /** Read and validate an overrides file; a usage error text when it is not acceptable. */

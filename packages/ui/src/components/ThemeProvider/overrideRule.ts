@@ -4,7 +4,7 @@
  * hydrates.
  */
 import {isSafeColor, THEMABLE_GROUPS, validateTokens} from '@greenharness/greenrack-tokens/theme'
-import type {ThemableGroup, ThemeTokens} from '@greenharness/greenrack-tokens/theme'
+import type {ModeName, ThemableGroup, ThemeTokens} from '@greenharness/greenrack-tokens/theme'
 import type {SchemeSource} from './schemeSource'
 import type {ModeLayers} from './overrides'
 
@@ -54,13 +54,15 @@ export function overrideRule(
  * `prefers-color-scheme` blocks (light, then dark), then the
  * `prefers-contrast: more` blocks for each scheme; under a pinned source the
  * one `prefers-contrast: more` block of the theme's mode. Each block holds
- * only its layer: the base rule already carries the flat values and the
- * theme's own mode. `mode` null (the `high-contrast` theme) emits nothing.
+ * only its layer. Under `system` the base rule must carry the flat values
+ * only (the server cannot know the mode), so each scheme block lays its mode
+ * on them; pinned, the base rule carries the flat values and the theme's own
+ * mode. `mode` null (the `high-contrast` theme) emits nothing.
  */
 export function modeRules(
   scope: string,
   modes: ModeLayers | undefined,
-  mode: 'light' | 'dark' | null,
+  mode: ModeName | null,
   source: SchemeSource,
   variableOf: VariableOf,
 ): string | null {

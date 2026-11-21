@@ -9,7 +9,10 @@ import {
   GROUP_KEYS,
   hasModeEntries,
   kebab,
+  layerTokens,
+  modeOf,
   THEMABLE_GROUPS,
+  tokensForTheme,
   validateModeTokens,
   validateTokens,
 } from '../src/theme'
@@ -140,6 +143,15 @@ describe('validateModeTokens', () => {
       'contrast.light.dark: dark is a mode, not a group: it goes at the top of the tokens',
       'contrast.high: expected light or dark: contrast takes values per mode',
     ])
+    // `group` stays a real group or null: the misplaced name is the key.
+    expect(dropped.map((entry) => [entry.mode, entry.group, entry.key])).toEqual([
+      ['dark', null, 'contrast'],
+      ['contrast.light', null, 'dark'],
+      ['contrast', null, 'high'],
+    ])
+    expect(describeDropped(validateModeTokens({dark: 4}).dropped[0])).toBe(
+      'dark: expected an object keyed by token group',
+    )
   })
 
   it('keeps flat-only tokens as validateTokens does', () => {
@@ -149,5 +161,18 @@ describe('validateModeTokens', () => {
     expect(dropped).toEqual(validateTokens(own).dropped)
     expect(hasModeEntries(own)).toBe(false)
     expect(hasModeEntries({light: {}})).toBe(true)
+  })
+
+  it('resolves a theme as flat then its mode, and high-contrast as flat only', () => {
+    const tokens = {
+      flat: {colors: {bg: '#111', text: '#222'}},
+      light: {colors: {bg: '#fff'}},
+      dark: {colors: {bg: '#000'}},
+    }
+    expect(modeOf('high-contrast')).toBeNull()
+    expect(tokensForTheme(tokens, 'light')).toEqual({colors: {bg: '#fff', text: '#222'}})
+    expect(tokensForTheme(tokens, 'dark')).toEqual({colors: {bg: '#000', text: '#222'}})
+    expect(tokensForTheme(tokens, 'high-contrast')).toEqual(tokens.flat)
+    expect(layerTokens({radii: {md: '1px'}}, undefined)).toEqual({radii: {md: '1px'}})
   })
 })

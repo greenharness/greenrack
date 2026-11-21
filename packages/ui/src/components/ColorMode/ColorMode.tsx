@@ -105,8 +105,13 @@ interface ColorModeProviderProps {
    * where they differ (`{colors, light: {colors}, dark: {colors}, contrast: {light, dark}}`,
    * see ThemeProvider `tokens`). Under `system` that provider also emits
    * `prefers-color-scheme` blocks, so a server render is right on every OS
-   * before hydration. With `applyTheme={false}` pass them to your own
-   * ThemeProvider: the nearest one under this provider follows the mode. */
+   * before hydration for each value the tokens set; a colour or shadow key
+   * they leave out shows the dark theme's value until hydration. Pass a
+   * module constant or a memoised value: a new object each render re-runs the
+   * validation and re-renders every consumer. With `applyTheme={false}` pass
+   * them to your own ThemeProvider: every ThemeProvider directly under this
+   * provider (not nested in another one) follows the mode, so put a pinned
+   * island inside the app's own provider, never beside it. */
   tokens?: ThemeTokensByMode
 }
 

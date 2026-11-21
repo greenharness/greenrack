@@ -1,8 +1,10 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {validateModeTokens, validateTokens} from '@greenharness/greenrack-tokens/theme'
 import {
+  contrastStateTokens,
   mergeOverrides,
   modeOf,
+  NO_OWN_MODES,
   ownTokens,
   stateTokens,
   type EffectiveOverrides,
@@ -13,7 +15,7 @@ import {warnDropped} from '../src/components/ThemeProvider/warnDropped'
 
 const none: EffectiveOverrides = {theme: null, tokens: {}}
 const merge = (outer: EffectiveOverrides, theme: string, own: unknown) =>
-  mergeOverrides(outer, theme, validateTokens(own).kept)
+  mergeOverrides(outer, theme, validateTokens(own).kept, NO_OWN_MODES)
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -186,7 +188,7 @@ describe('per-mode tokens', () => {
       typography: {fontFamily: 'Menlo'},
       colors: {bg: '#000', accent: '#eee'},
     })
-    expect(stateTokens(root, 'dark', true).colors).toEqual({bg: '#000', accent: '#fff'})
+    expect(contrastStateTokens(root, 'dark').colors).toEqual({bg: '#000', accent: '#fff'})
     expect(stateTokens(root, modeOf('high-contrast'))).toEqual({typography: {fontFamily: 'Menlo'}})
   })
 
@@ -196,12 +198,12 @@ describe('per-mode tokens', () => {
     expect(stateTokens(child, 'dark').colors).toEqual({bg: '#000', accent: '#0f0'})
     expect(stateTokens(child, 'light').colors).toEqual({bg: '#fff', accent: '#0f0'})
     // The child's own flat value also beats the inherited contrast layer.
-    expect(stateTokens(child, 'dark', true).colors?.accent).toBe('#0f0')
+    expect(contrastStateTokens(child, 'dark').colors?.accent).toBe('#0f0')
     const grandchild = mergeModes(child, 'dark', undefined)
     expect(stateTokens(grandchild, 'dark').colors).toEqual({bg: '#000', accent: '#0f0'})
     // A child's own mode value beats the inherited contrast value for the same key.
     const moded = mergeModes(root, 'dark', {dark: {colors: {accent: '#00f'}}})
-    expect(stateTokens(moded, 'dark', true).colors?.accent).toBe('#00f')
+    expect(contrastStateTokens(moded, 'dark').colors?.accent).toBe('#00f')
   })
 
   it("gives a dark island the same rule under a pinned and a system outer, and outer's theme does not matter", () => {
@@ -220,6 +222,7 @@ describe('per-mode tokens', () => {
     expect(islandRule('dark')).not.toContain('prefers-color-scheme')
   })
 
+  // warnDropped dedupes per process: each test uses a value no other test does.
   it('warns once per mode for the same bad value in light and dark', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const {dropped} = validateModeTokens({
@@ -230,6 +233,15 @@ describe('per-mode tokens', () => {
     expect(warn).toHaveBeenCalledTimes(2)
     expect(String(warn.mock.calls[0][0])).toContain('light.colors.bg')
     expect(String(warn.mock.calls[1][0])).toContain('dark.colors.bg')
+  })
+
+  it('warns for a value JSON cannot hold, without throwing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    const {dropped} = validateModeTokens({dark: {colors: {bg: cyclic}}, light: {colors: {bg: 10n}}})
+    expect(() => warnDropped(dropped)).not.toThrow()
+    expect(warn).toHaveBeenCalledTimes(2)
   })
 
   it('keeps no mode layers for flat-only tokens', () => {

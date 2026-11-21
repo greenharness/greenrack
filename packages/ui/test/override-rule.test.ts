@@ -62,6 +62,15 @@ describe('ThemeProvider mode rules', () => {
     expect(pinned).not.toContain('prefers-color-scheme')
   })
 
+  it('lets a flat value come back on a light OS when only dark overrides it, under system', () => {
+    // flat bg, dark bg: the system base rule holds the flat value only, the
+    // dark block lays the dark one on it, and no light block is needed.
+    const darkOnly = {light: {}, dark: {colors: {bg: '#000'}}, contrastLight: {}, contrastDark: {}}
+    expect(modeRules('s', darkOnly, 'dark', 'system', variableOf)).toBe(
+      `@media (prefers-color-scheme: dark) { ${sel} { --bg-x1: #000; } }`,
+    )
+  })
+
   it('emits nothing for high-contrast, and leaves out an empty block', () => {
     expect(modeRules('s', modes, null, 'system', variableOf)).toBeNull()
     const partial = {...modes, contrastLight: {}, contrastDark: {}}

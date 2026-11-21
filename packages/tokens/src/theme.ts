@@ -282,27 +282,43 @@ export type ThemeTokens = {
 
 /** One entry that was refused, and the single wording of why. */
 export interface DroppedToken {
-  group: string
-  /** The key, or null when the whole group is refused. */
+  /**
+   * The group, or null when what was refused is not in a group: a mode entry
+   * that is not an object, or a name misplaced inside one (then `key` names it).
+   */
+  group: string | null
+  /** The key, or null when the whole group (or mode entry) is refused. */
   key: string | null
   value: unknown
   reason: string
-  /**
-   * The mode entry it came from (`'dark'`, `'contrast.light'`), absent for
-   * the flat groups. `group` stays a real group name.
-   */
-  mode?: string
+  /** The mode entry it came from, absent for the flat groups. */
+  mode?: ModePath
 }
 
-/** `group.key: reason`, or `group: reason` for a whole group; a mode entry is prefixed (`dark.colors.bg: …`). */
+/** Where a mode entry sits in a provider's tokens. */
+export type ModePath = 'light' | 'dark' | 'contrast' | 'contrast.light' | 'contrast.dark'
+
+/**
+ * `group.key: reason`, or `group: reason` for a whole group; a mode entry is
+ * prefixed (`dark.colors.bg: …`, `dark.contrast: …`, `contrast: …`).
+ */
 export function describeDropped({group, key, reason, mode}: DroppedToken): string {
-  const path = key === null ? group : `${group}.${key}`
-  return `${mode ? `${mode}.` : ''}${path}: ${reason}`
+  const path = [mode, group, key].filter((part) => part != null).join('.')
+  return `${path}: ${reason}`
 }
 
 function lengthInPx(value: string): number {
   const number = Number.parseFloat(value)
   return value.endsWith('rem') ? number * ROOT_FONT_PX : number
+}
+
+/** A caller value as text for a reason: never throws (a cycle, a BigInt). */
+function shown(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value)
+  } catch {
+    return String(value)
+  }
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -352,7 +368,7 @@ export function validateTokens(own: unknown): {kept: ThemeTokens; dropped: Dropp
           reason: `unknown token (expected ${spec.keys.join(' | ')})`,
         })
       } else if (typeof raw !== 'string') {
-        dropped.push({group, key, value: raw, reason: `${JSON.stringify(raw)} must be a string`})
+        dropped.push({group, key, value: raw, reason: `${shown(raw)} must be a string`})
       } else {
         const value = raw.trim()
         const kind = KINDS[spec.kindOf(key)]
@@ -376,11 +392,11 @@ export function validateTokens(own: unknown): {kept: ThemeTokens; dropped: Dropp
 }
 
 // Values per mode (ADR-0003 revision): `light`, `dark` and `contrast` sit
-// beside the flat groups and are reserved names, never groups.
+// beside the flat groups and are reserved names, never groups. They stay
+// reserved for good: freeing one for a token group is a major release.
 
 /** The modes a token value can be keyed by. */
 export type ModeName = 'light' | 'dark'
-export const MODE_NAMES: readonly ModeName[] = ['light', 'dark']
 
 /**
  * A provider's tokens with optional values per mode: flat groups apply in
@@ -412,8 +428,8 @@ export function hasModeEntries(own: unknown): boolean {
 /**
  * Peel the reserved mode entries off a provider's own tokens. The parts are
  * still unvalidated; a reserved name where it does not belong (`dark.contrast`,
- * `contrast.light.dark`) or a mode entry that is not an object is dropped here,
- * with its path.
+ * `contrast.light.dark`), a name `contrast` does not take, or a mode entry
+ * that is not an object is dropped here, with its path in `mode` and `key`.
  */
 export function splitModes(own: unknown): {
   flat: unknown
@@ -423,26 +439,28 @@ export function splitModes(own: unknown): {
   dropped: DroppedToken[]
 } {
   const dropped: DroppedToken[] = []
-  const empty = {
-    flat: own,
-    light: undefined,
-    dark: undefined,
-    contrast: {light: undefined, dark: undefined},
-    dropped,
+  if (!isRecord(own)) {
+    return {
+      flat: own,
+      light: undefined,
+      dark: undefined,
+      contrast: {light: undefined, dark: undefined},
+      dropped,
+    }
   }
-  if (!isRecord(own)) return empty
   const flat: Record<string, unknown> = {}
   for (const [name, value] of Object.entries(own)) if (!isReserved(name)) flat[name] = value
 
   /** A mode entry with any reserved name inside it dropped. */
-  const part = (value: unknown, mode: string): unknown => {
+  const part = (value: unknown, mode: ModePath): unknown => {
     if (value === undefined) return undefined
     if (!isRecord(value)) {
       dropped.push({
-        group: mode,
+        group: null,
         key: null,
         value,
         reason: 'expected an object keyed by token group',
+        mode,
       })
       return undefined
     }
@@ -450,8 +468,8 @@ export function splitModes(own: unknown): {
     for (const [name, entries] of Object.entries(value)) {
       if (isReserved(name)) {
         dropped.push({
-          group: name,
-          key: null,
+          group: null,
+          key: name,
           value: entries,
           reason: `${name} is a mode, not a group: it goes at the top of the tokens`,
           mode,
@@ -469,10 +487,11 @@ export function splitModes(own: unknown): {
   if (own.contrast !== undefined) {
     if (!isRecord(own.contrast)) {
       dropped.push({
-        group: 'contrast',
+        group: null,
         key: null,
         value: own.contrast,
         reason: 'expected {light?, dark?}',
+        mode: 'contrast',
       })
     } else {
       for (const [name, value] of Object.entries(own.contrast)) {
@@ -480,8 +499,8 @@ export function splitModes(own: unknown): {
           contrast[name] = part(value, `contrast.${name}`)
         } else {
           dropped.push({
-            group: name,
-            key: null,
+            group: null,
+            key: name,
             value,
             reason: 'expected light or dark: contrast takes values per mode',
             mode: 'contrast',
@@ -501,10 +520,10 @@ export function splitModes(own: unknown): {
 export function validateModeTokens(own: unknown): {kept: ModeTokens; dropped: DroppedToken[]} {
   const split = splitModes(own)
   const dropped = [...split.dropped]
-  const check = (value: unknown, mode?: string): ThemeTokens => {
-    const result = validateTokens(value)
-    for (const entry of result.dropped) dropped.push(mode ? {...entry, mode} : entry)
-    return result.kept
+  const check = (value: unknown, mode?: ModePath): ThemeTokens => {
+    const validated = validateTokens(value)
+    for (const entry of validated.dropped) dropped.push(mode ? {...entry, mode} : entry)
+    return validated.kept
   }
   const kept: ModeTokens = {
     flat: check(split.flat),
@@ -516,4 +535,37 @@ export function validateModeTokens(own: unknown): {kept: ModeTokens; dropped: Dr
     },
   }
   return {kept, dropped}
+}
+
+/** `base` with `over` laid on it, group by group: `over` wins for the same key. */
+export function layerTokens(
+  base: ThemeTokens | undefined,
+  over: ThemeTokens | undefined,
+): ThemeTokens {
+  const groupsOf = (tokens: ThemeTokens | undefined) =>
+    (tokens ?? {}) as Record<string, Record<string, string>>
+  const merged: Record<string, Record<string, string>> = {}
+  for (const group of new Set([...Object.keys(groupsOf(base)), ...Object.keys(groupsOf(over))])) {
+    const entries = {...groupsOf(base)[group], ...groupsOf(over)[group]}
+    if (Object.keys(entries).length > 0) merged[group] = entries
+  }
+  return merged as ThemeTokens
+}
+
+/**
+ * The mode a theme takes values from: `light` and `dark` their own, and every
+ * other theme (`high-contrast`) none, so it takes the flat values only. The
+ * one rule both providers and the mockup seed apply.
+ */
+export function modeOf(theme: string | null): ModeName | null {
+  return theme === 'light' || theme === 'dark' ? theme : null
+}
+
+/** The values a theme takes outside `prefers-contrast`: the flat groups, then its mode. */
+export function tokensForTheme(
+  tokens: Pick<ModeTokens, 'flat' | ModeName>,
+  theme: string,
+): ThemeTokens {
+  const mode = modeOf(theme)
+  return mode ? layerTokens(tokens.flat, tokens[mode]) : tokens.flat
 }

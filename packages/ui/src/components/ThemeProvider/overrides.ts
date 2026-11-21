@@ -1,10 +1,18 @@
 import {createContext} from 'react'
 import type {ColorToken} from '@greenharness/greenrack-tokens/keys'
-import type {ModeName, ThemeTokens, ThemeTokensByMode} from '@greenharness/greenrack-tokens/theme'
+import {
+  layerTokens,
+  modeOf,
+  type ModeName,
+  type ModeTokens,
+  type ThemeTokens,
+  type ThemeTokensByMode,
+} from '@greenharness/greenrack-tokens/theme'
 
 /** Colours that replace a theme's own, by token key. */
 export type ColorOverrides = Partial<Record<ColorToken, string>>
 export type {ThemeTokens, ThemeTokensByMode}
+export {modeOf}
 
 /**
  * The per-mode layers in force at a provider. A state's values are the flat
@@ -29,18 +37,14 @@ export interface EffectiveOverrides {
 
 export const OverridesContext = createContext<EffectiveOverrides>({theme: null, tokens: {}})
 
+/** A provider's own validated mode entries. */
+export type OwnModes = Omit<ModeTokens, 'flat'>
+
+/** No mode entries of a provider's own. */
+export const NO_OWN_MODES: OwnModes = {light: {}, dark: {}, contrast: {light: {}, dark: {}}}
+
 type Groups = Record<string, Record<string, string>>
 const groupsOf = (tokens: ThemeTokens | undefined) => (tokens ?? {}) as Groups
-
-/** `base` with `over` laid on it, group by group. */
-function layer(base: ThemeTokens | undefined, over: ThemeTokens | undefined): ThemeTokens {
-  const merged: Groups = {}
-  for (const group of new Set([...Object.keys(groupsOf(base)), ...Object.keys(groupsOf(over))])) {
-    const entries = {...groupsOf(base)[group], ...groupsOf(over)[group]}
-    if (Object.keys(entries).length > 0) merged[group] = entries
-  }
-  return merged as ThemeTokens
-}
 
 /** `tokens` without the keys `shadowed` defines: a lower layer that re-states them now wins. */
 function without(tokens: ThemeTokens, ...shadowed: ThemeTokens[]): ThemeTokens {
@@ -48,7 +52,7 @@ function without(tokens: ThemeTokens, ...shadowed: ThemeTokens[]): ThemeTokens {
   for (const [group, entries] of Object.entries(groupsOf(tokens))) {
     const left = Object.fromEntries(
       Object.entries(entries).filter(
-        ([key]) => !shadowed.some((s) => key in (groupsOf(s)[group] ?? {})),
+        ([key]) => !shadowed.some((tokens) => key in (groupsOf(tokens)[group] ?? {})),
       ),
     )
     if (Object.keys(left).length > 0) kept[group] = left
@@ -57,13 +61,6 @@ function without(tokens: ThemeTokens, ...shadowed: ThemeTokens[]): ThemeTokens {
 }
 
 const isEmpty = (tokens: ThemeTokens) => Object.keys(tokens).length === 0
-
-/** A provider's own validated mode entries. */
-export interface OwnModes {
-  light: ThemeTokens
-  dark: ThemeTokens
-  contrast: {light: ThemeTokens; dark: ThemeTokens}
-}
 
 /**
  * One rule on both platforms: colours and shadows are defined by every theme,
@@ -76,14 +73,14 @@ export interface OwnModes {
  * theme. The inherited state is resolved first and the child's own entries
  * laid over it: a child's flat value beats an inherited mode value for the
  * same key, and a child's mode value beats an inherited contrast value.
- * Pure: `own` is already validated (`validateModeTokens`), and warnings are
- * the provider's job, from an effect.
+ * Pure: `own` and `ownModes` are already validated (`validateModeTokens`),
+ * and warnings are the provider's job, from an effect.
  */
 export function mergeOverrides(
   outer: EffectiveOverrides,
   theme: string,
   own: ThemeTokens,
-  ownModes?: OwnModes,
+  ownModes: OwnModes,
 ): EffectiveOverrides {
   const sameTheme = outer.theme === theme
   const merged: Groups = {}
@@ -98,47 +95,36 @@ export function mergeOverrides(
     const entries = {...inherited, ...ownEntries}
     if (Object.keys(entries).length > 0) merged[group] = entries
   }
-  const result: EffectiveOverrides = {theme, tokens: merged as ThemeTokens}
+  const effective: EffectiveOverrides = {theme, tokens: merged as ThemeTokens}
 
   const inheritedModes = outer.modes
-  const hasOwn =
-    ownModes !== undefined &&
-    [ownModes.light, ownModes.dark, ownModes.contrast.light, ownModes.contrast.dark].some(
-      (tokens) => !isEmpty(tokens),
-    )
-  if (!inheritedModes && !hasOwn) return result
+  const ownLayers = [ownModes.light, ownModes.dark, ownModes.contrast.light, ownModes.contrast.dark]
+  if (!inheritedModes && ownLayers.every(isEmpty)) return effective
   const mode = (name: ModeName) =>
-    layer(without(inheritedModes?.[name] ?? {}, own), ownModes?.[name])
+    layerTokens(without(inheritedModes?.[name] ?? {}, own), ownModes[name])
   const contrast = (name: ModeName, key: 'contrastLight' | 'contrastDark') =>
-    layer(
-      without(inheritedModes?.[key] ?? {}, own, ownModes?.[name] ?? {}),
-      ownModes?.contrast[name],
-    )
+    layerTokens(without(inheritedModes?.[key] ?? {}, own, ownModes[name]), ownModes.contrast[name])
   const modes: ModeLayers = {
     light: mode('light'),
     dark: mode('dark'),
     contrastLight: contrast('light', 'contrastLight'),
     contrastDark: contrast('dark', 'contrastDark'),
   }
-  if (Object.values(modes).every(isEmpty)) return result
-  return {...result, modes}
+  if (Object.values(modes).every(isEmpty)) return effective
+  return {...effective, modes}
 }
 
-/** The mode a theme takes values from: `high-contrast` takes the flat tokens only. */
-export function modeOf(theme: string | null): ModeName | null {
-  return theme === 'light' || theme === 'dark' ? theme : null
-}
-
-/** The resolved values of one state: flat, then the mode layer, then its contrast layer. */
-export function stateTokens(
-  effective: EffectiveOverrides,
-  mode: ModeName | null,
-  contrast = false,
-): ThemeTokens {
+/** The resolved values of a mode outside `prefers-contrast`: the flat tokens, then its mode layer. */
+export function stateTokens(effective: EffectiveOverrides, mode: ModeName | null): ThemeTokens {
   if (!mode || !effective.modes) return effective.tokens
-  const withMode = layer(effective.tokens, effective.modes[mode])
-  if (!contrast) return withMode
-  return layer(withMode, effective.modes[mode === 'light' ? 'contrastLight' : 'contrastDark'])
+  return layerTokens(effective.tokens, effective.modes[mode])
+}
+
+/** The resolved values of a mode under `prefers-contrast: more`: its state, then its contrast layer. */
+export function contrastStateTokens(effective: EffectiveOverrides, mode: ModeName): ThemeTokens {
+  const base = stateTokens(effective, mode)
+  if (!effective.modes) return base
+  return layerTokens(base, effective.modes[mode === 'light' ? 'contrastLight' : 'contrastDark'])
 }
 
 /**
