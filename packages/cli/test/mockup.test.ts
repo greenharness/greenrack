@@ -315,7 +315,7 @@ describe('runMockup seed + check on disk', () => {
       const html = seeded()
       const block = tokenBlock(html)
       for (const selector of [
-        ':root',
+        ':root:not([data-theme="light"]):not([data-theme="high-contrast"])',
         ':root[data-theme="light"]',
         ':root[data-theme="high-contrast"]',
       ]) {
@@ -416,8 +416,79 @@ describe('runMockup seed + check on disk', () => {
           expect(registry.tokens.mockupCss, name).toContain(`${name}:`)
         }
         expect(block).toContain(
-          ":root { --gr-color-bg: #020803; --gr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3); --gr-typography-font-family: 'JetBrains Mono', monospace;",
+          ':root:not([data-theme="light"]):not([data-theme="high-contrast"]) ' +
+            "{ --gr-color-bg: #020803; --gr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3); --gr-typography-font-family: 'JetBrains Mono', monospace;",
         )
+      })
+
+      describe('values per mode', () => {
+        const DARK = ':root:not([data-theme="light"]):not([data-theme="high-contrast"])'
+        // The override lines only, after the stock token CSS.
+        const ruleOf = (block: string, selector: string) =>
+          block
+            .slice(block.indexOf('/* Theme overrides'))
+            .split('\n')
+            .find((line) => line.startsWith(`${selector} {`)) ?? ''
+        const byMode = JSON.stringify({
+          colors: {bg: '#020803'},
+          dark: {colors: {bg: '#000000'}, typography: {fontFamily: 'Menlo'}},
+          light: {colors: {bg: '#ffffff'}},
+        })
+
+        it('writes flat plus each mode under its own selector, and high-contrast flat only', () => {
+          const result = seedWith(byMode)
+          expect(result.exitCode).toBeUndefined()
+          expect(result.notes).toBeUndefined()
+          expect(result.text).toContain(
+            'with overrides from o.json: colors 1; dark: colors 1, typography 1; light: colors 1.',
+          )
+          const block = tokenBlock(seeded())
+          // A mode entry wins over flat for the same key.
+          expect(ruleOf(block, DARK)).toContain('--gr-color-bg: #000000;')
+          expect(ruleOf(block, ':root[data-theme="light"]')).toContain('--gr-color-bg: #ffffff;')
+          expect(ruleOf(block, ':root[data-theme="high-contrast"]')).toContain(
+            '--gr-color-bg: #020803;',
+          )
+          // A dark-only value never reaches light or high-contrast.
+          expect(ruleOf(block, DARK)).toContain('--gr-typography-font-family: Menlo;')
+          expect(ruleOf(block, ':root[data-theme="light"]')).not.toContain('font-family')
+          expect(ruleOf(block, ':root[data-theme="high-contrast"]')).not.toContain('font-family')
+        })
+
+        it('reads a file of mode entries only as the tokens shape', () => {
+          const result = seedWith('{"light": {"colors": {"bg": "#ffffff"}}}')
+          expect(result.exitCode).toBeUndefined()
+          expect(ruleOf(tokenBlock(seeded()), ':root[data-theme="light"]')).toContain(
+            '--gr-color-bg: #ffffff;',
+          )
+        })
+
+        it('notes on stderr, exit 0, that contrast entries are not applied', () => {
+          writeFileSync(
+            join(root, 'o.json'),
+            JSON.stringify({
+              colors: {bg: '#020803'},
+              contrast: {dark: {colors: {text: '#ffffff'}}},
+            }),
+          )
+          const run = runBin()
+          expect(run.status).toBe(0)
+          expect(run.stderr).toContain(
+            'greenrack mockup seed: --overrides o.json: contrast entries are not applied to an artboard',
+          )
+          expect(run.stdout).toContain('Seeded')
+          expect(run.stdout).not.toContain('contrast')
+        })
+
+        it('exits 2 with the mode in the path and in problems for a bad mode value', () => {
+          writeFileSync(join(root, 'o.json'), JSON.stringify({dark: {colors: {bg: 'red; x: y'}}}))
+          const run = runBin('--json')
+          expect(run.status).toBe(2)
+          expect(run.stderr).toContain('dark.colors.bg: ')
+          const data = JSON.parse(run.stdout) as {problems: {group: string; mode?: string}[]}
+          expect(data.problems[0]).toMatchObject({group: 'colors', mode: 'dark'})
+          expect(existsSync(join(root, 'art', 'Main.dc.html'))).toBe(false)
+        })
       })
 
       it('counts a flat colour file as colours only', () => {

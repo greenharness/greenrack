@@ -6,7 +6,15 @@ import {colors} from '@greenharness/greenrack-tokens/tokens/colors.css'
 import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
 import {radii, spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 import {typography} from '@greenharness/greenrack-tokens/tokens/typography.css'
-import {ThemeProvider, type ColorOverrides, type ThemeName} from './ThemeProvider'
+import {renderToString} from 'react-dom/server'
+import {hydrateRoot} from 'react-dom/client'
+import {
+  ThemeProvider,
+  type ColorOverrides,
+  type ThemeName,
+  type ThemeTokensByMode,
+} from './ThemeProvider'
+import {ColorModeProvider} from '../ColorMode/ColorMode'
 import {Button} from '../Button/Button'
 import {Badge} from '../Badge/Badge'
 import {Tabs} from '../Tabs/Tabs'
@@ -215,6 +223,125 @@ export const Tokens: StoryObj = {
       canvas.getByTestId('readout'),
     ]) {
       await expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth)
+    }
+  },
+}
+
+/** Values per mode: light and dark palettes, and a contrast layer per mode. */
+const BY_MODE: ThemeTokensByMode = {
+  typography: {fontFamily: SANS_STACK},
+  light: {colors: {bg: '#faf7f1', text: '#1a1a1a'}},
+  dark: {colors: {bg: '#14120d', text: '#ece6da'}},
+  contrast: {light: {colors: {text: '#000000'}}, dark: {colors: {text: '#ffffff'}}},
+}
+
+const RGB = {
+  '#faf7f1': 'rgb(250, 247, 241)',
+  '#14120d': 'rgb(20, 18, 13)',
+  '#1a1a1a': 'rgb(26, 26, 26)',
+  '#ece6da': 'rgb(236, 230, 218)',
+  '#000000': 'rgb(0, 0, 0)',
+  '#ffffff': 'rgb(255, 255, 255)',
+} as const
+
+const TEST_ONLY = ['!dev', '!autodocs']
+
+/**
+ * Tokens per mode under a ColorModeProvider on `system`: the values follow
+ * the browser's own `prefers-color-scheme` and `prefers-contrast`, whichever
+ * the runner has, and a nested provider pinned to dark keeps the dark values.
+ */
+export const ByMode: StoryObj = {
+  render: () => (
+    <ColorModeProvider defaultPreference="system" storageKey={null} tokens={BY_MODE}>
+      <html.div data-testid="system" style={styles.surface}>
+        <Text>Follows the OS</Text>
+        <ThemeProvider theme="dark">
+          <html.div data-testid="island" style={styles.surface}>
+            <Text>Pinned dark</Text>
+          </html.div>
+        </ThemeProvider>
+      </html.div>
+    </ColorModeProvider>
+  ),
+  play: async ({canvas}) => {
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches
+    const more = matchMedia('(prefers-contrast: more)').matches
+    const mode = dark ? 'dark' : 'light'
+    const bg = mode === 'dark' ? '#14120d' : '#faf7f1'
+    const text = more
+      ? mode === 'dark'
+        ? '#ffffff'
+        : '#000000'
+      : mode === 'dark'
+        ? '#ece6da'
+        : '#1a1a1a'
+    const system = canvas.getByTestId('system')
+    await waitFor(() => expect(getComputedStyle(system).backgroundColor).toBe(RGB[bg]))
+    await expect(getComputedStyle(system).color).toBe(RGB[text])
+    const island = canvas.getByTestId('island')
+    await expect(getComputedStyle(island).backgroundColor).toBe(RGB['#14120d'])
+  },
+}
+
+/**
+ * The server render under `system` carries the scheme and contrast blocks, a
+ * pinned preference and a nested provider carry no scheme block, two renders
+ * give the same markup, and hydration reports nothing. It replaces the
+ * canvas's content, so it runs as a test only.
+ */
+export const ServerRender: StoryObj = {
+  tags: TEST_ONLY,
+  render: () => <html.div data-ssr-host="" />,
+  play: async ({canvasElement}) => {
+    const host = canvasElement.querySelector('[data-ssr-host]') as HTMLElement
+    const tree = (
+      <ColorModeProvider defaultPreference="system" storageKey={null} tokens={BY_MODE}>
+        <html.div data-testid="ssr-surface">
+          <ThemeProvider theme="dark" tokens={{dark: {colors: {accent: '#ff5a1f'}}}}>
+            <html.div data-testid="ssr-island" />
+          </ThemeProvider>
+        </html.div>
+      </ColorModeProvider>
+    )
+    const markup = renderToString(tree)
+    await expect(renderToString(tree)).toBe(markup)
+    const styleTexts = [...markup.matchAll(/<style>(.*?)<\/style>/g)].map((match) => match[1])
+    await expect(styleTexts).toHaveLength(2)
+    const [follower, island] = styleTexts
+    const at = (query: string) => follower.indexOf(query)
+    await expect(at('(prefers-color-scheme: light)')).toBeGreaterThan(-1)
+    await expect(at('(prefers-color-scheme: dark)')).toBeGreaterThan(
+      at('(prefers-color-scheme: light)'),
+    )
+    await expect(at('(prefers-contrast: more) and (prefers-color-scheme: light)')).toBeGreaterThan(
+      at('(prefers-color-scheme: dark)'),
+    )
+    await expect(island).not.toContain('prefers-color-scheme')
+
+    const pinned = renderToString(
+      <ColorModeProvider defaultPreference="light" storageKey={null} tokens={BY_MODE}>
+        <html.div />
+      </ColorModeProvider>,
+    )
+    await expect(pinned).not.toContain('prefers-color-scheme')
+    await expect(pinned).toContain('@media (prefers-contrast: more)')
+
+    host.innerHTML = markup
+    const errors: unknown[] = []
+    const consoleError = console.error
+    console.error = (...args: unknown[]) => {
+      errors.push(args)
+      consoleError(...args)
+    }
+    const root = hydrateRoot(host, tree, {onRecoverableError: (error) => errors.push(error)})
+    try {
+      await waitFor(() => expect(host.querySelector('[data-testid="ssr-island"]')).not.toBeNull())
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await expect(errors).toEqual([])
+    } finally {
+      console.error = consoleError
+      root.unmount()
     }
   },
 }

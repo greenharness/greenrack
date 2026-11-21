@@ -53,6 +53,12 @@ export default defineConfig({
               'packages/tokens/src/keys.ts',
             ),
             '@greenharness/greenrack-tokens/raw': path.join(dirname, 'packages/tokens/src/raw.ts'),
+            // The ui tests exercise the theme validators: test the source,
+            // never a stale dist/theme.js.
+            '@greenharness/greenrack-tokens/theme': path.join(
+              dirname,
+              'packages/tokens/src/theme.ts',
+            ),
             // Same reason: the eslint-config preset tests import the plugin,
             // whose package entry is dist/ — point at src so the unit job
             // doesn't need a build step.

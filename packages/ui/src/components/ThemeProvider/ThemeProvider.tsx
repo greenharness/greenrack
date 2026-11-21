@@ -1,6 +1,6 @@
 import {createContext, type ReactNode, useContext, useEffect, useId, useMemo, useState} from 'react'
 import {css, html} from 'react-strict-dom'
-import {validateTokens, type ThemableGroup} from '@greenharness/greenrack-tokens/theme'
+import {validateModeTokens, type ThemableGroup} from '@greenharness/greenrack-tokens/theme'
 import {colors} from '@greenharness/greenrack-tokens/tokens/colors.css'
 import {lightTheme, lightShadows} from '@greenharness/greenrack-tokens/themes/light.css'
 import {
@@ -10,17 +10,21 @@ import {
 import {layers} from '@greenharness/greenrack-tokens/tokens/layers.css'
 import {
   mergeOverrides,
+  modeOf,
   OverridesContext,
   ownTokens,
+  stateTokens,
   type ColorOverrides,
   type ThemeTokens,
+  type ThemeTokensByMode,
 } from './overrides'
-import {overrideRule, variableFromReference} from './overrideRule'
+import {modeRules, overrideRule, variableFromReference} from './overrideRule'
+import {SchemeSourceContext} from './schemeSource'
 import {TOKEN_GROUPS} from './tokenGroups'
 import {warnDropped} from './warnDropped'
 
 export type ThemeName = 'dark' | 'light' | 'high-contrast'
-export type {ColorOverrides, ThemeTokens}
+export type {ColorOverrides, ThemeTokens, ThemeTokensByMode}
 
 interface ThemeProviderProps {
   theme?: ThemeName
@@ -44,8 +48,25 @@ interface ThemeProviderProps {
    * applies (a face the app has loaded, at weights 400, 500, 600 and 700).
    * Keep `radii` ordered `xs <= sm <= md <= lg`. Native is unverified on a
    * device.
+   *
+   * Values per mode sit beside the groups: `light` and `dark` lay over the
+   * flat groups in that mode, and `contrast.light` / `contrast.dark` lay over
+   * that mode under `prefers-contrast: more`
+   * (`{colors: {…}, light: {colors: {…}}, dark: {colors: {…}}, contrast: {dark: {colors: {…}}}}`).
+   * The same refused groups, keys and floors hold inside each mode entry.
+   * The `high-contrast` theme takes the flat groups only. Under a
+   * ColorModeProvider on `system` the server cannot see the OS scheme, so the
+   * provider it drives also emits `prefers-color-scheme` blocks and the first
+   * paint is right before hydration; a nested provider is pinned to its own
+   * theme. Give every colour and shadow key in both `light` and `dark`: a key
+   * given in `dark` only keeps its dark value on a light OS until hydration,
+   * and a key given in neither shows the theme's own value. A nested provider
+   * that follows the mode (`theme={useColorMode().theme}`) paints `dark` until
+   * hydration under `system`: pass the tokens to ColorModeProvider instead.
+   * Native takes the flat groups and the theme's mode; `contrast` does not
+   * apply there.
    */
-  tokens?: ThemeTokens
+  tokens?: ThemeTokensByMode
   children: ReactNode
 }
 
@@ -97,13 +118,24 @@ export function ThemeProvider({theme = 'dark', overrides, tokens, children}: The
   const [mount, setMount] = useState<HTMLElement | null>(null)
   const scope = useId()
   const outer = useContext(OverridesContext)
-  const checked = useMemo(() => validateTokens(ownTokens(overrides, tokens)), [overrides, tokens])
+  const source = useContext(SchemeSourceContext)
+  const checked = useMemo(
+    () => validateModeTokens(ownTokens(overrides, tokens)),
+    [overrides, tokens],
+  )
   useEffect(() => warnDropped(checked.dropped), [checked])
   const effective = useMemo(
-    () => mergeOverrides(outer, theme, checked.kept),
+    () => mergeOverrides(outer, theme, checked.kept.flat, checked.kept),
     [outer, theme, checked],
   )
-  const rule = useMemo(() => overrideRule(scope, effective.tokens, variableOf), [scope, effective])
+  const rule = useMemo(() => {
+    const mode = modeOf(theme)
+    const rules = [
+      overrideRule(scope, stateTokens(effective, mode), variableOf),
+      modeRules(scope, effective.modes, mode, source, variableOf),
+    ].filter((part): part is string => part !== null)
+    return rules.length === 0 ? null : rules.join(' ')
+  }, [scope, effective, theme, source])
 
   return (
     <html.div data-theme={theme} data-gr-theme={rule ? scope : undefined} style={style}>
@@ -112,7 +144,10 @@ export function ThemeProvider({theme = 'dark', overrides, tokens, children}: The
           later changes. */}
       {rule ? <style>{rule}</style> : null}
       <OverridesContext.Provider value={effective}>
-        <PortalMountContext.Provider value={mount}>{children}</PortalMountContext.Provider>
+        {/* Every nested provider is pinned to its own theme. */}
+        <SchemeSourceContext.Provider value="pinned">
+          <PortalMountContext.Provider value={mount}>{children}</PortalMountContext.Provider>
+        </SchemeSourceContext.Provider>
       </OverridesContext.Provider>
       <html.div ref={setMount} data-portal-mount style={styles.portalMount} />
     </html.div>

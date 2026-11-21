@@ -10,7 +10,8 @@ import {
 import {html} from 'react-strict-dom'
 import {isNative} from '../../platform'
 import {Icon, type IconName, type IconSize} from '../Icon/Icon'
-import {ThemeProvider, type ThemeName} from '../ThemeProvider/ThemeProvider'
+import {ThemeProvider, type ThemeName, type ThemeTokensByMode} from '../ThemeProvider/ThemeProvider'
+import {SchemeSourceContext} from '../ThemeProvider/schemeSource'
 import {styles} from './styles.css'
 import {useSystemScheme} from './useSystemScheme'
 import {readStoredMigrating, readStoredRaw, writeStoredRaw} from './storage'
@@ -100,6 +101,13 @@ interface ColorModeProviderProps {
   /** Wrap children in the DS `ThemeProvider` with the resolved theme. Default `true`.
    * Set `false` to drive your own ThemeProvider from `useColorMode().theme`. */
   applyTheme?: boolean
+  /** Token values for the ThemeProvider it renders under `applyTheme`, per mode
+   * where they differ (`{colors, light: {colors}, dark: {colors}, contrast: {light, dark}}`,
+   * see ThemeProvider `tokens`). Under `system` that provider also emits
+   * `prefers-color-scheme` blocks, so a server render is right on every OS
+   * before hydration. With `applyTheme={false}` pass them to your own
+   * ThemeProvider: the nearest one under this provider follows the mode. */
+  tokens?: ThemeTokensByMode
 }
 
 /**
@@ -115,6 +123,7 @@ export function ColorModeProvider({
   modes = ['light', 'dark'],
   storageKey: storageKeyProp,
   applyTheme = true,
+  tokens,
 }: ColorModeProviderProps) {
   const storageKey = storageKeyProp === undefined ? DEFAULT_STORAGE_KEY : storageKeyProp
   // Only the default key had an old name; a key the app chose never did.
@@ -163,7 +172,17 @@ export function ColorModeProvider({
 
   return (
     <ColorModeContext.Provider value={value}>
-      {applyTheme ? <ThemeProvider theme={theme}>{children}</ThemeProvider> : children}
+      {/* The nearest ThemeProvider reads it (the one below under applyTheme);
+          it resets it to 'pinned' for every provider nested in it. */}
+      <SchemeSourceContext.Provider value={preference === 'system' ? 'system' : 'pinned'}>
+        {applyTheme ? (
+          <ThemeProvider theme={theme} tokens={tokens}>
+            {children}
+          </ThemeProvider>
+        ) : (
+          children
+        )}
+      </SchemeSourceContext.Provider>
     </ColorModeContext.Provider>
   )
 }

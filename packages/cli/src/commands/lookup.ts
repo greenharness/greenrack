@@ -19,6 +19,8 @@ export interface CommandResult {
   text: string
   data: unknown
   exitCode?: number
+  /** One-line notes for stderr, whatever the output mode; they never change the exit status. */
+  notes?: string[]
 }
 
 export function runLookup(

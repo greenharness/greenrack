@@ -158,6 +158,7 @@ export {
   ThemeProvider,
   type ColorOverrides,
   type ThemeTokens,
+  type ThemeTokensByMode,
   usePortalMount,
   type ThemeName,
 } from './components/ThemeProvider/ThemeProvider'

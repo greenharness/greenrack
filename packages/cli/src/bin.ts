@@ -12,6 +12,7 @@ import {runDoctor, SCOPES, uiVersionSkew} from './commands/doctor.js'
 import {runManifest, cliVersion} from './commands/manifest.js'
 
 function emit(result: CommandResult, json: boolean): never {
+  for (const note of result.notes ?? []) process.stderr.write(note + '\n')
   if (result.exitCode === 2) {
     process.stderr.write(result.text.endsWith('\n') ? result.text : result.text + '\n')
     // A --json caller still gets its result on stdout; the failure is the exit status and stderr.

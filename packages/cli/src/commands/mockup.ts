@@ -14,8 +14,9 @@ import {
   kebab,
   REFUSED_GROUPS,
   THEMABLE_GROUPS,
-  validateTokens,
+  validateModeTokens,
   type DroppedToken,
+  type ModeTokens,
   type ThemableGroup,
   type ThemeTokens,
 } from '@greenharness/greenrack-tokens/theme'
@@ -71,7 +72,12 @@ export interface SeedOptions {
 /** Theme overrides read from a file: the file's name for the comment, and the validated tokens. */
 export interface SeedOverrides {
   file: string
+  /** The flat tokens: every theme. */
   tokens: ThemeTokens
+  /** The `light` / `dark` entries, laid over the flat tokens in that theme; `contrast` is not applied. */
+  modes?: Pick<ModeTokens, 'light' | 'dark'>
+  /** Whether the file had `contrast` entries (not applied to an artboard). */
+  contrastSkipped?: boolean
 }
 
 export interface CheckOptions {
@@ -190,8 +196,18 @@ export function tokenVariableName(group: ThemableGroup, key: string): string {
   return `--gr-${GROUP_ALIASES[group]}-${kebab(key)}`
 }
 
+/** `base` with `over` laid on it, group by group: a mode entry wins over flat for the same key. */
+function layered(base: ThemeTokens, over: ThemeTokens | undefined): ThemeTokens {
+  const merged: Record<string, Record<string, string>> = {}
+  for (const group of THEMABLE_GROUPS) {
+    const entries = {...base[group], ...over?.[group]} as Record<string, string>
+    if (Object.keys(entries).length > 0) merged[group] = entries
+  }
+  return merged as ThemeTokens
+}
+
 /** The declarations of one selector, group by group in the table's order. */
-function overrideDeclarations({tokens}: SeedOverrides): string {
+function overrideDeclarations({tokens}: {tokens: ThemeTokens}): string {
   return THEMABLE_GROUPS.flatMap((group) =>
     Object.entries(tokens[group] ?? {}).map(
       ([key, value]) => `${tokenVariableName(group, key)}: ${value};`,
@@ -199,17 +215,28 @@ function overrideDeclarations({tokens}: SeedOverrides): string {
   ).join(' ')
 }
 
-/** The override rules, one per theme selector so they win whatever the theme. */
+/**
+ * The override rules, one per theme selector so they win whatever the theme:
+ * dark (the default) under a selector no other theme matches, so a dark-only
+ * value never reaches light or high-contrast; light takes the flat tokens with
+ * its `light` entry; high-contrast takes the flat tokens only.
+ */
 function overridesBlock(overrides: SeedOverrides): string {
-  const declarations = overrideDeclarations(overrides)
-  if (declarations === '') return ''
+  const rules = [
+    [
+      ':root:not([data-theme="light"]):not([data-theme="high-contrast"])',
+      layered(overrides.tokens, overrides.modes?.dark),
+    ],
+    [':root[data-theme="light"]', layered(overrides.tokens, overrides.modes?.light)],
+    [':root[data-theme="high-contrast"]', overrides.tokens],
+  ] as const
+  const lines = rules.flatMap(([selector, tokens]) => {
+    const declarations = overrideDeclarations({tokens})
+    return declarations === '' ? [] : [`${selector} { ${declarations} }`]
+  })
+  if (lines.length === 0) return ''
   const comment = `/* Theme overrides from ${overrides.file.replace(/\*\//g, '* /')}: the same JSON as ThemeProvider's tokens. */`
-  return [
-    comment,
-    `:root { ${declarations} }`,
-    `:root[data-theme="light"] { ${declarations} }`,
-    `:root[data-theme="high-contrast"] { ${declarations} }`,
-  ].join('\n')
+  return [comment, ...lines].join('\n')
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -221,19 +248,27 @@ function isTokensShape(parsed: Record<string, unknown>): boolean {
     ([key, value]) =>
       (THEMABLE_GROUPS as readonly string[]).includes(key) ||
       key in REFUSED_GROUPS ||
+      key === 'light' ||
+      key === 'dark' ||
+      key === 'contrast' ||
       isObject(value),
   )
 }
 
 type ReadOverrides =
   | {overrides: SeedOverrides}
-  | {error: string; problems: {group: string; key: string | null; reason: string}[]}
+  | {
+      error: string
+      problems: {group: string; key: string | null; reason: string; mode?: string}[]
+    }
 
 /** Read and validate an overrides file; a usage error text when it is not acceptable. */
 function readOverrides(cwd: string, file: string): ReadOverrides {
   const fail = (problem: string, dropped: DroppedToken[] = []): ReadOverrides => ({
     error: `greenrack mockup seed: --overrides ${file}: ${problem}`,
-    problems: dropped.map(({group, key, reason}) => ({group, key, reason})),
+    problems: dropped.map(({group, key, reason, mode}) =>
+      mode === undefined ? {group, key, reason} : {group, key, reason, mode},
+    ),
   })
   let source: string
   try {
@@ -252,17 +287,38 @@ function readOverrides(cwd: string, file: string): ReadOverrides {
       'expected a JSON object: the tokens shape ({colors?, typography?, radii?, sizes?, …}) or a flat map of colour token keys to colours',
     )
   }
-  const {kept, dropped} = validateTokens(isTokensShape(parsed) ? parsed : {colors: parsed})
+  const {kept, dropped} = validateModeTokens(isTokensShape(parsed) ? parsed : {colors: parsed})
   if (dropped.length > 0) return fail(dropped.map(describeDropped).join('\n'), dropped)
-  return {overrides: {file, tokens: kept}}
+  const hasMode = (tokens: ThemeTokens) => Object.keys(tokens).length > 0
+  const contrastSkipped = hasMode(kept.contrast.light) || hasMode(kept.contrast.dark)
+  return {
+    overrides: {
+      file,
+      tokens: kept.flat,
+      ...(hasMode(kept.light) || hasMode(kept.dark)
+        ? {modes: {light: kept.light, dark: kept.dark}}
+        : {}),
+      ...(contrastSkipped ? {contrastSkipped} : {}),
+    },
+  }
 }
 
-/** `1 colors, 4 radii`: only the groups that have entries. */
-function describeApplied({tokens}: SeedOverrides): string {
+/** `colors 1, radii 4`: only the groups that have entries. */
+function describeGroups(tokens: ThemeTokens): string {
   return THEMABLE_GROUPS.flatMap((group) => {
     const count = Object.keys(tokens[group] ?? {}).length
     return count > 0 ? [`${group} ${count}`] : []
   }).join(', ')
+}
+
+/** `colors 1, radii 4; dark: colors 2; light: colors 2`: the flat groups, then each mode applied. */
+function describeApplied({tokens, modes}: SeedOverrides): string {
+  const parts = [describeGroups(tokens)]
+  for (const mode of ['dark', 'light'] as const) {
+    const groups = modes ? describeGroups(modes[mode]) : ''
+    if (groups !== '') parts.push(`${mode}: ${groups}`)
+  }
+  return parts.filter((part) => part !== '').join('; ')
 }
 
 export function runMockupSeed(registry: Registry, options: SeedOptions = {}): CommandResult {
@@ -310,6 +366,13 @@ export function runMockupSeed(registry: Registry, options: SeedOptions = {}): Co
       `then: greenrack mockup check ${path}  (an unauthored seed fails on no-component-map alone)`,
     ].join('\n'),
     data: {ok: true, path, theme},
+    ...(overrides?.contrastSkipped
+      ? {
+          notes: [
+            `greenrack mockup seed: --overrides ${overrides.file}: contrast entries are not applied to an artboard`,
+          ],
+        }
+      : {}),
   }
 }
 

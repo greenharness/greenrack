@@ -7,8 +7,10 @@ import {
   describeDropped,
   GROUP_ALIASES,
   GROUP_KEYS,
+  hasModeEntries,
   kebab,
   THEMABLE_GROUPS,
+  validateModeTokens,
   validateTokens,
 } from '../src/theme'
 
@@ -104,5 +106,48 @@ describe('names', () => {
     expect(GROUP_ALIASES.typeScale).toBe('type-scale')
     expect(kebab('fontFamilyMono')).toBe('font-family-mono')
     expect(kebab('fontSize1')).toBe('font-size1')
+  })
+})
+
+describe('validateModeTokens', () => {
+  it('validates each mode entry on its own and names its mode', () => {
+    const {kept, dropped} = validateModeTokens({
+      colors: {bg: '#fff'},
+      light: {colors: {accent: '#111'}},
+      dark: {colors: {accent: 'red; x: y'}, radii: {px6: '1px'}},
+      contrast: {dark: {colors: {text: '#fff'}}},
+    })
+    expect(kept).toEqual({
+      flat: {colors: {bg: '#fff'}},
+      light: {colors: {accent: '#111'}},
+      dark: {},
+      contrast: {light: {}, dark: {colors: {text: '#fff'}}},
+    })
+    expect(dropped.map((entry) => entry.mode)).toEqual(['dark', 'dark'])
+    expect(dropped.map((entry) => entry.group)).toEqual(['colors', 'radii'])
+    expect(describeDropped(dropped[0])).toMatch(/^dark\.colors\.accent: /)
+  })
+
+  it('drops a reserved name inside a mode entry, with its path', () => {
+    const {kept, dropped} = validateModeTokens({
+      dark: {contrast: {colors: {bg: '#000'}}, colors: {bg: '#111'}},
+      contrast: {light: {dark: {colors: {bg: '#222'}}}, high: {colors: {bg: '#333'}}},
+    })
+    expect(kept.dark).toEqual({colors: {bg: '#111'}})
+    expect(kept.contrast.light).toEqual({})
+    expect(dropped.map(describeDropped)).toEqual([
+      'dark.contrast: contrast is a mode, not a group: it goes at the top of the tokens',
+      'contrast.light.dark: dark is a mode, not a group: it goes at the top of the tokens',
+      'contrast.high: expected light or dark: contrast takes values per mode',
+    ])
+  })
+
+  it('keeps flat-only tokens as validateTokens does', () => {
+    const own = {colors: {bg: '#fff'}, sizes: {touchTarget: '40px'}}
+    const {kept, dropped} = validateModeTokens(own)
+    expect(kept.flat).toEqual(validateTokens(own).kept)
+    expect(dropped).toEqual(validateTokens(own).dropped)
+    expect(hasModeEntries(own)).toBe(false)
+    expect(hasModeEntries({light: {}})).toBe(true)
   })
 })
