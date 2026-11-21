@@ -201,6 +201,13 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
 - Phase 4, mirror: `diff <(chezmoi --source <branch> cat ~/.claude/settings.json)
 ~/.claude/settings.json` is empty.
 
+## Implementation review
+
+- implementation-review: approve on the third pass. The blocking flag argument became a closed `view`; the cap test, the ADR-0079 exemption and the pack note were added. 157k tokens, 126 s.
+- backend: approve. The doctor block is cut at a line end, the size test proves it rides along, the header counts bytes. Carried: the fixed temporary name in the doctor cache. 99k, 77 s.
+- lang:typescript: approve on the third pass. A frozen non-consumer constant replaces the cast, the sort has one locale, the note names both UI packages. 85k, 41 s.
+- unix: approve. An empty result prints nothing, so `doctor --session` loses its blank line too. Carried: `GIT_DIR` from a calling hook, a consumer with no `.git`. 133k, 83 s.
+
 ## Outcome
 
 Filled when the plan closes. ADR-0079 exemption: this fixes the guidance itself
