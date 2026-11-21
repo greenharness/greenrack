@@ -14,7 +14,7 @@ import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import {loadRegistry} from '../src/registry.js'
 import {renderCatalog} from '../src/catalog.js'
-import {runContext} from '../src/commands/context.js'
+import {nonConsumerNote, runContext} from '../src/commands/context.js'
 import {runDoctor} from '../src/commands/doctor.js'
 import {runHook} from '../src/commands/hook.js'
 import {extensionPointer} from '../src/extension-pointer.js'
@@ -307,12 +307,52 @@ describe('greenrack context', () => {
     const whole = runContext(registry, {cwd, cacheHome}).text
     expect(whole.length).toBeLessThanOrEqual(9000)
     expect(whole.startsWith(index)).toBe(true)
+    // The block really rode along: a cache miss would leave `whole` equal to the index.
+    expect(whole).toContain('D'.repeat(3000))
+  })
+
+  it('cuts a doctor block too large for the cap at a line end and says where to read the rest', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    runContext(registry, {cwd, cacheHome})
+    const [slot] = readdirSync(join(cacheHome, 'greenrack'))
+    const lines = Array.from({length: 300}, (_, i) => `- [warn] finding ${i}: ${'x'.repeat(40)}`)
+    writeFileSync(join(cacheHome, 'greenrack', slot!, 'doctor'), lines.join('\n'))
+    const whole = runContext(registry, {cwd, cacheHome})
+    expect(whole.text.length).toBeLessThanOrEqual(9000)
+    expect(whole.text).toMatch(/\n… \d+ more characters: run `greenrack doctor`$/)
+    // Cut at a line end: the last kept finding is whole.
+    expect(whole.text).toContain(`${'x'.repeat(40)}\n…`)
+    // The data keeps the doctor text as it was cut, so --json is bounded too.
+    expect((whole.data as {doctor: string}).doctor.length).toBeLessThan(9000)
+  })
+
+  it('--full keeps its doctor block whole, since it is for a person', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    runContext(registry, {cwd, cacheHome})
+    const [slot] = readdirSync(join(cacheHome, 'greenrack'))
+    writeFileSync(join(cacheHome, 'greenrack', slot!, 'doctor'), 'D'.repeat(12000))
+    const full = runContext(registry, {cwd, cacheHome, view: 'full'})
+    expect(full.text.startsWith('greenrack catalog, whole (')).toBe(true)
+    expect(full.text.endsWith(`\n\n${'D'.repeat(12000)}`)).toBe(true)
+  })
+
+  it('says why it is silent to a person at a terminal, and to nobody else', () => {
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    const outside = runContext(registry, {cwd: bystander(), cacheHome})
+    expect(nonConsumerNote(outside, false, '/work')).toBeNull()
+    expect(nonConsumerNote(outside, true, '/work')).toBe(
+      'greenrack: not a greenrack consumer: no @greenharness/greenrack-* dependency in /work',
+    )
+    const inside = runContext(registry, {cwd: consumer(), cacheHome})
+    expect(nonConsumerNote(inside, true, '/work')).toBeNull()
   })
 
   it('--full prints the whole catalog after one header line, also through the bin', () => {
     const cwd = consumer()
     const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
-    const full = runContext(registry, {cwd, cacheHome, catalogOnly: true, full: true})
+    const full = runContext(registry, {cwd, cacheHome, catalogOnly: true, view: 'full'})
     const [header, ...rest] = full.text.split('\n')
     expect(header).toMatch(
       /^greenrack catalog, whole \(\d+\.\d KB\)\. `greenrack context` prints the short index\.$/,
@@ -360,8 +400,8 @@ describe('greenrack context', () => {
       encoding: 'utf8',
     })
     expect(outside.status).toBe(0)
-    // The bin ends any output with one newline; there is no content.
-    expect(outside.stdout.trim()).toBe('')
+    // Nothing to say is nothing on stdout, not a blank line a hook would read as context.
+    expect(outside.stdout).toBe('')
     expect(outside.stderr).toBe('')
   })
 })

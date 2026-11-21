@@ -156,6 +156,18 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
   `session_id`), and a subagent's tool calls carry `agent_id` and `agent_type`
   under its parent's `session_id`. A `compact` with no repository now clears
   the session's markers too (a test caught the early return).
+- 2026-11-21 — the vendored decisions pack was refreshed in its own commit before
+  the plan, because the fleet pack check was behind; it is not a phase.
+- 2026-11-21 — review found the doctor block unbounded: `context` now cuts it at
+  a line end so the index plus the doctor text stay under 9,000 characters, and
+  says where to read the rest.
+- 2026-11-21 — a consumer folder with no `.git` gets nothing from the extension
+  gates now; a repository hook installed by `hook install` still serves it. The
+  gates ask git for the root, so a `GIT_DIR` set by a calling hook can point
+  them elsewhere. Carried, not changed here.
+- 2026-11-21 — carried, not changed here: the doctor cache is written through
+  one fixed temporary name, so two sessions starting together in one repository
+  can swap halves. It predates this change.
 
 ## Verification
 
@@ -187,7 +199,9 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
 
 ## Outcome
 
-Filled when the plan closes. For 7 days after Phase 3, against the 7 before:
+Filled when the plan closes. ADR-0079 exemption: this fixes the guidance itself
+(an always-on text over the hook cap) and is a feature the person asked for, so
+it targets no counted cause; the comparison below is a check, not a baseline. For 7 days after Phase 3, against the 7 before:
 hook outputs saved to a file (target 0), and the share of `.tsx`-editing
 sessions in a consumer that look a component up. A drop of a third returns the
 neighbour tables.

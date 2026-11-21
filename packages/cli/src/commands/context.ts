@@ -4,15 +4,22 @@ import {homedir} from 'node:os'
 import {join, relative, resolve} from 'node:path'
 import type {Registry} from '../registry-types.js'
 import {renderCatalog, renderIndex} from '../catalog.js'
+import type {CatalogRender} from '../catalog.js'
 import {isGreenrackConsumer, runDoctor} from './doctor.js'
 import type {CommandResult} from './lookup.js'
 import {cliVersion} from './manifest.js'
 
+/** `index`: the short session context. `full`: the whole catalog, as printed before 7.6. */
+export type ContextView = 'index' | 'full'
+
+/** Claude Code saves hook context above 10,000 characters to a file: stay under this. */
+export const CONTEXT_CAP = 9000
+
 export interface ContextOptions {
   /** Print only the catalog or index; leave the doctor block out. */
   catalogOnly?: boolean
-  /** Print the whole catalog (the output before 7.6) instead of the short index. */
-  full?: boolean
+  /** What to print before the doctor block. Defaults to the short index. */
+  view?: ContextView
   /** Repo root. Defaults to the process cwd. */
   cwd?: string
   /** Where the doctor cache lives. Defaults to `${XDG_CACHE_HOME:-~/.cache}`. */
@@ -109,25 +116,63 @@ function cachedDoctor(root: string, cacheHome: string): string {
 }
 
 /** The whole catalog behind one line that says how big it is and where the short index is. */
-function renderFullCatalog(registry: Registry) {
+function renderFullCatalog(registry: Registry): CatalogRender {
   const catalog = renderCatalog(registry)
-  const kb = (catalog.text.length / 1024).toFixed(1)
+  const kb = (Buffer.byteLength(catalog.text, 'utf8') / 1024).toFixed(1)
   const header = `greenrack catalog, whole (${kb} KB). \`greenrack context\` prints the short index.`
   return {text: `${header}\n${catalog.text}`, data: catalog.data}
 }
 
+function renderView(registry: Registry, view: ContextView): CatalogRender {
+  switch (view) {
+    case 'index':
+      return renderIndex(registry)
+    case 'full':
+      return renderFullCatalog(registry)
+  }
+}
+
+/**
+ * Cut the doctor text to `room` characters, at a line end, and say how much was
+ * left out and where to read it: a monorepo with many warnings must not push
+ * the whole output back over the hook cap.
+ */
+function fitDoctor(doctor: string, room: number): string {
+  if (doctor.length <= room) return doctor
+  const cut = doctor.slice(0, Math.max(0, room - 80))
+  const lineEnd = cut.lastIndexOf('\n')
+  const kept = lineEnd > 0 ? cut.slice(0, lineEnd) : cut
+  return `${kept}\n… ${doctor.length - kept.length} more characters: run \`greenrack doctor\``
+}
+
+/** What `runContext` returns outside a greenrack consumer. */
+const NOT_A_CONSUMER = Object.freeze({consumer: false})
+
+/**
+ * The line a person at a terminal gets where a hook gets silence, or null when
+ * nothing should be said: the result is a consumer's, or nobody is at a terminal.
+ */
+export function nonConsumerNote(result: CommandResult, isTTY: boolean, cwd: string): string | null {
+  if (!isTTY || result.data !== NOT_A_CONSUMER) return null
+  return `greenrack: not a greenrack consumer: no @greenharness/greenrack-* dependency in ${cwd}`
+}
+
 /**
  * `greenrack context`: what a session should know about the design system. The
- * short index (the whole catalog with `full`), then the doctor block when the
- * build wiring is wrong. Outside a greenrack consumer it prints nothing, so a
- * harness can run it anywhere.
+ * short index (the whole catalog with view `full`), then the doctor block when
+ * the build wiring is wrong, cut so the index view stays under the hook cap.
+ * Outside a greenrack consumer it prints nothing, so a harness can run it
+ * anywhere.
  */
 export function runContext(registry: Registry, options: ContextOptions = {}): CommandResult {
   const root = resolve(options.cwd ?? process.cwd())
-  if (!isGreenrackConsumer(root)) return {text: '', data: {consumer: false}}
-  const catalog = options.full ? renderFullCatalog(registry) : renderIndex(registry)
+  if (!isGreenrackConsumer(root)) return {text: '', data: NOT_A_CONSUMER}
+  const view = options.view ?? 'index'
+  const catalog = renderView(registry, view)
   if (options.catalogOnly) return {text: catalog.text, data: catalog.data}
-  const doctor = cachedDoctor(root, options.cacheHome ?? defaultCacheHome())
+  const cached = cachedDoctor(root, options.cacheHome ?? defaultCacheHome())
+  const doctor =
+    view === 'index' ? fitDoctor(cached, CONTEXT_CAP - catalog.text.length - 2) : cached
   return {
     text: doctor === '' ? catalog.text : `${catalog.text}\n\n${doctor}`,
     data: {...catalog.data, doctor},

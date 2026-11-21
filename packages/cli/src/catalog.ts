@@ -87,7 +87,7 @@ export const INDEX_PREAMBLE = [
 
 /** The recipes, wrapped under their names: a screen copies the closest one. */
 function renderIndexScreens(registry: Registry): string {
-  const entries = Object.entries(registry.recipes).sort(([a], [b]) => a.localeCompare(b))
+  const entries = Object.entries(registry.recipes).sort(([a], [b]) => a.localeCompare(b, 'en'))
   if (entries.length === 0) return ''
   const width = Math.max(...entries.map(([name]) => name.length)) + 2
   return [
@@ -105,11 +105,12 @@ function renderIndexScreens(registry: Registry): string {
  * `greenrack <Name>` (its RELATED block). Built from the registry directly,
  * never through the list renderer, so no colour escape can reach it.
  */
-export function renderIndex(registry: Registry) {
+export function renderIndex(registry: Registry): CatalogRender {
   const list = runList(registry)
   const contrast = relatedPairs(registry, 'contrast')
   const composition = relatedPairs(registry, 'composition')
-  const names = Object.keys(registry.components).sort((a, b) => a.localeCompare(b))
+  // One fixed locale: the same registry renders the same index on every machine.
+  const names = Object.keys(registry.components).sort((a, b) => a.localeCompare(b, 'en'))
   const sections = [
     INDEX_PREAMBLE,
     renderIndexScreens(registry),
@@ -153,3 +154,6 @@ export function renderCatalog(registry: Registry) {
     data: {preamble: PREAMBLE, entries: list.data, contrast, composition},
   }
 }
+
+/** What a session-context renderer returns: the text, and the data `--json` prints. */
+export type CatalogRender = ReturnType<typeof renderCatalog>
