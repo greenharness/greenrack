@@ -313,7 +313,7 @@ function lengthInPx(value: string): number {
 }
 
 /** A caller value as text for a reason: never throws (a cycle, a BigInt). */
-function shown(value: unknown): string {
+function valueText(value: unknown): string {
   try {
     return JSON.stringify(value) ?? String(value)
   } catch {
@@ -368,7 +368,7 @@ export function validateTokens(own: unknown): {kept: ThemeTokens; dropped: Dropp
           reason: `unknown token (expected ${spec.keys.join(' | ')})`,
         })
       } else if (typeof raw !== 'string') {
-        dropped.push({group, key, value: raw, reason: `${shown(raw)} must be a string`})
+        dropped.push({group, key, value: raw, reason: `${valueText(raw)} must be a string`})
       } else {
         const value = raw.trim()
         const kind = KINDS[spec.kindOf(key)]
