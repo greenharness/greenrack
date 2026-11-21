@@ -50,6 +50,7 @@ async function main(): Promise<void> {
         force: {type: 'boolean', default: false},
         session: {type: 'boolean', default: false},
         'catalog-only': {type: 'boolean', default: false},
+        full: {type: 'boolean', default: false},
         out: {type: 'string'},
         name: {type: 'string'},
         theme: {type: 'string'},
@@ -111,7 +112,14 @@ async function main(): Promise<void> {
   if (first === 'context') {
     if (rest.length > 0)
       usageError('greenrack context takes no arguments — run it from the repo root')
-    emit(runContext(registry, {catalogOnly: values['catalog-only']}), values.json)
+    const context = runContext(registry, {catalogOnly: values['catalog-only'], full: values.full})
+    // A person at a terminal gets the reason for the silence; a hook or a pipe stays quiet.
+    if ((context.data as {consumer?: boolean} | null)?.consumer === false && process.stderr.isTTY) {
+      process.stderr.write(
+        `greenrack: not a greenrack consumer: no @greenharness/greenrack-ui in ${process.cwd()}\n`,
+      )
+    }
+    emit(context, values.json)
   }
   if (first === 'mockup') {
     const [sub, ...files] = rest

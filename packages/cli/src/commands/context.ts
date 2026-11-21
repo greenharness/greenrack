@@ -3,14 +3,16 @@ import {mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync} from 'n
 import {homedir} from 'node:os'
 import {join, relative, resolve} from 'node:path'
 import type {Registry} from '../registry-types.js'
-import {renderCatalog} from '../catalog.js'
+import {renderCatalog, renderIndex} from '../catalog.js'
 import {isGreenrackConsumer, runDoctor} from './doctor.js'
 import type {CommandResult} from './lookup.js'
 import {cliVersion} from './manifest.js'
 
 export interface ContextOptions {
-  /** Print only the catalog; leave the doctor block out. */
+  /** Print only the catalog or index; leave the doctor block out. */
   catalogOnly?: boolean
+  /** Print the whole catalog (the output before 7.6) instead of the short index. */
+  full?: boolean
   /** Repo root. Defaults to the process cwd. */
   cwd?: string
   /** Where the doctor cache lives. Defaults to `${XDG_CACHE_HOME:-~/.cache}`. */
@@ -106,15 +108,24 @@ function cachedDoctor(root: string, cacheHome: string): string {
   return text
 }
 
+/** The whole catalog behind one line that says how big it is and where the short index is. */
+function renderFullCatalog(registry: Registry) {
+  const catalog = renderCatalog(registry)
+  const kb = (catalog.text.length / 1024).toFixed(1)
+  const header = `greenrack catalog, whole (${kb} KB). \`greenrack context\` prints the short index.`
+  return {text: `${header}\n${catalog.text}`, data: catalog.data}
+}
+
 /**
  * `greenrack context`: what a session should know about the design system. The
- * catalog, then the doctor block when the build wiring is wrong. Outside a
- * greenrack consumer it prints nothing, so a harness can run it anywhere.
+ * short index (the whole catalog with `full`), then the doctor block when the
+ * build wiring is wrong. Outside a greenrack consumer it prints nothing, so a
+ * harness can run it anywhere.
  */
 export function runContext(registry: Registry, options: ContextOptions = {}): CommandResult {
   const root = resolve(options.cwd ?? process.cwd())
   if (!isGreenrackConsumer(root)) return {text: '', data: {consumer: false}}
-  const catalog = renderCatalog(registry)
+  const catalog = options.full ? renderFullCatalog(registry) : renderIndex(registry)
   if (options.catalogOnly) return {text: catalog.text, data: catalog.data}
   const doctor = cachedDoctor(root, options.cacheHome ?? defaultCacheHome())
   return {

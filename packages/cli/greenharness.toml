@@ -30,9 +30,10 @@ args = ["-y", "-p", "@greenharness/greenrack-cli@^7", "-p", "@modelcontextprotoc
 # Quiet outside a greenrack consumer (on @greenharness/greenrack-* or, until
 # the census, the old @duro-app/*); quiet too when a hook install (greenrack's,
 # or the old duro one) already wired the catalog hook, so a session never gets
-# the catalog twice.
+# the catalog twice. The test looks at the git root of the cwd, never at folders
+# below it: a session started in a parent folder with no repository gets nothing.
 [[session_context]]
-command = "sh -c '[ -n \"$(find . -maxdepth 3 -name package.json -not -path \"*/node_modules/*\" -exec grep -l -e \"@greenharness/greenrack-\" -e \"@duro-app/\" {} + 2>/dev/null)\" ] || exit 0; [ -e .claude/hooks/greenrack-catalog.sh ] && exit 0; [ -e .claude/hooks/duro-catalog.sh ] && exit 0; exec npx -y @greenharness/greenrack-cli@^7 context'"
+command = "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; cd \"$r\" || exit 0; [ -n \"$(find . -maxdepth 3 -name package.json -not -path \"*/node_modules/*\" -exec grep -l -e \"@greenharness/greenrack-\" -e \"@duro-app/\" {} + 2>/dev/null)\" ] || exit 0; [ -e .claude/hooks/greenrack-catalog.sh ] && exit 0; [ -e .claude/hooks/duro-catalog.sh ] && exit 0; exec npx -y @greenharness/greenrack-cli@^7 context'"
 
 [[doctor]]
-command = "sh -c '[ -n \"$(find . -maxdepth 3 -name package.json -not -path \"*/node_modules/*\" -exec grep -l -e \"@greenharness/greenrack-\" -e \"@duro-app/\" {} + 2>/dev/null)\" ] || exit 0; exec npx -y @greenharness/greenrack-cli@^7 doctor'"
+command = "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; cd \"$r\" || exit 0; [ -n \"$(find . -maxdepth 3 -name package.json -not -path \"*/node_modules/*\" -exec grep -l -e \"@greenharness/greenrack-\" -e \"@duro-app/\" {} + 2>/dev/null)\" ] || exit 0; exec npx -y @greenharness/greenrack-cli@^7 doctor'"

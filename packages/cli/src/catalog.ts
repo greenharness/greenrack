@@ -47,7 +47,93 @@ function renderScreens(registry: Registry): string {
   ].join('\n')
 }
 
-/** The catalog session context: preamble, screens, index, guides, neighbour tables. */
+/** Columns an index line may take: a narrow terminal and a screen reader both read it. */
+const INDEX_WIDTH = 78
+
+/**
+ * Greedy wrap over items that never split. The first line starts with
+ * `prefix`, later lines with `hang`; an item longer than the width keeps a
+ * line of its own.
+ */
+function wrapItems(items: string[], prefix: string, hang: string): string {
+  const lines: string[] = []
+  let line = ''
+  for (const item of items) {
+    if (line === '') line = prefix + item
+    else if (line.length + 1 + item.length > INDEX_WIDTH) {
+      lines.push(line)
+      line = hang + item
+    } else line += ` ${item}`
+  }
+  if (line !== '') lines.push(line)
+  return lines.join('\n')
+}
+
+/** Greedy word wrap: the items are the words. */
+function wrap(text: string, prefix = '', hang = prefix): string {
+  return wrapItems(text.split(/\s+/).filter(Boolean), prefix, hang)
+}
+
+/** The lead of the short index: what to do, and where the detail is fetched. */
+export const INDEX_PREAMBLE = [
+  wrap('greenrack design system index. `greenrack context --full` prints the whole catalog.'),
+  wrap(
+    'Before hand-rolling ANY interactive element (menu, badge, tag, dialog, select, tooltip, ...) look it up: `greenrack <Name>` prints props, usage and the RELATED neighbours (which one to pick, what already wraps what); `greenrack "<what it must do>"` searches; the `greenrack_lookup` MCP tool does both.',
+  ),
+  wrap(
+    'A new screen starts from a recipe (`greenrack <recipe> --source-only`); a new screen, page or UI proposal starts with the /greenrack-mockup skill (`greenrack skill install` if this repo lacks it).',
+  ),
+].join('\n')
+
+/** The recipes, wrapped under their names: a screen copies the closest one. */
+function renderIndexScreens(registry: Registry): string {
+  const entries = Object.entries(registry.recipes).sort(([a], [b]) => a.localeCompare(b))
+  if (entries.length === 0) return ''
+  const width = Math.max(...entries.map(([name]) => name.length)) + 2
+  return [
+    `SCREENS — START FROM A RECIPE (${entries.length})`,
+    ...entries.map(([name, entry]) =>
+      wrap(entry.meta.description, `  ${name.padEnd(width)}`, `  ${' '.repeat(width)}`),
+    ),
+  ].join('\n')
+}
+
+/**
+ * The short session context (ADR-0026: an index, detail fetched on demand):
+ * the rule, the recipes, every component name, the token groups and the
+ * guides. What the neighbour and compose tables said now comes with
+ * `greenrack <Name>` (its RELATED block). Built from the registry directly,
+ * never through the list renderer, so no colour escape can reach it.
+ */
+export function renderIndex(registry: Registry) {
+  const list = runList(registry)
+  const contrast = relatedPairs(registry, 'contrast')
+  const composition = relatedPairs(registry, 'composition')
+  const names = Object.keys(registry.components).sort((a, b) => a.localeCompare(b))
+  const sections = [
+    INDEX_PREAMBLE,
+    renderIndexScreens(registry),
+    [
+      `COMPONENTS (${names.length})`,
+      // A name such as `Table (ui/table)` holds a space: wrap by name, never by word.
+      wrapItems(
+        names.map((name, i) => (i < names.length - 1 ? `${name},` : name)),
+        '  ',
+        '  ',
+      ),
+    ].join('\n'),
+    wrap(
+      `TOKENS: ${Object.keys(registry.tokens.groups).join(', ')}, icons, rules. Read one with \`greenrack <group>\`.`,
+    ),
+    wrap(renderGuideIndex(registry)),
+  ].filter(Boolean)
+  return {
+    text: sections.join('\n\n'),
+    data: {preamble: INDEX_PREAMBLE, entries: list.data, contrast, composition},
+  }
+}
+
+/** The whole catalog session context: preamble, screens, index, guides, neighbour tables. */
 export function renderCatalog(registry: Registry) {
   const list = runList(registry)
   // The index says what exists; the guard says which one is wrong. Both ship

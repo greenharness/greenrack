@@ -122,7 +122,7 @@ describe('command results', () => {
     const text = runHook(registry, 'session-start').text
     const screens = text.indexOf('SCREENS — START FROM A RECIPE')
     expect(screens).toBeGreaterThan(0)
-    expect(screens).toBeLessThan(text.indexOf(runList(registry).text))
+    expect(screens).toBeLessThan(text.indexOf('COMPONENTS ('))
     for (const recipe of ['split-pane', 'admin-detail-page', 'page-with-sidenav']) {
       expect(text).toContain(`  ${recipe}`)
     }
@@ -133,21 +133,30 @@ describe('command results', () => {
     expect(targets).toContain('Tabs+admin-detail-page')
   })
 
-  it('session-start carries both tables, not just the index', () => {
+  it('session-start is an index: no neighbour tables, a pointer to the lookup instead', () => {
     const text = runHook(registry, 'session-start').text
-    expect(text).toContain('PICKING BETWEEN NEIGHBORS')
-    expect(text).toContain('COMPOSE')
-    // The whole point: neither answer needs a second call.
-    expect(text).toContain('Menu vs Select')
-    expect(text).toContain('Field + Input')
+    expect(text).not.toContain('PICKING BETWEEN NEIGHBORS')
+    expect(text).not.toContain('COMPOSE —')
+    expect(text).not.toContain('Menu vs Select')
+    // Each neighbour answer is one lookup away: the RELATED block of `greenrack <Name>`.
+    expect(text).toContain('RELATED neighbours')
+    expect(text).toContain('greenrack_lookup')
+    expect(text).toContain('split-pane')
   })
 
-  it('hook session-start emits the preamble plus the list, other events are usage errors', () => {
+  it('the index stays within 6,000 characters and 78 columns, with no escape sequence', () => {
+    const text = runHook(registry, 'session-start').text
+    expect(text.length).toBeLessThanOrEqual(6000)
+    for (const line of text.split('\n')) expect(line.length, line).toBeLessThanOrEqual(78)
+    expect(text).not.toContain('\u001b')
+  })
+
+  it('hook session-start emits the preamble plus every component name, other events are usage errors', () => {
     const ok = runHook(registry, 'session-start')
     expect(ok.exitCode).toBeUndefined()
     expect(ok.text).toContain('hand-rolling')
     expect(ok.text).toContain('/greenrack-mockup')
-    expect(ok.text).toContain(runList(registry).text)
+    for (const name of Object.keys(registry.components)) expect(ok.text, name).toContain(name)
     expect(runHook(registry, 'nope').exitCode).toBe(2)
     expect(runHook(registry).exitCode).toBe(2)
   })
