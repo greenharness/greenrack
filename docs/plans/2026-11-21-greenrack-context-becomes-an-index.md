@@ -109,12 +109,12 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
 
 ## Phases
 
-- [ ] Phase 1 — the index and `--full`: `packages/cli/src/catalog.ts`,
+- [x] Phase 1 — the index and `--full`: `packages/cli/src/catalog.ts`,
       `packages/cli/src/commands/context.ts`, `packages/cli/src/commands/hook.ts`,
       `packages/cli/src/bin.ts`, `packages/cli/src/manifest.ts`,
       `packages/cli/test/cli.test.ts`, `packages/cli/test/extension.test.ts`;
       one commit
-- [ ] Phase 2 — root-scoped gate and docs: `packages/cli/greenharness.toml`,
+- [x] Phase 2 — root-scoped gate and docs: `packages/cli/greenharness.toml`,
       `packages/cli/README.md`, `CLAUDE.md`, `AGENTS.md`; one commit
 - [ ] Phase 3 — release v7.6.0 through the `tag-release` skill; the release
       writes the version from the tag into `packages/cli/package.json`,
@@ -147,6 +147,15 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
   no `cwd`.
 - 2026-11-21 — rejected: counting Perso-started sessions before Phase 4,
   because the person asked for this behaviour and the count would gate nothing.
+- 2026-11-21 — Phases 1 and 2 land in one commit: the gate test in
+  `extension.test.ts` passes only with the new manifest command, and the
+  pre-commit hook runs the tests. Phase 1 was written by hand: relais could not
+  admit its run in 1,800 s on a host at load 300 to 400 with eleven runs queued.
+- 2026-11-21 — the Phase 4 probe settled the hook inputs: SessionStart sends
+  `source` (`startup`, then `resume` on a resumed session with the same
+  `session_id`), and a subagent's tool calls carry `agent_id` and `agent_type`
+  under its parent's `session_id`. A `compact` with no repository now clears
+  the session's markers too (a test caught the early return).
 
 ## Verification
 
@@ -154,9 +163,16 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
   names `split-pane` and `greenrack_lookup`, no NEIGHBORS table, no line over 78
   columns, no ANSI; with a worst-case doctor block the whole output is under
   9,000; `dist/bin.js context --full` → today's text (so the option is wired);
-  `hook session-start` equals `context --catalog-only`.
+  `hook session-start` equals `context --catalog-only`. Observed: the index is
+  3,502 characters with its longest line at 78 columns and no escape; with a
+  3,000-character doctor block the whole output stays under 9,000; `--full` is
+  one header line then the old 31.1 KB catalog; the unit project and the
+  typecheck pass.
 - Phase 2: `greenrack context` run from `~/Developer/Perso` with the new gate
-  command → empty stdout and stderr, exit 0.
+  command → empty stdout and stderr, exit 0. Observed: the manifest test runs
+  both gate commands from a parent folder that holds a consumer repository
+  (empty stdout and stderr, exit 0), from the repository and from a subfolder
+  of it (the command runs).
 - Phase 3: `npx -y @greenharness/greenrack-cli@7.6.0 --version` prints 7.6.0 and
   the index is under 6,000 characters and `context` under 9,000; in one consuming repo, with
   its hook cache cleared, `claude -p` shows the index inline, not saved to a file.
