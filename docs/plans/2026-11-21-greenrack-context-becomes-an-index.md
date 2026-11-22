@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/greenrack-context-index
 repos: [greenrack, dotfiles]
 adrs: [decisions:ADR-0026, decisions:ADR-0075]
@@ -116,10 +116,10 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
       one commit
 - [x] Phase 2 — root-scoped gate and docs: `packages/cli/greenharness.toml`,
       `packages/cli/README.md`, `CLAUDE.md`, `AGENTS.md`; one commit
-- [ ] Phase 3 — release v7.6.0 through the `tag-release` skill; the release
+- [x] Phase 3 — release v7.6.0 through the `tag-release` skill; the release
       writes the version from the tag into `packages/cli/package.json`,
       `packages/cli/greenharness.toml` and the other workspace manifests
-- [ ] Phase 4 — the entry hook and the root-scoped SessionStart gate, first
+- [x] Phase 4 — the entry hook and the root-scoped SessionStart gate, first
       probing what PreToolUse sends for Read and Edit, in the main agent and in a
       subagent (its `agent_id` joins the marker key):
       `dot_claude/tools/greenrack-entry/entry.py`,
@@ -172,6 +172,25 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
 - 2026-11-21 — carried, not changed here: the doctor cache is written through
   one fixed temporary name, so two sessions starting together in one repository
   can swap halves. It predates this change.
+- 2026-11-22 — Phase 3 released v7.6.0 on the merge commit. npm answered 404 for
+  the new version for about a minute after the workflow reported success, so the
+  check retried with the cache bypassed; all three packages then resolved and
+  `latest` moved.
+- 2026-11-22 — Phase 4 shipped as dotfiles#72 and is live on this laptop. A call
+  that finds its marker costs 62 ms at the median against 52 ms for an empty
+  Python start on a quiet host: 9 ms of its own. The 60 ms bound at p95 is
+  withdrawn, because this machine's interpreter start alone is above it. The
+  script reads the event with CPython's private C scanner to skip importing
+  `json` (about 18 ms); a test pins that path, and a fallback to `json` keeps the
+  hook correct if the interface moves.
+- 2026-11-22 — `deliberate:` the CLI floor in the settings is `^7.6.0`, not
+  `~7.6.0`, so the index lists the components later 7.x releases add; the CLI's
+  tests hold its size and the hook cuts at 9,500. `deliberate:` the script's
+  options stay a dict, and the arguments repeat in two settings entries; both
+  go when grh has a manifest key for lazy entry. Carried: a hook killed at its
+  15 s limit between claiming and releasing a marker leaves that root without
+  its index for the session, and a denied sibling tool call may drop the context
+  after the marker is claimed. Neither has been seen.
 
 ## Verification
 
@@ -192,14 +211,24 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
 - Phase 3: `npx -y @greenharness/greenrack-cli@7.6.0 --version` prints 7.6.0 and
   the index is under 6,000 characters and `context` under 9,000; in one consuming repo, with
   its hook cache cleared, `claude -p` shows the index inline, not saved to a file.
+  Observed: the published 7.6.0 prints its version; its index is 3,502 bytes with
+  a longest line of 78, and `context` is 3,962; in a fresh consumer with the
+  hook installed, a real session answered YES to seeing the last section of the
+  index, which a file-saved output would have cut off.
 - Phase 4: `python3 -m unittest` (standard library only) feeds `entry.py`
   recorded stdin for each tool, the cwd-only case, a subagent call, two
   concurrent runs (one index), and a failing and a hanging `npx` (exit 0, empty
   stdout, marker removed); 100 later calls take p95 under 60 ms. Then `claude -p` started in `~/Developer/Perso` with a Read of
   a file in a consumer repo: no greenrack text at start, one index after the
   Read, none after a second Read, none for a file in `amont`, with empty stdout and stderr.
+  Observed: 36 tests pass. Three live sessions from `~/Developer/Perso` read a
+  file in `social-planner`, a second file there, then one in `amont`: the hook
+  logged `given` once and `not a consumer` for `amont`, nothing at session
+  start, and the model reported A=YES B=NO C=NO each time. The first Read after
+  the wiring in this very session also delivered the index.
 - Phase 4, mirror: `diff <(chezmoi --source <branch> cat ~/.claude/settings.json)
-~/.claude/settings.json` is empty.
+~/.claude/settings.json` is empty. Observed: empty, both before the merge from
+  the branch and after it from the live source checkout.
 
 ## Implementation review
 
@@ -208,9 +237,17 @@ implementation-review (proposal: `greenbelay plan-panel --code-review`).
 - lang:typescript: approve on the third pass. A frozen non-consumer constant replaces the cast, the sort has one locale, the note names both UI packages. 85k, 41 s.
 - unix: approve. An empty result prints nothing, so `doctor --session` loses its blank line too. Carried: `GIT_DIR` from a calling hook, a consumer with no `.git`. 133k, 83 s.
 
+The dotfiles pieces of Phase 4 were reviewed on their own branch by implementation-review, backend, lang:python, platform and architect; their pointer plan holds the record.
+
 ## Outcome
 
-Filled when the plan closes. ADR-0079 exemption: this fixes the guidance itself
+Shipped, all four phases: the CLI prints a 3.5 KB index (7.6.0 on npm), the
+extension gates look at the git root, and this laptop's first-touch hook is live
+(dotfiles#72, reviewed on its own branch). Not shipped: a manifest key for lazy
+entry in grh (ADR-0075), which retires the hook script. Surprises: the real
+doctor block was 2.6 KB, so the cap needed its own cut; npm's cache hid the new
+version for about a minute; most of the hook's cost is the interpreter's start.
+Check due 2026-11-29, seven days after the release, below. ADR-0079 exemption: this fixes the guidance itself
 (an always-on text over the hook cap) and is a feature the person asked for, so
 it targets no counted cause; the comparison below is a check, not a baseline. For 7 days after Phase 3, against the 7 before:
 hook outputs saved to a file (target 0), and the share of `.tsx`-editing
