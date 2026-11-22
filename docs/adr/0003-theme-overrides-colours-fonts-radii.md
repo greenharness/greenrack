@@ -3,7 +3,7 @@ id: ADR-0003
 status: accepted
 decisions:
   - key: theming.overrides
-    choice: A ThemeProvider replaces token values by group and key through one `tokens` prop over twelve groups — colors, shadows, typography, typeScale, spacing, layoutSpacing, radii, sizes, borders, duration, easing and effects — with `overrides` kept as the colour alias (`tokens.colors` wins on a clash). `layers`, `breakpoints`, `microSpacing`, `radii.px6` and `radii.full` are refused; `sizes.touchTarget` stays at 44px or more, `borders.focusRing` at 2px or more and `borders.focusOffset`/`focusOffsetSm` at 0 or more. Each provider's own values are validated before merging, one rule per kind of value, in the pure module `@duro-app/tokens/theme` that both platforms and the CLI import, and an invalid value is dropped with one development warning. `colors` and `shadows` reset when a nested provider changes theme; every other group inherits. Native takes the first font family of a list, unquoted, and is unverified on a device. `duro mockup seed --overrides` reads the same file, the `tokens` shape (or a flat map of colours)
+    choice: A ThemeProvider replaces token values by group and key through one `tokens` prop over twelve groups — colors, shadows, typography, typeScale, spacing, layoutSpacing, radii, sizes, borders, duration, easing and effects — with `overrides` kept as the colour alias (`tokens.colors` wins on a clash). `layers`, `breakpoints`, `microSpacing`, `radii.px6` and `radii.full` are refused; `sizes.touchTarget` stays at 44px or more, `borders.focusRing` at 2px or more and `borders.focusOffset`/`focusOffsetSm` at 0 or more. Each provider's own values are validated before merging, one rule per kind of value, in the pure module `@duro-app/tokens/theme` that both platforms and the CLI import, and an invalid value is dropped with one development warning. `colors` and `shadows` reset when a nested provider changes theme; every other group inherits. Native takes the first font family of a list, unquoted, and is unverified on a device. `duro mockup seed --overrides` reads the same file, the `tokens` shape (or a flat map of colours). Values per mode sit beside the groups as the reserved names `light`, `dark` and `contrast: {light, dark}`, under the same refusals and floors: a mode entry lays over the flat groups in that mode and `contrast` over that mode under `prefers-contrast: more`, the `high-contrast` theme takes the flat groups only, and the web rule carries them as `@media` blocks — `prefers-color-scheme` ones only for the provider a ColorModeProvider on `system` drives, every nested provider being pinned to its theme — so a server render is right before hydration; native takes the flat groups and the theme's mode, and the mockup seed writes each mode under its own theme selector
     first: true
     reason: A brand (greenharness.dev, set in JetBrains Mono with near-square corners) could not be expressed through colour overrides alone, and the person asked for every token group to be themable rather than three; the contract lived only in a plan (N0, Decision 4)
 ---
@@ -68,6 +68,29 @@ shipping three groups first.
   as a runtime dependency for this; `react-strict-dom` is an optional peer of
   the tokens package, so the CLI does not install it.
 
+- **Values per mode (2026-11-21).** `tokens` also takes `light`, `dark` and
+  `contrast: {light, dark}` beside the groups (`ThemeTokensByMode`,
+  `splitModes` and `validateModeTokens` in the tokens theme module). They
+  are reserved names, never groups, for good (a token group can never take one without a major release): one inside a mode entry is dropped with
+  its path, and a dropped entry names its mode (`dark.colors.bg: …`). A
+  state's values are the flat groups, then its mode, then its contrast
+  layer, and a nested provider resolves its inherited state first, so a
+  child's flat value beats an inherited mode value. On the web the rule
+  that holds the flat values and the theme's mode is followed by `@media`
+  blocks in source order: under `system`, the `prefers-color-scheme` light
+  and dark blocks then the `prefers-contrast: more` block of each scheme;
+  pinned, one `prefers-contrast: more` block. Only the nearest
+  ThemeProvider under a ColorModeProvider on `system` reads `system`
+  (`ColorModeProvider tokens` forwards to it); it gives every nested
+  provider `pinned`. Under `system` that provider's base rule holds the
+  flat values only, and each scheme block lays its mode on them, so every
+  value the tokens set is right before hydration. A colour or shadow key the
+  tokens leave out shows the DS dark theme's value until hydration, so a
+  consumer gives each key the page shows in both modes. Under
+  `applyTheme={false}` every ThemeProvider not nested in another follows the
+  scheme, so an island sits inside the app's provider. Native and the mockup seed do not apply `contrast` (the seed says
+  so on stderr). This extends the decision and supersedes nothing.
+
 ## Relation to other records
 
 - **ADR-0027** (`ui.measures`, fleet): every measure is a published token.
@@ -89,9 +112,13 @@ shipping three groups first.
   panel and Codex (fonts and radii).
 - 2026-10-29 — rewritten for every group, at the person's request after the
   first implementation review.
+- 2026-11-21 — revised for values per mode and per contrast (greenrack#214),
+  with the plan `docs/plans/2026-11-21-theme-tokens-per-mode.md`.
 
 ## Revisit when
 
 - A product needs `layers`, `breakpoints` or `microSpacing` themed.
 - A device check shows native does not apply a group, and the fallback needs
   recording.
+- A consumer needs another condition (`forced-colors`, a reduced palette) or
+  `prefers-contrast` on native.

@@ -288,8 +288,16 @@ and any other top-level key is refused (`bg: unknown group (expected colors | sh
 is `@greenharness/greenrack-tokens/theme`, the module `ThemeProvider` uses, so the CLI refuses what the app would drop.
 
 The overrides are written inside the token block as `--gr-<group>-<key>` rules (`--gr-color-bg`,
-`--gr-typography-font-family`, `--gr-radius-md`, `--gr-size-dialog-sm`, … for `:root` and for both
-`data-theme` selectors, so they win whatever the theme), and `check` accepts them there while still refusing
+`--gr-typography-font-family`, `--gr-radius-md`, `--gr-size-dialog-sm`, … one rule per theme
+selector, so they win whatever the theme). A file with values per mode (`light`, `dark`, as
+`ThemeProvider` takes them) writes the flat groups plus `dark` under
+`:root:not([data-theme="light"]):not([data-theme="high-contrast"])`, the flat groups plus `light` under
+`:root[data-theme="light"]`, and the flat groups only under `:root[data-theme="high-contrast"]`; a mode
+value wins over a flat one for the same key, and a dark-only value never reaches another theme.
+`contrast` entries are not applied to an artboard: one note on stderr, exit 0. The success line
+names each mode applied (`colors 1; dark: colors 2; light: colors 2`), and a refused mode value is
+reported with its mode (`dark.colors.bg: …`; in `--json` `problems`, `group` stays the group and
+`mode` names the mode). And `check` accepts them there while still refusing
 a raw colour anywhere else. The success line lists the groups that have entries, in the group table's order (`with overrides from
 theme.json: colors 1, typography 2, radii 4`). A missing or non-JSON file, an unknown key or a refused
 value exits 2 with `<group>.<key>: <reason>` on stderr (`radii.md: "-1px" must be 0 or a non-negative

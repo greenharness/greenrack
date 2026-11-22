@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {isSafeColor, overrideRule} from '../src/components/ThemeProvider/overrideRule'
+import {isSafeColor, modeRules, overrideRule} from '../src/components/ThemeProvider/overrideRule'
 
 const variableOf = (_group: string, key: string) =>
   key === 'bg' ? '--bg-x1' : key === 'accent' ? '--accent-x2' : null
@@ -31,5 +31,50 @@ describe('ThemeProvider override rule', () => {
 
   it('renders nothing for keys that are not colour tokens', () => {
     expect(overrideRule('s', {colors: {unknown: '#fff'}} as never, variableOf)).toBeNull()
+  })
+})
+
+describe('ThemeProvider mode rules', () => {
+  const sel = '[data-gr-theme="s"][data-gr-theme="s"]'
+  const modes = {
+    light: {colors: {bg: '#fff'}},
+    dark: {colors: {bg: '#000'}},
+    contrastLight: {colors: {accent: '#111'}},
+    contrastDark: {colors: {accent: '#eee'}},
+  }
+
+  it('emits nothing without mode layers, so a flat-only rule is unchanged', () => {
+    expect(modeRules('s', undefined, 'dark', 'system', variableOf)).toBeNull()
+  })
+
+  it('under system: the scheme blocks, light then dark, then the contrast blocks per scheme', () => {
+    expect(modeRules('s', modes, 'dark', 'system', variableOf)).toBe(
+      `@media (prefers-color-scheme: light) { ${sel} { --bg-x1: #fff; } } ` +
+        `@media (prefers-color-scheme: dark) { ${sel} { --bg-x1: #000; } } ` +
+        `@media (prefers-contrast: more) and (prefers-color-scheme: light) { ${sel} { --accent-x2: #111; } } ` +
+        `@media (prefers-contrast: more) and (prefers-color-scheme: dark) { ${sel} { --accent-x2: #eee; } }`,
+    )
+  })
+
+  it('pinned: one plain contrast block for the theme mode, no scheme block', () => {
+    const pinned = modeRules('s', modes, 'light', 'pinned', variableOf)
+    expect(pinned).toBe(`@media (prefers-contrast: more) { ${sel} { --accent-x2: #111; } }`)
+    expect(pinned).not.toContain('prefers-color-scheme')
+  })
+
+  it('lets a flat value come back on a light OS when only dark overrides it, under system', () => {
+    // flat bg, dark bg: the system base rule holds the flat value only, the
+    // dark block lays the dark one on it, and no light block is needed.
+    const darkOnly = {light: {}, dark: {colors: {bg: '#000'}}, contrastLight: {}, contrastDark: {}}
+    expect(modeRules('s', darkOnly, 'dark', 'system', variableOf)).toBe(
+      `@media (prefers-color-scheme: dark) { ${sel} { --bg-x1: #000; } }`,
+    )
+  })
+
+  it('emits nothing for high-contrast, and leaves out an empty block', () => {
+    expect(modeRules('s', modes, null, 'system', variableOf)).toBeNull()
+    const partial = {...modes, contrastLight: {}, contrastDark: {}}
+    expect(modeRules('s', partial, 'dark', 'system', variableOf)).not.toContain('prefers-contrast')
+    expect(modeRules('s', partial, 'dark', 'pinned', variableOf)).toBeNull()
   })
 })

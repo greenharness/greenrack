@@ -7,7 +7,7 @@
 import {createContext, type ReactNode, useContext, useEffect, useMemo, useState} from 'react'
 import {css, html} from 'react-strict-dom'
 import type {ColorToken} from '@greenharness/greenrack-tokens/keys'
-import {THEMABLE_GROUPS, validateTokens} from '@greenharness/greenrack-tokens/theme'
+import {THEMABLE_GROUPS, validateModeTokens} from '@greenharness/greenrack-tokens/theme'
 import {
   darkColors,
   highContrastColors,
@@ -29,10 +29,13 @@ import {
 } from '../../shared/portal/themeScope'
 import {
   mergeOverrides,
+  modeOf,
   OverridesContext,
   ownTokens,
+  stateTokens,
   type ColorOverrides,
   type ThemeTokens,
+  type ThemeTokensByMode,
 } from './overrides'
 import {nativeThemeInputs, resolvedColors} from './nativeInputs'
 import {TOKEN_GROUPS} from './tokenGroups'
@@ -40,7 +43,7 @@ import {warnDropped} from './warnDropped'
 
 export type ThemeName = 'dark' | 'light' | 'high-contrast'
 export {firstFamily, nativeThemeInputs, type NativeThemeInputs} from './nativeInputs'
-export type {ColorOverrides, ThemeTokens}
+export type {ColorOverrides, ThemeTokens, ThemeTokensByMode}
 
 interface ThemeProviderProps {
   theme?: ThemeName
@@ -64,8 +67,13 @@ interface ThemeProviderProps {
    * list, unquoted (a face the app has loaded, at weights 400, 500, 600 and
    * 700). Keep `radii` ordered `xs <= sm <= md <= lg`. Native is unverified
    * on a device.
+   *
+   * Values per mode (`light`, `dark`, `contrast`) sit beside the groups, as on
+   * the web. Native takes the flat groups and the theme's mode (`light` or
+   * `dark`; `high-contrast` takes the flat groups only); `contrast` and the
+   * system scheme do not apply on native.
    */
-  tokens?: ThemeTokens
+  tokens?: ThemeTokensByMode
   children: ReactNode
 }
 
@@ -132,15 +140,19 @@ export function ThemeProvider({theme = 'dark', overrides, tokens, children}: The
   )
   const registry = outerRegistry ?? ownRegistry
   const outerOverrides = useContext(OverridesContext)
-  const checked = useMemo(() => validateTokens(ownTokens(overrides, tokens)), [overrides, tokens])
+  const checked = useMemo(
+    () => validateModeTokens(ownTokens(overrides, tokens)),
+    [overrides, tokens],
+  )
   useEffect(() => warnDropped(checked.dropped), [checked])
   const effective = useMemo(
-    () => mergeOverrides(outerOverrides, theme, checked.kept),
+    () => mergeOverrides(outerOverrides, theme, checked.kept.flat, checked.kept),
     [outerOverrides, theme, checked],
   )
   // A runtime theme per group on native, applied after the base one so RSD
-  // styles cascade it; rebuilt only when that group's values change.
-  const inputs = nativeThemeInputs(effective)
+  // styles cascade it; rebuilt only when that group's values change. The
+  // values are the flat groups with the theme's mode laid over them.
+  const inputs = nativeThemeInputs({...effective, tokens: stateTokens(effective, modeOf(theme))})
   const inputsKey = JSON.stringify(inputs)
   const themeStyles = useMemo(() => {
     const layered = [...themeMap[theme]]
