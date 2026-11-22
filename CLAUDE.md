@@ -9,7 +9,7 @@
 > `greenrack_mockup_check` / `greenrack_mockup_canvas`).
 >
 > **Consuming apps:** run `npx -y @greenharness/greenrack-cli hook install` once in the repo root. It wires a
-> Claude Code `SessionStart` hook that puts this catalog in every agent session automatically, and
+> Claude Code `SessionStart` hook that puts an index of this catalog in every agent session, and
 > a `UserPromptSubmit` hook that, in plan mode only, nudges a plan with a new screen or a material
 > UI choice to start from mockup directions — `--check` in CI keeps both from drifting.
 > `npx -y @greenharness/greenrack-cli skill install` adds the colors, typography and ui interface skills (also served

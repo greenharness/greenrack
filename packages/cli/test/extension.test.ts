@@ -13,7 +13,8 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import {loadRegistry} from '../src/registry.js'
-import {runContext} from '../src/commands/context.js'
+import {renderCatalog} from '../src/catalog.js'
+import {nonConsumerNote, runContext} from '../src/commands/context.js'
 import {runDoctor} from '../src/commands/doctor.js'
 import {runHook} from '../src/commands/hook.js'
 import {extensionPointer} from '../src/extension-pointer.js'
@@ -154,6 +155,11 @@ describe('greenharness.toml', () => {
   })
 
   it('guards session_context and doctor: silent outside a greenrack consumer, once the hook is installed too', () => {
+    const git = (dir: string): string => {
+      const done = spawnSync('git', ['init', '-q', dir], {encoding: 'utf8'})
+      expect(done.status, done.stderr).toBe(0)
+      return dir
+    }
     const run = (cwd: string, command: string) =>
       spawnSync(
         'sh',
@@ -167,22 +173,54 @@ describe('greenharness.toml', () => {
       (entry) => entry.command as string,
     )
     const [doctor] = manifest.arrays.doctor!.map((entry) => entry.command as string)
-    expect(run(bystander(), sessionContext!)).toMatchObject({status: 0, stdout: ''})
-    expect(run(bystander(), doctor!)).toMatchObject({status: 0, stdout: ''})
-    expect(run(consumer(), sessionContext!).stdout).toBe('RAN context\n')
-    expect(run(consumer(), doctor!).stdout).toBe('RAN doctor\n')
-    const nested = mkdtempSync(join(tmpdir(), 'greenrack-nested-'))
+    expect(run(git(bystander()), sessionContext!)).toMatchObject({status: 0, stdout: ''})
+    expect(run(git(bystander()), doctor!)).toMatchObject({status: 0, stdout: ''})
+    expect(run(git(consumer()), sessionContext!).stdout).toBe('RAN context\n')
+    expect(run(git(consumer()), doctor!).stdout).toBe('RAN doctor\n')
+    const nested = git(mkdtempSync(join(tmpdir(), 'greenrack-nested-')))
     mkdirSync(join(nested, 'apps', 'web'), {recursive: true})
     writeFileSync(
       join(nested, 'apps', 'web', 'package.json'),
       '{"dependencies":{"@greenharness/greenrack-ui":"1"}}',
     )
     expect(run(nested, doctor!).stdout).toBe('RAN doctor\n')
-    const hooked = consumer()
+    const hooked = git(consumer())
     mkdirSync(join(hooked, '.claude', 'hooks'), {recursive: true})
     writeFileSync(join(hooked, '.claude', 'hooks', 'greenrack-catalog.sh'), '')
     expect(run(hooked, sessionContext!)).toMatchObject({status: 0, stdout: ''})
     expect(run(hooked, doctor!).stdout).toBe('RAN doctor\n')
+  })
+
+  it('looks at the git root of the cwd: a parent folder holding a consumer gets nothing, a subfolder of one gets it', () => {
+    const run = (cwd: string, command: string) =>
+      spawnSync(
+        'sh',
+        ['-c', command.replace(/npx -y @greenharness\/greenrack-cli@\^7/, 'echo RAN')],
+        {cwd, encoding: 'utf8'},
+      )
+    const [sessionContext] = manifest.arrays.session_context!.map(
+      (entry) => entry.command as string,
+    )
+    const [doctor] = manifest.arrays.doctor!.map((entry) => entry.command as string)
+    // A session started in a folder with no repository, such as ~/Developer, that holds one.
+    const parent = mkdtempSync(join(tmpdir(), 'greenrack-parent-'))
+    const app = join(parent, 'app')
+    mkdirSync(app)
+    writeFileSync(
+      join(app, 'package.json'),
+      JSON.stringify({devDependencies: {'@greenharness/greenrack-ui': '1.0.0'}}),
+    )
+    const init = spawnSync('git', ['init', '-q', app], {encoding: 'utf8'})
+    expect(init.status, init.stderr).toBe(0)
+    for (const command of [sessionContext!, doctor!]) {
+      expect(run(parent, command)).toMatchObject({status: 0, stdout: '', stderr: ''})
+    }
+    expect(run(app, sessionContext!).stdout).toBe('RAN context\n')
+    // A subfolder of the repository is judged by the whole repository.
+    const sub = join(app, 'packages', 'x')
+    mkdirSync(sub, {recursive: true})
+    expect(run(sub, sessionContext!).stdout).toBe('RAN context\n')
+    expect(run(sub, doctor!).stdout).toBe('RAN doctor\n')
   })
 })
 
@@ -255,6 +293,116 @@ describe('greenrack context', () => {
     const blocker = join(mkdtempSync(join(tmpdir(), 'greenrack-cache-')), 'file')
     writeFileSync(blocker, '')
     expect(() => runContext(registry, {cwd, cacheHome: blocker})).not.toThrow()
+  })
+
+  it('keeps the whole output, a large doctor block included, under the 10,000-character hook cap', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    const index = runContext(registry, {cwd, cacheHome, catalogOnly: true}).text
+    expect(index.length).toBeLessThanOrEqual(6000)
+    runContext(registry, {cwd, cacheHome})
+    const [slot] = readdirSync(join(cacheHome, 'greenrack'))
+    // The real six-warning block of a monorepo is about 2,600 characters.
+    writeFileSync(join(cacheHome, 'greenrack', slot!, 'doctor'), 'D'.repeat(3000))
+    const whole = runContext(registry, {cwd, cacheHome}).text
+    expect(whole.length).toBeLessThanOrEqual(9000)
+    expect(whole.startsWith(index)).toBe(true)
+    // The block really rode along: a cache miss would leave `whole` equal to the index.
+    expect(whole).toContain('D'.repeat(3000))
+  })
+
+  it('cuts a doctor block too large for the cap at a line end and says where to read the rest', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    runContext(registry, {cwd, cacheHome})
+    const [slot] = readdirSync(join(cacheHome, 'greenrack'))
+    const lines = Array.from({length: 300}, (_, i) => `- [warn] finding ${i}: ${'x'.repeat(40)}`)
+    writeFileSync(join(cacheHome, 'greenrack', slot!, 'doctor'), lines.join('\n'))
+    const whole = runContext(registry, {cwd, cacheHome})
+    expect(whole.text.length).toBeLessThanOrEqual(9000)
+    expect(whole.text).toMatch(/\n… \d+ more characters: run `greenrack doctor`$/)
+    // Cut at a line end: the last kept finding is whole.
+    expect(whole.text).toContain(`${'x'.repeat(40)}\n…`)
+    // The data keeps the doctor text as it was cut, so --json is bounded too.
+    expect((whole.data as {doctor: string}).doctor.length).toBeLessThan(9000)
+  })
+
+  it('--full keeps its doctor block whole, since it is for a person', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    runContext(registry, {cwd, cacheHome})
+    const [slot] = readdirSync(join(cacheHome, 'greenrack'))
+    writeFileSync(join(cacheHome, 'greenrack', slot!, 'doctor'), 'D'.repeat(12000))
+    const full = runContext(registry, {cwd, cacheHome, view: 'full'})
+    expect(full.text.startsWith('greenrack catalog, whole (')).toBe(true)
+    expect(full.text.endsWith(`\n\n${'D'.repeat(12000)}`)).toBe(true)
+  })
+
+  it('says why it is silent to a person at a terminal, and to nobody else', () => {
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    const outside = runContext(registry, {cwd: bystander(), cacheHome})
+    expect(nonConsumerNote(outside, false, '/work')).toBeNull()
+    expect(nonConsumerNote(outside, true, '/work')).toBe(
+      'greenrack: not a greenrack consumer: no @greenharness/greenrack-ui (or legacy @duro-app/ui) dependency in /work',
+    )
+    const inside = runContext(registry, {cwd: consumer(), cacheHome})
+    expect(nonConsumerNote(inside, true, '/work')).toBeNull()
+  })
+
+  it('--full prints the whole catalog after one header line, also through the bin', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    const full = runContext(registry, {cwd, cacheHome, catalogOnly: true, view: 'full'})
+    const [header, ...rest] = full.text.split('\n')
+    expect(header).toMatch(
+      /^greenrack catalog, whole \(\d+\.\d KB\)\. `greenrack context` prints the short index\.$/,
+    )
+    expect(rest.join('\n')).toBe(renderCatalog(registry).text)
+    for (const wanted of [
+      'PICKING BETWEEN NEIGHBORS',
+      'COMPOSE',
+      'Menu vs Select',
+      'Field + Input',
+    ]) {
+      expect(full.text, wanted).toContain(wanted)
+    }
+    const viaBin = spawnSync(process.execPath, [bin, 'context', '--full', '--catalog-only'], {
+      cwd,
+      encoding: 'utf8',
+    })
+    expect(viaBin.status).toBe(0)
+    expect(viaBin.stdout.trimEnd()).toBe(full.text.trimEnd())
+  })
+
+  it('--json keeps the catalog keys, with the doctor block beside them', () => {
+    const cwd = consumer()
+    const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
+    const withDoctor = runContext(registry, {cwd, cacheHome}).data as object
+    expect(Object.keys(withDoctor).sort()).toEqual([
+      'composition',
+      'contrast',
+      'doctor',
+      'entries',
+      'preamble',
+    ])
+    const catalogOnly = runContext(registry, {cwd, cacheHome, catalogOnly: true}).data as object
+    expect(Object.keys(catalogOnly).sort()).toEqual([
+      'composition',
+      'contrast',
+      'entries',
+      'preamble',
+    ])
+  })
+
+  it('stays silent outside a consumer when nobody is at a terminal, exit 0', () => {
+    const outside = spawnSync(process.execPath, [bin, 'context'], {
+      cwd: bystander(),
+      encoding: 'utf8',
+    })
+    expect(outside.status).toBe(0)
+    // Nothing to say is nothing on stdout, not a blank line a hook would read as context.
+    expect(outside.stdout).toBe('')
+    expect(outside.stderr).toBe('')
   })
 })
 

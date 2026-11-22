@@ -4,7 +4,7 @@ import {loadRegistry} from './registry.js'
 import {runLookup, type CommandResult} from './commands/lookup.js'
 import {runList} from './commands/list.js'
 import {runHook} from './commands/hook.js'
-import {runContext} from './commands/context.js'
+import {nonConsumerNote, runContext} from './commands/context.js'
 import {extensionPointer} from './extension-pointer.js'
 import {runMockup} from './commands/mockup.js'
 import {runSkill} from './commands/skill.js'
@@ -18,7 +18,8 @@ function emit(result: CommandResult, json: boolean): never {
     if (json) process.stdout.write(JSON.stringify(result.data, null, 2) + '\n')
   } else if (json) {
     process.stdout.write(JSON.stringify(result.data, null, 2) + '\n')
-  } else {
+  } else if (result.text !== '') {
+    // Nothing to say is nothing on stdout: a hook reads this as context.
     process.stdout.write(result.text.endsWith('\n') ? result.text : result.text + '\n')
   }
   process.exit(result.exitCode ?? 0)
@@ -50,6 +51,7 @@ async function main(): Promise<void> {
         force: {type: 'boolean', default: false},
         session: {type: 'boolean', default: false},
         'catalog-only': {type: 'boolean', default: false},
+        full: {type: 'boolean', default: false},
         out: {type: 'string'},
         name: {type: 'string'},
         theme: {type: 'string'},
@@ -111,7 +113,14 @@ async function main(): Promise<void> {
   if (first === 'context') {
     if (rest.length > 0)
       usageError('greenrack context takes no arguments — run it from the repo root')
-    emit(runContext(registry, {catalogOnly: values['catalog-only']}), values.json)
+    const context = runContext(registry, {
+      catalogOnly: values['catalog-only'],
+      view: values.full ? 'full' : 'index',
+    })
+    // A person at a terminal gets the reason for the silence; a hook or a pipe stays quiet.
+    const note = nonConsumerNote(context, Boolean(process.stderr.isTTY), process.cwd())
+    if (note !== null) process.stderr.write(`${note}\n`)
+    emit(context, values.json)
   }
   if (first === 'mockup') {
     const [sub, ...files] = rest

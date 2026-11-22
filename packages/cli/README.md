@@ -85,22 +85,25 @@ relationship to match: a `contrast` edge decides ("X for A; Y for B"), a
 
 ## Claude Code session hook
 
-`greenrack hook session-start` prints a consult-first preamble, the full catalog,
-and two neighbour tables, designed to be injected into agent context by a
-Claude Code `SessionStart` hook — so "check the design system before building
-UI" stops being a remembered step an agent can skip.
+`greenrack hook session-start` prints a short index, designed to be injected into
+agent context by a Claude Code `SessionStart` hook — so "check the design system
+before building UI" stops being a remembered step an agent can skip.
 
-The catalog answers "what exists". The tables answer the two questions it
-doesn't, which is where agents actually go wrong:
+The index names the recipes, every component and the token groups, and says where
+the detail is: `greenrack <Name>` or the `greenrack_lookup` MCP tool. It stays
+under 6,000 characters because Claude Code saves hook context above 10,000
+characters to a file and shows only a preview, which is what the whole catalog
+(about 34 KB) used to get. What its two tables answered, which is where agents
+actually go wrong, now comes with each lookup, in its RELATED block:
 
-- **PICKING BETWEEN NEIGHBORS** — a Menu built out of a Select, a Card where
+- **picking between neighbours** — a Menu built out of a Select, a Card where
   Panel was meant
-- **COMPOSE — DO NOT HAND-ROLL THE WRAPPER** — a hand-rolled label beside an
-  Input that should have been wrapped in `Field.Root`
+- **do not hand-roll the wrapper** — a hand-rolled label beside an Input that
+  should have been wrapped in `Field.Root`
 
-All three ship in one injection, so none waits on a `greenrack <Component>` call
-the agent may never make. The tables are the `contrast` and `composition`
-edges of each component's `relatedTo` — see above.
+`greenrack context --full` prints the whole catalog with both tables, for a
+person. The RELATED block is the `contrast` and `composition` edges of each
+component's `relatedTo` — see above.
 
 Every consuming repo wires it the same way, and the CLI does the wiring:
 
@@ -188,11 +191,12 @@ What each manifest entry does:
 The skills gate themselves: each opens by saying it applies only in a repository whose `package.json`
 depends on `@greenharness/greenrack-ui` (a `workspace:` dependency counts), and to stop anywhere else, so a
 user-level install costs other repositories nothing. The two session commands are `sh -c` guards
-that exit at once unless the root `package.json`, or a `package.json` one or two directories below it, names
-`@greenharness/greenrack-`.
+that exit at once unless the git root of the cwd has a `package.json`, in the root or one or two directories below it,
+that names `@greenharness/greenrack-`. A session started in a folder with no repository, such as a parent of several,
+gets nothing.
 
-`greenrack context` prints the catalog `greenrack hook session-start` prints (which now delegates to
-`greenrack context --catalog-only`) and then the `doctor --session` block, re-run only when the build files'
+`greenrack context` prints the short index `greenrack hook session-start` prints (which now delegates to
+`greenrack context --catalog-only`; `--full` prints the whole catalog) and then the `doctor --session` block, re-run only when the build files'
 key changes. Its cache is `${XDG_CACHE_HOME:-~/.cache}/greenrack/<repo path hash>`: written to a temporary
 file and renamed, a failed write is silent, and nothing is ever created in the repository's `.claude/`.
 `greenrack hook install` and `greenrack skill install` still work as before and print one extra line on stderr

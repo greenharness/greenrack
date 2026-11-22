@@ -78,13 +78,12 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: 'hook',
     summary:
-      'Claude Code hooks: session-start prints the consult-first preamble + full catalog; install wires it (SessionStart) plus a plan-mode mockup nudge (UserPromptSubmit) into the current repo',
+      'Claude Code hooks: session-start prints the short index (recipes, component names, pointers to `greenrack <Name>`); install wires it (SessionStart) plus a plan-mode mockup nudge (UserPromptSubmit) into the current repo',
     args: [
       {
         name: 'event',
         required: true,
-        description:
-          'session-start (print the bootstrap) | install (wire both hooks into this repo)',
+        description: 'session-start (print the index) | install (wire both hooks into this repo)',
         valuesFrom: 'events',
       },
     ],
@@ -192,7 +191,7 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: 'context',
     summary:
-      'The design-system session context for the repo in the cwd: the catalog that `hook session-start` prints, then the `doctor --session` block (re-run only when the build files change; cached under ${XDG_CACHE_HOME:-~/.cache}/greenrack). Prints nothing outside a greenrack consumer. Exits 0',
+      'The design-system session context for the repo in the cwd: the short index that `hook session-start` prints (`--full`: the whole catalog), then the `doctor --session` block (re-run only when the build files change; cached under ${XDG_CACHE_HOME:-~/.cache}/greenrack). Prints nothing outside a greenrack consumer (a terminal gets one stderr line). Exits 0',
     args: [],
     flags: [
       {
@@ -200,12 +199,18 @@ export const COMMANDS: CommandSpec[] = [
         type: 'boolean',
         description: 'Leave the doctor block out',
       },
+      {
+        name: 'full',
+        type: 'boolean',
+        description:
+          'Print the whole catalog (neighbour and compose tables included) after one header line, instead of the short index',
+      },
     ],
     returns: {
       shape: '{preamble, entries, contrast, composition, doctor?: string} | {consumer: false}',
       description: 'The catalog data, plus the doctor session text unless --catalog-only',
     },
-    examples: ['greenrack context', 'greenrack context --catalog-only'],
+    examples: ['greenrack context', 'greenrack context --catalog-only', 'greenrack context --full'],
   },
   {
     name: 'doctor',
