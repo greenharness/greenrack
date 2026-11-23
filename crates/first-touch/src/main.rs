@@ -12,19 +12,24 @@
 //! - a call that finds its marker reads the event, walks up to the `.git` and
 //!   stats one directory: it starts no process.
 //!
-//! `--protocol` prints the protocol this binary speaks with the CLI and reads
-//! no stdin; `greenrack hook install --user --check` asks it.
+//! `--protocol` prints the protocol this binary speaks with the CLI, and
+//! `--status` its last failure and back-offs as JSON; neither reads stdin.
+//! `greenrack hook install --user --check` asks both.
 
 use serde::Deserialize;
+use serde_json::{json, Value};
+use std::fmt;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-/// Bumped when the stdin, environment or stdout contract with the CLI changes.
+/// Bumped when the stdin, environment, stdout or `--status` contract with the
+/// CLI changes. The CLI reads it from `GREENRACK_FIRST_TOUCH_PROTOCOL` and
+/// prints nothing for a protocol it does not speak.
 const PROTOCOL: &str = "1";
 const NAME: &str = "greenrack-first-touch";
 /// The CLI the hook starts. The floor is the first release with `hook first-touch`.
@@ -48,7 +53,15 @@ const LOG_LIMIT: u64 = 1_000_000;
 const LOG_KEEP: usize = 2000;
 /// Claude Code saves hook context above 10,000 characters to a file.
 const OUTPUT_LIMIT: usize = 9_900;
+const HELP: &str = "greenrack-first-touch: a Claude Code hook; Claude Code runs it
+with the event on stdin. Install it with:
+  npx -y @greenharness/greenrack-cli@^7 hook install --user
+  --protocol  the protocol it speaks with the CLI
+  --status    its last failure and back-offs, as JSON
+  --version   its name and protocol";
 
+/// The event as Claude Code sends it: only ids and paths are read, so a
+/// Write's content is skipped without building a value for it.
 #[derive(Deserialize, Default)]
 struct Event {
     session_id: Option<String>,
@@ -66,19 +79,80 @@ struct ToolInput {
     notebook_path: Option<String>,
 }
 
+/// What the hook was called for, read once from the event.
+enum Call {
+    /// A session starts in `cwd`; `reset` when its earlier context is gone
+    /// (a resume, a compact or a clear).
+    Start { cwd: PathBuf, reset: bool },
+    /// A tool works in `dir`.
+    Tool { dir: PathBuf },
+}
+
+impl Call {
+    fn of(event: &Event) -> Option<Call> {
+        match event.hook_event_name.as_deref()? {
+            "SessionStart" => Some(Call::Start {
+                cwd: PathBuf::from(event.cwd.as_deref()?),
+                reset: matches!(
+                    event.source.as_deref(),
+                    Some("resume" | "compact" | "clear")
+                ),
+            }),
+            "PreToolUse" => Some(Call::Tool {
+                dir: touched_dir(event)?,
+            }),
+            _ => None,
+        }
+    }
+
+    fn event_name(&self) -> &'static str {
+        match self {
+            Call::Start { .. } => "SessionStart",
+            Call::Tool { .. } => "PreToolUse",
+        }
+    }
+}
+
+/// An id that is safe as one path segment.
+struct Id(String);
+
+impl Id {
+    fn parse(id: &str) -> Option<Id> {
+        let ok = !id.is_empty()
+            && id.len() <= 128
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+        ok.then(|| Id(id.to_string()))
+    }
+}
+
 fn main() {
-    if std::env::args().nth(1).as_deref() == Some("--protocol") {
-        let _ = writeln!(io::stdout(), "{PROTOCOL}");
-        std::process::exit(0);
+    match std::env::args().nth(1).as_deref() {
+        Some("--protocol") => answer(PROTOCOL),
+        Some("--status") => answer(&status()),
+        Some("--version") => answer(&format!("{NAME} (protocol {PROTOCOL})")),
+        Some("-h" | "--help") => answer(HELP),
+        _ => {}
+    }
+    // A person at a terminal gets the help, never a read that waits on them.
+    if io::stdin().is_terminal() {
+        answer(HELP);
     }
     std::panic::set_hook(Box::new(|info| {
-        let _ = writeln!(io::stderr(), "{NAME}: {info}");
+        let _ = writeln!(io::stderr(), "{NAME}: {info}"); // stderr closed: nowhere left to report
     }));
     if let Ok(Some(text)) = std::panic::catch_unwind(run) {
         let mut out = io::stdout().lock();
-        let _ = out.write_all(text.as_bytes());
-        let _ = out.flush();
+        let _ = out.write_all(text.as_bytes()); // stdout closed: Claude Code stopped reading
+        let _ = out.flush(); // the same: the exit code stays 0 whatever happens
     }
+    std::process::exit(0);
+}
+
+/// Print one answer and exit 0.
+fn answer(text: &str) -> ! {
+    let _ = writeln!(io::stdout(), "{text}"); // stdout closed: the asker has gone
     std::process::exit(0);
 }
 
@@ -91,37 +165,33 @@ fn run() -> Option<String> {
     io::stdin().lock().read_to_end(&mut input).ok()?;
     let event: Event = serde_json::from_slice(&input).ok()?;
     let state = state_dir()?;
-    let session = safe_id(event.session_id.as_deref()?)?;
+    let session = Id::parse(event.session_id.as_deref()?)?;
     let agent = match event.agent_id.as_deref() {
-        Some(id) => safe_id(id)?,
-        None => "main".to_string(),
+        Some(id) => Id::parse(id)?,
+        None => Id("main".to_string()),
     };
-    let start = event.hook_event_name.as_deref() == Some("SessionStart");
-    let session_dir = state.join(&session);
-    // The earlier context is gone after a resume, a compact or a clear.
-    if start
-        && matches!(
-            event.source.as_deref(),
-            Some("resume" | "compact" | "clear")
-        )
-    {
-        let _ = fs::remove_dir_all(&session_dir);
+    let session_dir = state.join(&session.0);
+    let call = Call::of(&event)?;
+    if let Call::Start { reset: true, .. } = call {
+        let _ = fs::remove_dir_all(&session_dir); // left markers cost one index this session, nothing more
     }
-    let touched = if start {
-        PathBuf::from(event.cwd.as_deref()?)
-    } else {
-        touched_dir(&event)?
+    let event_name = call.event_name();
+    let touched = match &call {
+        Call::Start { cwd, .. } => cwd.clone(),
+        Call::Tool { dir } => dir.clone(),
     };
     let root = git_root(&touched)?;
-    let root_text = normalize(&root.to_string_lossy(), cfg!(windows));
+    let root_text = normalize(&root.to_string_lossy());
     let key = root_key(&root_text);
-    let marker = session_dir.join(&agent).join(&key).join(".m");
+    let marker = session_dir.join(&agent.0).join(&key).join(".m");
     if is_hit(&marker) {
         return None;
     }
     let first_of_session = !session_dir.exists();
     let record = |outcome: &str, ms: Option<u128>| {
-        log(&state, &event, &session, &agent, &root_text, outcome, ms);
+        log(
+            &state, event_name, &session.0, &agent.0, &root_text, outcome, ms,
+        );
     };
     if !is_consumer(&root) {
         if claim(&marker) {
@@ -130,7 +200,7 @@ fn run() -> Option<String> {
         }
         return None;
     }
-    if start && OWN_HOOKS.iter().any(|hook| root.join(hook).exists()) {
+    if matches!(call, Call::Start { .. }) && OWN_HOOKS.iter().any(|hook| root.join(hook).exists()) {
         if claim(&marker) {
             finish(&marker, &root_text);
             record("own hook", None);
@@ -139,7 +209,8 @@ fn run() -> Option<String> {
     }
     let failures = state.join("failures").join(&key);
     let previous = read_failures(&failures);
-    if previous.as_ref().is_some_and(|f| f.backing_off()) {
+    if previous.as_ref().is_some_and(Failures::backing_off) {
+        record("backing off", None);
         return None;
     }
     if !claim(&marker) {
@@ -148,17 +219,16 @@ fn run() -> Option<String> {
     if first_of_session {
         prune(&state);
     }
-    let unavailable = if start {
-        previous.map(|f| f.reason)
-    } else {
-        None
+    let unavailable = match call {
+        Call::Start { .. } => previous.and_then(|f| f.reason),
+        Call::Tool { .. } => None,
     };
     let started = Instant::now();
-    let result = run_cli(&event, &input, &root, &root_text, unavailable.as_deref());
+    let result = run_cli(event_name, input, &root, &root_text, unavailable.as_deref());
     let ms = Some(started.elapsed().as_millis());
     match result {
         Ok(text) => {
-            let _ = fs::remove_file(&failures);
+            let _ = fs::remove_file(&failures); // usually absent; a left counter expires with FAIL_WINDOW
             finish(&marker, &root_text);
             let text = text.trim_end();
             if text.is_empty() {
@@ -172,24 +242,14 @@ fn run() -> Option<String> {
             record("given", ms);
             Some(format!("{text}\n"))
         }
-        Err(reason) => {
-            let _ = fs::remove_dir_all(&marker);
-            note_failure(&failures, &reason);
-            record(&format!("failed: {reason}"), ms);
-            let _ = writeln!(io::stderr(), "{NAME}: no index for {root_text} ({reason})");
+        Err(failure) => {
+            let _ = fs::remove_dir_all(&marker); // a left claim expires after the claim TTL, then a call retries
+            note_failure(&failures, &failure.to_string());
+            record(&format!("failed: {failure}"), ms);
+            let _ = writeln!(io::stderr(), "{NAME}: no index for {root_text} ({failure})"); // stderr closed: the log above has it
             None
         }
     }
-}
-
-/// An id that is safe as one path segment.
-fn safe_id(id: &str) -> Option<String> {
-    let ok = !id.is_empty()
-        && id.len() <= 128
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
-    ok.then(|| id.to_string())
 }
 
 fn state_dir() -> Option<PathBuf> {
@@ -251,20 +311,29 @@ fn git_root(dir: &Path) -> Option<PathBuf> {
     }
 }
 
-/// One spelling per root: `\\?\` dropped, and on Windows `/` and lower case.
-fn normalize(path: &str, windows: bool) -> String {
-    let path = if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+/// One spelling per root on this platform.
+fn normalize(path: &str) -> String {
+    if cfg!(windows) {
+        windows_spelling(path)
+    } else {
+        strip_verbatim(path)
+    }
+}
+
+/// The path without Windows' `\\?\` prefix, which `canonicalize` adds.
+fn strip_verbatim(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
         format!(r"\\{rest}")
     } else if let Some(rest) = path.strip_prefix(r"\\?\") {
         rest.to_string()
     } else {
         path.to_string()
-    };
-    if windows {
-        path.replace('\\', "/").to_lowercase()
-    } else {
-        path
     }
+}
+
+/// Windows paths ignore case and take either slash: `/` and lower case.
+fn windows_spelling(path: &str) -> String {
+    strip_verbatim(path).replace('\\', "/").to_lowercase()
 }
 
 /// A fixed-width name for a root (FNV-1a 64), so a marker path never nears MAX_PATH.
@@ -317,7 +386,16 @@ fn claim(marker: &Path) -> bool {
             if fs::rename(marker, &aside).is_err() {
                 return false;
             }
-            let _ = fs::remove_dir_all(&aside);
+            // Between the check above and the rename, another caller may have
+            // reclaimed the stale marker and made a fresh one: that one is
+            // live, so it goes back and this caller stands down.
+            if age(&aside).is_some_and(|age| age < claim_ttl()) {
+                if fs::rename(&aside, marker).is_err() {
+                    let _ = fs::remove_dir_all(&aside); // a third caller holds the marker now; this copy is spare
+                }
+                return false;
+            }
+            let _ = fs::remove_dir_all(&aside); // a left folder costs disk only; prune removes it with its session
             fs::create_dir(marker).is_ok()
         }
         Err(_) => false,
@@ -325,8 +403,8 @@ fn claim(marker: &Path) -> bool {
 }
 
 fn finish(marker: &Path, root: &str) {
-    let _ = fs::write(marker.join("root"), root);
-    let _ = fs::write(marker.join("done"), b"");
+    let _ = fs::write(marker.join("root"), root); // for a person reading the state; nothing reads it back
+    let _ = fs::write(marker.join("done"), b""); // lost: the call runs again once the claim expires (30 s)
 }
 
 fn nanos() -> u128 {
@@ -370,10 +448,11 @@ fn is_consumer(root: &Path) -> bool {
     visit(root, 0)
 }
 
+/// The failures counted for one root: `count at reason` on disk.
 struct Failures {
     count: u32,
     at: f64,
-    reason: String,
+    reason: Option<String>,
 }
 
 impl Failures {
@@ -387,10 +466,18 @@ fn read_failures(path: &Path) -> Option<Failures> {
     let mut parts = text.splitn(3, ' ');
     let count = parts.next()?.parse().ok()?;
     let at = parts.next()?.parse().ok()?;
-    let reason = parts.next().unwrap_or("").trim().to_string();
+    let reason = parts
+        .next()
+        .map(str::trim)
+        .filter(|reason| !reason.is_empty())
+        .map(String::from);
     Some(Failures { count, at, reason })
 }
 
+/// Count one more failure for a root.
+// holds-until: a report of a back-off that came late. The read and the write
+// are not locked, so two sessions failing on one root at once count one; while
+// one session at a time fails per root, the count is exact.
 fn note_failure(path: &Path, reason: &str) {
     let count = read_failures(path)
         .filter(|f| now_secs() - f.at < FAIL_WINDOW.as_secs_f64())
@@ -398,12 +485,14 @@ fn note_failure(path: &Path, reason: &str) {
     let Some(parent) = path.parent() else {
         return;
     };
-    let _ = fs::create_dir_all(parent);
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
     // Staged and renamed: a parallel call never reads half a counter.
     let staged = parent.join(format!(".tmp.{}.{}", std::process::id(), nanos()));
     let line = format!("{} {} {}", count + 1, now_secs(), reason.replace('\n', " "));
     if fs::write(&staged, line).is_ok() && fs::rename(&staged, path).is_err() {
-        let _ = fs::remove_file(&staged);
+        let _ = fs::remove_file(&staged); // a stray temp file costs disk only
     }
 }
 
@@ -417,7 +506,7 @@ fn prune(state: &Path) {
                 continue;
             }
             if age(&path).is_some_and(|age| age > PRUNE_AGE) {
-                let _ = fs::remove_dir_all(&path);
+                let _ = fs::remove_dir_all(&path); // left behind, the next session's prune tries again
             }
         }
     }
@@ -428,7 +517,7 @@ fn prune(state: &Path) {
             let kept = lines[lines.len().saturating_sub(LOG_KEEP)..].join("\n") + "\n";
             let staged = state.join(format!(".log.{}.tmp", std::process::id()));
             if fs::write(&staged, kept).is_ok() {
-                let _ = fs::rename(&staged, &log);
+                let _ = fs::rename(&staged, &log); // the log stays long until the next session's prune
             }
         }
     }
@@ -436,16 +525,16 @@ fn prune(state: &Path) {
 
 fn log(
     state: &Path,
-    event: &Event,
+    event: &str,
     session: &str,
     agent: &str,
     root: &str,
     outcome: &str,
     ms: Option<u128>,
 ) {
-    let line = serde_json::json!({
+    let line = json!({
         "ts": now_secs(),
-        "event": event.hook_event_name.as_deref().unwrap_or(""),
+        "event": event,
         "session": session,
         "agent": agent,
         "root": root,
@@ -458,9 +547,36 @@ fn log(
             .append(true)
             .open(state.join("log.jsonl"))
         {
-            let _ = writeln!(file, "{line}");
+            let _ = writeln!(file, "{line}"); // a lost line loses a statistic, never the hook's work
         }
     }
+}
+
+/// `--status`: the last failure in the log and the roots backing off, as one
+/// JSON object. The CLI's `--check` prints it; the files stay this binary's.
+fn status() -> String {
+    let Some(state) = state_dir() else {
+        return json!({"protocol": PROTOCOL, "lastFailure": null, "backingOff": []}).to_string();
+    };
+    let last = fs::read_to_string(state.join("log.jsonl"))
+        .ok()
+        .and_then(|text| {
+            text.lines().rev().find_map(|line| {
+                let row: Value = serde_json::from_str(line).ok()?;
+                row["outcome"].as_str()?.starts_with("failed").then(
+                    || json!({"ts": row["ts"], "root": row["root"], "outcome": row["outcome"]}),
+                )
+            })
+        });
+    let backing_off: Vec<Value> = fs::read_dir(state.join("failures"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| read_failures(&entry.path()))
+        .filter(Failures::backing_off)
+        .map(|f| json!({"count": f.count, "ts": f.at, "reason": f.reason}))
+        .collect();
+    json!({"protocol": PROTOCOL, "lastFailure": last, "backingOff": backing_off}).to_string()
 }
 
 fn timeout() -> Duration {
@@ -475,48 +591,76 @@ fn program() -> std::ffi::OsString {
         .unwrap_or_else(|| if cfg!(windows) { "npx.cmd" } else { "npx" }.into())
 }
 
+/// Why the CLI gave no index.
+enum CliFailure {
+    Spawn(io::Error),
+    Wait(io::Error),
+    Timeout,
+    /// It exited 0, but a process it left behind kept its output open.
+    OutputOpen,
+    Exit {
+        code: Option<i32>,
+        last: String,
+    },
+}
+
+impl fmt::Display for CliFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CliFailure::Spawn(err) => write!(f, "cannot start npx: {err}"),
+            CliFailure::Wait(err) => write!(f, "cannot wait for npx: {err}"),
+            CliFailure::Timeout => f.write_str("timeout"),
+            CliFailure::OutputOpen => f.write_str("output left open"),
+            CliFailure::Exit { code, last } => {
+                let code = code.map_or_else(|| "signal".to_string(), |c| c.to_string());
+                if last.is_empty() {
+                    write!(f, "exit {code}")
+                } else {
+                    write!(f, "exit {code}: {last}")
+                }
+            }
+        }
+    }
+}
+
 /// Start `npx … hook first-touch` in the root with the event on stdin; its
-/// stdout when it exits 0 in time, else why not. A timeout kills the tree.
+/// stdout when it exits 0 in time, else why not. A timeout kills the tree,
+/// and so does every exit: nothing it started outlives the call.
 fn run_cli(
-    event: &Event,
-    input: &[u8],
+    event_name: &str,
+    input: Vec<u8>,
     root: &Path,
     root_text: &str,
     unavailable: Option<&str>,
-) -> Result<String, String> {
+) -> Result<String, CliFailure> {
     let mut command = Command::new(program());
     command
         .args(["-y", PACKAGE, "hook", "first-touch"])
         .current_dir(root)
+        .env("GREENRACK_FIRST_TOUCH_PROTOCOL", PROTOCOL)
         .env("GREENRACK_FIRST_TOUCH_ROOT", root_text)
-        .env(
-            "GREENRACK_FIRST_TOUCH_EVENT",
-            event.hook_event_name.as_deref().unwrap_or(""),
-        )
+        .env("GREENRACK_FIRST_TOUCH_EVENT", event_name)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     match unavailable {
-        Some(reason) if !reason.is_empty() => {
-            command.env("GREENRACK_FIRST_TOUCH_UNAVAILABLE", reason);
-        }
-        _ => {
-            command.env_remove("GREENRACK_FIRST_TOUCH_UNAVAILABLE");
-        }
-    }
+        Some(reason) => command.env("GREENRACK_FIRST_TOUCH_UNAVAILABLE", reason),
+        None => command.env_remove("GREENRACK_FIRST_TOUCH_UNAVAILABLE"),
+    };
+    // holds-until: a report of an npx outliving a killed hook. Its own group
+    // keeps npx from this binary's signals, so when Claude Code kills the
+    // binary first (a cancelled hook; its 15 s cap is above our 10 s), the
+    // group runs on until npx ends by itself.
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         command.process_group(0);
     }
-    let mut child = command
-        .spawn()
-        .map_err(|err| format!("cannot start npx: {err}"))?;
+    let mut child = command.spawn().map_err(CliFailure::Spawn)?;
     let tree = Tree::of(&child);
     if let Some(mut stdin) = child.stdin.take() {
-        let input = input.to_vec();
         thread::spawn(move || {
-            let _ = stdin.write_all(&input);
+            let _ = stdin.write_all(&input); // the CLI may exit unread; its exit status tells the outcome
         });
     }
     let stdout = reader(child.stdout.take());
@@ -526,15 +670,21 @@ fn run_cli(
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
-            _ => {
+            Ok(None) => {
                 tree.kill(&mut child);
-                let _ = child.wait();
-                return Err("timeout".to_string());
+                reap(&mut child);
+                return Err(CliFailure::Timeout);
+            }
+            Err(err) => {
+                tree.kill(&mut child);
+                reap(&mut child);
+                return Err(CliFailure::Wait(err));
             }
         }
     };
+    // Whatever npx left running goes now, so its pipes close.
+    tree.kill(&mut child);
     let grace = Duration::from_secs(1);
-    let out = stdout.recv_timeout(grace).unwrap_or_default();
     if !status.success() {
         let err = stderr.recv_timeout(grace).unwrap_or_default();
         let err = String::from_utf8_lossy(&err);
@@ -543,17 +693,19 @@ fn run_cli(
             .rev()
             .find(|l| !l.trim().is_empty())
             .unwrap_or("");
-        let last: String = last.trim().chars().take(200).collect();
-        let code = status
-            .code()
-            .map_or("signal".to_string(), |c| c.to_string());
-        return Err(if last.is_empty() {
-            format!("exit {code}")
-        } else {
-            format!("exit {code}: {last}")
+        return Err(CliFailure::Exit {
+            code: status.code(),
+            last: last.trim().chars().take(200).collect(),
         });
     }
+    let out = stdout
+        .recv_timeout(grace)
+        .map_err(|_| CliFailure::OutputOpen)?;
     Ok(String::from_utf8_lossy(&out).into_owned())
+}
+
+fn reap(child: &mut Child) {
+    let _ = child.wait(); // the kill is sent; a failed wait leaves a zombie that init reaps
 }
 
 /// Read a pipe on its own thread, so a grandchild holding it never blocks the hook.
@@ -562,8 +714,8 @@ fn reader<R: Read + Send + 'static>(pipe: Option<R>) -> mpsc::Receiver<Vec<u8>> 
     if let Some(mut pipe) = pipe {
         thread::spawn(move || {
             let mut bytes = Vec::new();
-            let _ = pipe.read_to_end(&mut bytes);
-            let _ = send.send(bytes);
+            let _ = pipe.read_to_end(&mut bytes); // an error keeps the bytes read so far, sent below
+            let _ = send.send(bytes); // the receiver gave up at its deadline
         });
     }
     receive
@@ -571,23 +723,24 @@ fn reader<R: Read + Send + 'static>(pipe: Option<R>) -> mpsc::Receiver<Vec<u8>> 
 
 /// The child and everything it started.
 #[cfg(unix)]
-struct Tree;
+struct Tree(Option<i32>);
 
 #[cfg(unix)]
 impl Tree {
-    fn of(_child: &Child) -> Tree {
-        Tree
+    fn of(child: &Child) -> Tree {
+        Tree(i32::try_from(child.id()).ok())
     }
 
     fn kill(&self, child: &mut Child) {
-        // The child leads its own process group (`process_group(0)`).
-        if let Ok(pid) = i32::try_from(child.id()) {
+        // The child leads its own process group (`process_group(0)`), which
+        // outlives it while anything it started still runs.
+        if let Some(pid) = self.0 {
             // SAFETY: killpg only sends a signal; a gone group is ESRCH.
             unsafe {
                 libc::killpg(pid, libc::SIGKILL);
             }
         }
-        let _ = child.kill();
+        let _ = child.kill(); // already ended by the group kill, or exited: both are fine
     }
 }
 
@@ -604,7 +757,7 @@ impl Tree {
         if let Some(job) = &self.0 {
             job.kill();
         }
-        let _ = child.kill();
+        let _ = child.kill(); // already ended with the job, or exited: both are fine
     }
 }
 
@@ -622,6 +775,10 @@ mod job {
     pub struct Job(HANDLE);
 
     impl Job {
+        // holds-until: a report of a node outliving a timeout on Windows. The
+        // child joins the job once started, so a process it starts before the
+        // assignment escapes the kill; then start it suspended and resume it
+        // after the assignment.
         pub fn for_child(child: &std::process::Child) -> Option<Job> {
             // SAFETY: plain Win32 calls on handles this function owns or borrows.
             unsafe {
@@ -633,12 +790,15 @@ mod job {
                 let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
                 info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
                 let size = u32::try_from(std::mem::size_of_val(&info)).ok()?;
-                SetInformationJobObject(
+                let set = SetInformationJobObject(
                     job.0,
                     JobObjectExtendedLimitInformation,
                     std::ptr::addr_of!(info).cast(),
                     size,
                 );
+                if set == 0 {
+                    return None;
+                }
                 if AssignProcessToJobObject(job.0, child.as_raw_handle() as HANDLE) == 0 {
                     return None;
                 }
@@ -649,7 +809,7 @@ mod job {
         pub fn kill(&self) {
             // SAFETY: the handle is valid until drop.
             unsafe {
-                TerminateJobObject(self.0, 1);
+                let _ = TerminateJobObject(self.0, 1); // a failure leaves child.kill() to end npx itself
             }
         }
     }
@@ -670,21 +830,24 @@ mod tests {
 
     #[test]
     fn ids_are_one_safe_path_segment() {
-        assert_eq!(safe_id("abc-1_2").as_deref(), Some("abc-1_2"));
+        assert_eq!(
+            Id::parse("abc-1_2").map(|id| id.0).as_deref(),
+            Some("abc-1_2")
+        );
         for bad in ["", "../x", "a/b", "a b", "a\\b", "é"] {
-            assert!(safe_id(bad).is_none(), "{bad:?}");
+            assert!(Id::parse(bad).is_none(), "{bad:?}");
         }
     }
 
     #[test]
     fn windows_paths_get_one_spelling() {
-        assert_eq!(normalize(r"\\?\C:\Repo\App", true), "c:/repo/app");
-        assert_eq!(normalize(r"C:\Repo\App", true), "c:/repo/app");
+        assert_eq!(windows_spelling(r"\\?\C:\Repo\App"), "c:/repo/app");
+        assert_eq!(windows_spelling(r"C:\Repo\App"), "c:/repo/app");
         assert_eq!(
-            normalize(r"\\?\UNC\server\share\r", true),
+            windows_spelling(r"\\?\UNC\server\share\r"),
             "//server/share/r"
         );
-        assert_eq!(normalize("/Users/me/App", false), "/Users/me/App");
+        assert_eq!(strip_verbatim("/Users/me/App"), "/Users/me/App");
     }
 
     #[test]
@@ -700,5 +863,48 @@ mod tests {
     #[test]
     fn a_missing_failure_record_is_no_back_off() {
         assert!(read_failures(Path::new("/nonexistent/greenrack/failures")).is_none());
+    }
+
+    #[test]
+    fn an_empty_failure_reason_is_no_reason() {
+        let dir = std::env::temp_dir().join(format!("{NAME}-unit-{}", nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("f");
+        fs::write(&path, "2 1.5 ").unwrap();
+        let failures = read_failures(&path).unwrap();
+        assert_eq!((failures.count, failures.reason), (2, None));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn failures_read_as_the_strings_the_log_keeps() {
+        let exit = CliFailure::Exit {
+            code: Some(1),
+            last: "boom".to_string(),
+        };
+        assert_eq!(exit.to_string(), "exit 1: boom");
+        let bare = CliFailure::Exit {
+            code: None,
+            last: String::new(),
+        };
+        assert_eq!(bare.to_string(), "exit signal");
+        assert_eq!(CliFailure::Timeout.to_string(), "timeout");
+    }
+
+    #[test]
+    fn only_the_two_hook_events_are_calls() {
+        let mut event = Event {
+            hook_event_name: Some("Stop".to_string()),
+            cwd: Some("/".to_string()),
+            ..Event::default()
+        };
+        assert!(Call::of(&event).is_none());
+        event.hook_event_name = Some("SessionStart".to_string());
+        assert_eq!(
+            Call::of(&event).map(|c| c.event_name()),
+            Some("SessionStart")
+        );
+        event.hook_event_name = None;
+        assert!(Call::of(&event).is_none());
     }
 }

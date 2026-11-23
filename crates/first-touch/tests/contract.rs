@@ -156,7 +156,7 @@ impl Case {
 
 impl Drop for Case {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.tmp);
+        let _ = std::fs::remove_dir_all(&self.tmp); // a left temp folder costs disk only
     }
 }
 
@@ -311,7 +311,20 @@ fn a_subfolder_resolves_the_git_root() {
     let sub = root.join("packages/x");
     std::fs::create_dir_all(&sub).unwrap();
     let output = case.run(&start(&sub, "s1", "startup"), "ok");
-    assert!(stdout(&output).contains(&format!("root={}", root.display())) || cfg!(windows));
+    let want = if cfg!(windows) {
+        let real = std::fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let real = real.strip_prefix(r"\\?\").unwrap_or(&real).to_string();
+        real.replace('\\', "/").to_lowercase()
+    } else {
+        root.display().to_string()
+    };
+    assert!(
+        stdout(&output).contains(&format!("root={want}")),
+        "{output:?}"
+    );
     assert!(gave(&output));
 }
 
@@ -537,7 +550,8 @@ fn a_hanging_command_is_killed_at_the_timeout() {
     let started = Instant::now();
     let output = case.run_with(command, read(&root, "s1").to_string().as_bytes());
     assert!(
-        started.elapsed() < Duration::from_secs(8),
+        // The bound plus one second: the plan's promise.
+        started.elapsed() < Duration::from_millis(1000) + Duration::from_secs(1),
         "{:?}",
         started.elapsed()
     );
@@ -572,7 +586,8 @@ fn a_timeout_kills_the_commands_children_too() {
         .env("FAKE_PID", &pid_file);
     let started = Instant::now();
     let output = case.run_with(command, read(&root, "s1").to_string().as_bytes());
-    assert!(started.elapsed() < Duration::from_secs(3) + Duration::from_secs(5));
+    // The bound plus one second: the plan's promise.
+    assert!(started.elapsed() < Duration::from_millis(2000) + Duration::from_secs(1));
     assert!(quiet(&output));
     let pid: u32 = std::fs::read_to_string(&pid_file)
         .unwrap()
@@ -671,7 +686,7 @@ fn a_stale_claim_is_reclaimed_once() {
         .unwrap();
     std::thread::sleep(Duration::from_millis(800));
     stuck.kill().unwrap();
-    let _ = stuck.wait();
+    let _ = stuck.wait(); // killed above; its exit status is not under test
     std::thread::sleep(Duration::from_millis(400));
     let children: Vec<_> = (0..50)
         .map(|_| {
@@ -712,7 +727,9 @@ fn a_hit_starts_no_process() {
     assert_eq!(case.runs(), 0);
 }
 
-/// Measured on a release build: `cargo test --release -- --ignored`.
+/// Measured on a release build: `cargo test --release -- --ignored`. The
+/// baseline is `sh` reading the same event: a process that takes the 1 MB in
+/// and does nothing with it.
 #[cfg(unix)]
 #[test]
 #[ignore]
@@ -734,7 +751,7 @@ fn a_hit_is_close_to_an_empty_start() {
             .stdout(Stdio::null())
             .spawn()
             .unwrap();
-        let _ = child.stdin.take().unwrap().write_all(input);
+        let _ = child.stdin.take().unwrap().write_all(input); // a closed pipe shows as a fast run, never a slow one
         child.wait().unwrap();
         started.elapsed().as_secs_f64() * 1000.0
     };
@@ -747,8 +764,75 @@ fn a_hit_is_close_to_an_empty_start() {
     empties.sort_by(f64::total_cmp);
     let overhead = hits[30] - empties[30];
     eprintln!(
-        "hit p50 {:.1} ms, empty start p50 {:.1} ms, overhead {overhead:.1} ms",
+        "hit p50 {:.1} ms, sh reading the event p50 {:.1} ms, overhead {overhead:.1} ms",
         hits[30], empties[30]
     );
     assert!(overhead < 10.0);
+}
+
+#[test]
+fn the_cli_is_told_the_protocol() {
+    let case = Case::new();
+    let root = case.repo("app", true);
+    assert!(stdout(&case.run(&read(&root, "s1"), "ok")).contains("protocol=1"));
+}
+
+#[test]
+fn an_event_that_is_neither_start_nor_tool_prints_nothing() {
+    let case = Case::new();
+    let root = case.repo("app", true);
+    let mut event = read(&root, "s1");
+    event["hook_event_name"] = json!("PostToolUse");
+    assert!(quiet(&case.run(&event, "ok")));
+    // The marker was never claimed: the real first touch still gives the index.
+    assert!(gave(&case.run(&read(&root, "s1"), "ok")));
+}
+
+#[test]
+fn a_back_off_is_logged_and_reported_by_status() {
+    let case = Case::new();
+    let root = case.repo("app", true);
+    for _ in 0..3 {
+        case.run(&read(&root, "s1"), "fail");
+    }
+    assert!(quiet(&case.run(&read(&root, "s1"), "ok")));
+    assert!(case.log().contains("\"backing off\""), "{}", case.log());
+    let out = Command::new(BIN)
+        .arg("--status")
+        .env("XDG_STATE_HOME", &case.state)
+        .env("LOCALAPPDATA", &case.state)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    let status: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(status["protocol"], "1");
+    let outcome = status["lastFailure"]["outcome"].as_str().unwrap();
+    assert!(outcome.starts_with("failed: exit 1"), "{outcome}");
+    assert_eq!(status["backingOff"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn answers_never_wait_on_stdin() {
+    let case = Case::new();
+    for flag in ["--version", "--help", "--status"] {
+        let mut child = Command::new(BIN)
+            .arg(flag)
+            .env("XDG_STATE_HOME", &case.state)
+            .env("LOCALAPPDATA", &case.state)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        // stdin stays open: an answer that read it would never end.
+        let started = Instant::now();
+        while child.try_wait().unwrap().is_none() {
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "{flag} waited on stdin"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let out = child.wait_with_output().unwrap();
+        assert!(!out.stdout.is_empty(), "{flag} printed nothing");
+    }
 }

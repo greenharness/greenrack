@@ -6,7 +6,12 @@ import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import {loadRegistry} from '../src/registry.js'
 import {runContext} from '../src/commands/context.js'
-import {FIRST_TOUCH_CAP, cutAtLine, runFirstTouch} from '../src/commands/first-touch.js'
+import {
+  FIRST_TOUCH_CAP,
+  cutAtLine,
+  firstTouchOptions,
+  runFirstTouch,
+} from '../src/commands/first-touch.js'
 
 const registry = loadRegistry()
 const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
@@ -65,9 +70,9 @@ describe('greenrack hook first-touch', () => {
       unavailable: 'timeout',
       cacheHome: cache(),
     })
-    expect(after.text.split('\n')[1]).toBe(
-      'greenrack index unavailable (timeout); run: greenrack hook install --user --check',
-    )
+    const lines = after.text.split('\n')
+    expect(lines[1]).toBe('greenrack index unavailable (timeout); check it with:')
+    expect(lines[2]).toBe('  npx -y @greenharness/greenrack-cli@^7 hook install --user --check')
   })
 
   it('stays under the binary limit, a large doctor block included', () => {
@@ -82,6 +87,29 @@ describe('greenrack hook first-touch', () => {
       .hookSpecificOutput.additionalContext
     expect(context.length).toBeLessThanOrEqual(FIRST_TOUCH_CAP)
     expect(out.text.length).toBeLessThanOrEqual(9900)
+  })
+
+  it('prints nothing for another protocol or event, and gives for its own', () => {
+    const root = consumer()
+    const base = {root, event: 'PreToolUse' as const, cacheHome: cache()}
+    expect(runFirstTouch(registry, {...base, protocol: '2'}).text).toBe('')
+    expect(runFirstTouch(registry, {...base, event: undefined}).text).toBe('')
+    expect(runFirstTouch(registry, {...base, protocol: '1'}).text).not.toBe('')
+    expect(firstTouchOptions({GREENRACK_FIRST_TOUCH_EVENT: 'Stop'}).event).toBeUndefined()
+  })
+
+  it('keeps the JSON object under the cap when escapes grow it', () => {
+    const root = consumer()
+    const cacheHome = cache()
+    runContext(registry, {cwd: root, cacheHome})
+    const [slot] = readdirSync(join(cacheHome, 'greenrack'))
+    // Every quote and backslash doubles inside the JSON string.
+    const noisy = '"\\'.repeat(20)
+    const doctor = Array.from({length: 600}, (_, i) => `- [warn] "q${i}" ${noisy}`)
+    writeFileSync(join(cacheHome, 'greenrack', slot!, 'doctor'), doctor.join('\n'))
+    const out = runFirstTouch(registry, {root, event: 'PreToolUse', cacheHome})
+    expect(out.text.length).toBeLessThanOrEqual(FIRST_TOUCH_CAP)
+    expect(() => JSON.parse(out.text)).not.toThrow()
   })
 
   it('cuts at a line end and says where the rest is', () => {

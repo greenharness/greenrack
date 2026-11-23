@@ -89,7 +89,8 @@ export function targetFor(host: Host): PlatformTarget | undefined {
   )
 }
 
-export type FoundBinary = {path: string} | {error: string}
+/** The binary, or why there is none and, when a person can act, what to do. */
+export type FoundBinary = {path: string} | {error: string; fix?: string}
 
 const nodeRequire = createRequire(import.meta.url)
 
@@ -121,6 +122,7 @@ export function firstTouchBinary(
     // Not installed: an install that skipped optional dependencies.
   }
   return {
-    error: `${target.pkg} is not installed; reinstall @greenharness/greenrack-cli without --no-optional`,
+    error: `${target.pkg} is not installed`,
+    fix: 'reinstall @greenharness/greenrack-cli without --no-optional',
   }
 }

@@ -11,18 +11,33 @@ description = "Claude Code hook: gives a session the greenrack index once, on th
 name = "greenrack-first-touch"
 path = "src/main.rs"
 
+# Each entry says what this repository owns by taking it. The hook runs on
+# every tool call, so the default is no dependency; these four are the ones
+# std cannot replace.
+
 [dependencies]
-# Derived structs read only the event's ids and paths; serde skips the rest
-# (a Write's file content) without building a value for it.
+# Owned: serde and, at build time only, serde_derive with syn, quote and
+# proc-macro2 (dtolnay's crates, released together, the most used in Rust).
+# Bought: a derived visitor reads the event's ids and paths and skips a
+# Write's content without building a value; by hand that is a JSON tokenizer
+# to keep. If abandoned: hand-write the visitor over serde_json's reader.
 serde = { version = "1", features = ["derive"] }
+# Owned: serde_json alone (no further runtime dependency). Bought: the event
+# parse, the log lines and `--status`. If abandoned: the same as serde.
 serde_json = "1"
 
 [target.'cfg(unix)'.dependencies]
-# killpg: a timeout kills the whole process group npx started.
+# Owned: libc (the Rust project's own bindings, no dependencies), for one
+# call, killpg. A `kill -KILL -<pgid>` would start a process to end one, on
+# the path that must start none, and std has no group kill. If abandoned: an
+# `extern "C"` declaration of killpg replaces it.
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-# A Job Object: a timeout kills npx.cmd and the node it started.
+# Owned: windows-sys (Microsoft's bindings: declarations only, no runtime
+# code; four API modules). No std API reaches a Job Object, which is what
+# ends npx.cmd and the node it started. If abandoned: declare the five
+# functions by hand.
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
   "Win32_Security",

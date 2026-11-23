@@ -22,7 +22,7 @@ import type {Registry} from '../registry-types.js'
 import type {CommandResult} from './lookup.js'
 import {runContext} from './context.js'
 import {firstTouchOptions, runFirstTouch} from './first-touch.js'
-import {runUserInstall, runUserUninstall} from './hook-user.js'
+import {INSTALL_COMMAND as USER_INSTALL, runUserInstall, runUserUninstall} from './hook-user.js'
 import {
   GITIGNORE_BLOCK,
   HOOK_CACHE_IGNORE,
@@ -52,19 +52,35 @@ export function runHook(
   event?: string,
   options: HookOptions = {},
 ): CommandResult {
+  const usage = (text: string): CommandResult => ({
+    text,
+    data: {kind: 'usage-error'},
+    exitCode: 2,
+  })
   if (event === 'install') {
     return options.user ? runUserInstall({check: options.check}) : runHookInstall(options)
   }
   if (event === 'uninstall') {
-    if (options.user) return runUserUninstall()
-    return {
-      text: 'greenrack hook uninstall: only --user is supported; the repo hooks are files in the repo',
-      data: {kind: 'usage-error'},
-      exitCode: 2,
+    if (!options.user) {
+      return usage(
+        'greenrack hook uninstall: only --user is supported;\nthe repo hooks are files in the repo',
+      )
     }
+    // A check never changes anything: refuse rather than uninstall.
+    if (options.check) {
+      return usage(
+        'greenrack hook uninstall --user: --check is for install:\n  ' + USER_INSTALL + ' --check',
+      )
+    }
+    return runUserUninstall()
   }
+  if (options.user)
+    return usage(`greenrack hook ${event ?? ''}: --user is for install and uninstall`)
   // Run by the greenrack-first-touch binary, which passes the root and event.
-  if (event === 'first-touch') return runFirstTouch(registry, firstTouchOptions())
+  if (event === 'first-touch') {
+    if (options.check) return usage('greenrack hook first-touch: --check is for install')
+    return runFirstTouch(registry, firstTouchOptions())
+  }
   if (event !== 'session-start') {
     return {
       text: `greenrack hook: unknown event "${event ?? ''}" — expected ${EVENTS.join(' | ')}`,

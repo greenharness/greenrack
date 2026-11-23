@@ -83,8 +83,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The glibc builds link against glibc 2.17 through zig, so they run
+          # on every distribution since 2014 (RHEL 7), not only the runner's.
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            zig: true
             run: true
           # Static, for Alpine and other musl distributions.
           - target: x86_64-unknown-linux-musl
@@ -93,8 +96,7 @@ jobs:
             run: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            packages: gcc-aarch64-linux-gnu
-            linker: aarch64-linux-gnu-gcc
+            zig: true
           - target: aarch64-apple-darwin
             os: macos-latest
             run: true
@@ -107,8 +109,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ (inputs.dry_run && github.sha) || (inputs.tag && format('refs/tags/{0}', inputs.tag)) || github.ref }}
-      # The channel comes from rust-toolchain.toml.
-      - run: rustup target add ${{ matrix.target }}
+      # The channel comes from rust-toolchain.toml: install it first, which
+      # `rustup target add` alone does not.
+      - run: rustup toolchain install && rustup target add ${{ matrix.target }}
+      # A venv: the runner's Python refuses a system-wide pip install.
+      - name: Install zig and cargo-zigbuild
+        if: matrix.zig
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zig"
+          "$RUNNER_TEMP/zig/bin/pip" install 'ziglang==0.13.0' 'cargo-zigbuild>=0.19,<0.20'
+          echo "$RUNNER_TEMP/zig/bin" >> "$GITHUB_PATH"
       - name: Install cross-compilation packages
         if: matrix.packages != ''
         # The Azure apt mirror has hung `apt-get update` for a whole job
@@ -121,12 +131,21 @@ jobs:
           fi
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 update
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 install -y ${{ matrix.packages }}
-      - name: Point cargo at the cross linker
-        if: matrix.linker != ''
+      - name: Build
         run: |
-          target_upper=$(echo "${{ matrix.target }}" | tr 'a-z-' 'A-Z_')
-          echo "CARGO_TARGET_${target_upper}_LINKER=${{ matrix.linker }}" >> "$GITHUB_ENV"
-      - run: cargo build --release --locked -p greenrack-first-touch --target ${{ matrix.target }}
+          if [ "${{ matrix.zig }}" = true ]; then
+            cargo zigbuild --release --locked -p greenrack-first-touch --target ${{ matrix.target }}.2.17
+          else
+            cargo build --release --locked -p greenrack-first-touch --target ${{ matrix.target }}
+          fi
+      - name: The glibc build needs no glibc newer than 2.17
+        if: matrix.zig
+        run: |
+          set -euo pipefail
+          newest=$(readelf --dyn-syms -W "target/${{ matrix.target }}/release/greenrack-first-touch" \
+            | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -V | tail -1)
+          echo "newest glibc symbol: $newest"
+          [ "$(printf '%s\n2.17\n' "$newest" | sort -V | tail -1)" = 2.17 ]
       - name: Archive
         run: |
           set -euo pipefail
@@ -183,10 +202,12 @@ jobs:
       id-token: write
     env:
       VERSION: ${{ needs.guard.outputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
+          # The write token stays out of .git/config, where any install or
+          # build script could read it; only the release step gets it.
+          persist-credentials: false
           # The full ref: a branch named like the tag must never be checked out.
           # A dry run builds the dispatched commit: the tag may not exist yet.
           ref: ${{ (inputs.dry_run && github.sha) || (inputs.tag && format('refs/tags/{0}', inputs.tag)) || github.ref }}
@@ -219,23 +240,31 @@ jobs:
       # The first run of a tag attaches its archives and SHA256SUMS to the
       # GitHub release; every later run (a resume) publishes those, so npm
       # never carries two builds of one version.
+      #
+      # SHA256SUMS goes up last, so its presence means the set is whole; a run
+      # that stopped before it uploads all again with --clobber. A dry run
+      # always checks its own fresh build and touches no release.
       - name: The binaries this version ships
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           archives="$RUNNER_TEMP/archives"
           mkdir -p "$archives"
-          if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx SHA256SUMS; then
+          if [ "$DRY_RUN" != true ] \
+            && gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx SHA256SUMS; then
             echo "reusing the binaries attached to release $TAG"
             gh release download "$TAG" --dir "$archives" --pattern 'greenrack-first-touch-*' --pattern SHA256SUMS
           else
             cp "$RUNNER_TEMP"/fresh/* "$archives/"
             (cd "$archives" && sha256sum greenrack-first-touch-* > SHA256SUMS)
             if [ "$DRY_RUN" = true ]; then
-              echo "dry run: release $TAG not created"
-            elif gh release view "$TAG" > /dev/null 2>&1; then
-              gh release upload "$TAG" "$archives"/*
+              echo "dry run: the fresh build is checked, release $TAG is not touched"
             else
-              gh release create "$TAG" --verify-tag --title "$TAG" --notes "" "$archives"/*
+              gh release view "$TAG" > /dev/null 2>&1 \
+                || gh release create "$TAG" --verify-tag --title "$TAG" --notes ""
+              gh release upload "$TAG" --clobber "$archives"/greenrack-first-touch-*
+              gh release upload "$TAG" --clobber "$archives/SHA256SUMS"
             fi
           fi
           cat "$archives/SHA256SUMS"

@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import {homedir} from 'node:os'
-import {dirname, join, resolve} from 'node:path'
+import {basename, dirname, join, resolve} from 'node:path'
 import {
   FIRST_TOUCH_BIN,
   type FoundBinary,
@@ -27,19 +27,29 @@ import {
 import type {CommandResult} from './lookup.js'
 
 /**
- * What `greenrack-first-touch --protocol` prints for this CLI. The binary and
- * `greenrack hook first-touch` speak it: the event on stdin, the root and the
- * event name in GREENRACK_FIRST_TOUCH_* variables, the index on stdout. A
- * binary speaking another one is reinstalled; one from another release that
- * speaks this one is only `outdated`.
+ * The protocol this CLI speaks with the `greenrack-first-touch` binary: the
+ * event on stdin; the root, the event name and the protocol in
+ * GREENRACK_FIRST_TOUCH_* variables; the index on stdout; `--status` as JSON.
+ * These names are a public contract for the 7.x line. `--check` reinstalls a
+ * binary speaking another protocol; one from another release that speaks this
+ * one is only `outdated`. `hook first-touch` prints nothing for a protocol it
+ * does not speak.
  */
 export const FIRST_TOUCH_PROTOCOL = '1'
 export const FIRST_TOUCH_MATCHER = 'Read|Edit|Write|MultiEdit|NotebookEdit|Bash'
 /** Seconds Claude Code gives the hook: the binary's own limit is 10. */
 export const FIRST_TOUCH_TIMEOUT = 15
-
-const INSTALL = 'greenrack hook install --user'
+/** The npx form: a grh or npx setup has no `greenrack` on PATH. */
+export const INSTALL_COMMAND = 'npx -y @greenharness/greenrack-cli@^7 hook install --user'
+const UNINSTALL_COMMAND = 'npx -y @greenharness/greenrack-cli@^7 hook uninstall --user'
 const RESTART = 'restart Claude Code sessions'
+const WIDTH = 79
+
+/** What `greenrack-first-touch --status` prints: the binary owns its state files. */
+export interface BinaryStatus {
+  lastFailure?: {ts: number; root: string; outcome: string} | null
+  backingOff?: Array<{count: number; ts: number; reason: string | null}>
+}
 
 export interface UserHookOptions {
   /** Report, change nothing. */
@@ -51,16 +61,15 @@ export interface UserHookOptions {
   source?: FoundBinary
   /** Runs `<binary> --protocol`; null when it does not run. */
   protocolOf?: (path: string) => string | null
-  /** Seconds since the epoch, for the back-off report. */
+  /** Runs `<binary> --status`; null when it does not run or answers no JSON. */
+  statusOf?: (path: string) => BinaryStatus | null
+  /** Seconds since the epoch, for "N min ago". */
   now?: number
 }
 
-type Entry = {type?: string; command?: unknown; args?: unknown; timeout?: unknown} & Record<
-  string,
-  unknown
->
-type Group = {matcher?: unknown; hooks?: Entry[]} & Record<string, unknown>
-type Settings = {hooks?: Record<string, Group[]>} & Record<string, unknown>
+type Entry = Record<string, unknown> & {command?: unknown; args?: unknown; timeout?: unknown}
+type Group = Record<string, unknown> & {matcher?: unknown; hooks?: Entry[]}
+type Settings = Record<string, unknown> & {hooks?: Record<string, Group[]>}
 
 interface Wiring {
   event: string
@@ -107,6 +116,15 @@ function shown(path: string, home: string): string {
     : path
 }
 
+/** One line of a report, cut to the terminal's 80 columns. */
+function clip(line: string): string {
+  return line.length <= WIDTH ? line : `${line.slice(0, WIDTH - 1)}…`
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function ours(entry: Entry): boolean {
   if (typeof entry.command !== 'string') return false
   const name = entry.command.trim().replace(/^"|"$/g, '').split(/[\\/]/).pop()
@@ -135,7 +153,7 @@ function code(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | undefined)?.code
 }
 
-/** settings.json, followed through a symlink, with `hooks` checked to be what this edits. */
+/** settings.json, followed through a symlink, with every part this edits checked. */
 function load(path: string): Loaded {
   let target = path
   try {
@@ -164,18 +182,24 @@ function load(path: string): Loaded {
       return {kind: 'invalid', reason: error instanceof Error ? error.message : String(error)}
     }
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return {kind: 'invalid', reason: 'the file is not a JSON object'}
-  }
-  const hooks = (parsed as Settings).hooks
+  if (!isObject(parsed)) return {kind: 'invalid', reason: 'the file is not a JSON object'}
+  const hooks = parsed.hooks
   if (hooks !== undefined) {
-    if (typeof hooks !== 'object' || hooks === null || Array.isArray(hooks)) {
-      return {kind: 'invalid', reason: '"hooks" is not an object'}
-    }
+    if (!isObject(hooks)) return {kind: 'invalid', reason: '"hooks" is not an object'}
     for (const {event} of WIRINGS) {
       const groups = hooks[event]
-      if (groups !== undefined && !Array.isArray(groups)) {
+      if (groups === undefined) continue
+      if (!Array.isArray(groups)) {
         return {kind: 'invalid', reason: `"hooks.${event}" is not an array`}
+      }
+      for (const [i, group] of groups.entries()) {
+        if (!isObject(group)) {
+          return {kind: 'invalid', reason: `"hooks.${event}[${i}]" is not an object`}
+        }
+        const entries = group.hooks
+        if (entries !== undefined && !(Array.isArray(entries) && entries.every(isObject))) {
+          return {kind: 'invalid', reason: `"hooks.${event}[${i}].hooks" is not a list of objects`}
+        }
       }
     }
   }
@@ -197,7 +221,7 @@ function save(target: string, settings: Settings, existed: boolean): void {
 }
 
 /** What differs from the two entries install writes; empty when wired. */
-function drift(settings: Settings, binary: string): string[] {
+function drift(settings: Settings, binary: string, home: string): string[] {
   const found: string[] = []
   for (const wiring of WIRINGS) {
     const groups = settings.hooks?.[wiring.event] ?? []
@@ -210,7 +234,9 @@ function drift(settings: Settings, binary: string): string[] {
       found.push(`${wiring.event}: ${mine.length} entries run the hook`)
     } else {
       const {group, entry} = mine[0]!
-      if (entry.command !== binary) found.push(`${wiring.event}: runs ${String(entry.command)}`)
+      if (entry.command !== binary) {
+        found.push(`${wiring.event}: runs ${shown(String(entry.command), home)}`)
+      }
       if ((group.matcher ?? '') !== (wiring.matcher ?? '')) {
         found.push(`${wiring.event}: matcher "${String(group.matcher ?? '')}"`)
       }
@@ -227,10 +253,13 @@ function drift(settings: Settings, binary: string): string[] {
 }
 
 /**
- * A copy without our entries (and, for install, the pasted one). A group or
- * an event list this empties goes; one that was empty before stays.
+ * A copy without the entries `drop` names. A group or an event list this
+ * empties goes; one that was empty before stays.
  */
-function strip(settings: Settings, alsoPasted: boolean): {next: Settings; removed: number} {
+function without(
+  settings: Settings,
+  drop: (event: string, entry: Entry) => boolean,
+): {next: Settings; removed: number} {
   const next = structuredClone(settings)
   let removed = 0
   const hooks = next.hooks
@@ -241,9 +270,7 @@ function strip(settings: Settings, alsoPasted: boolean): {next: Settings; remove
     const kept: Group[] = []
     for (const group of groups) {
       const entries = group.hooks ?? []
-      const left = entries.filter(
-        (entry) => !ours(entry) && !(alsoPasted && event === 'SessionStart' && pasted(entry)),
-      )
+      const left = entries.filter((entry) => !drop(event, entry))
       removed += entries.length - left.length
       if (left.length === entries.length) kept.push(group)
       else if (left.length > 0) kept.push({...group, hooks: left})
@@ -255,8 +282,21 @@ function strip(settings: Settings, alsoPasted: boolean): {next: Settings; remove
   return {next, removed}
 }
 
+/** Uninstall's cut: our entries only. */
+function withoutOurs(settings: Settings): {next: Settings; removed: number} {
+  return without(settings, (_event, entry) => ours(entry))
+}
+
+/** Install's cut: our entries and the hand-pasted one it replaces. */
+function withoutOursOrPasted(settings: Settings): Settings {
+  return without(
+    settings,
+    (event, entry) => ours(entry) || (event === 'SessionStart' && pasted(entry)),
+  ).next
+}
+
 function wire(settings: Settings, binary: string): Settings {
-  const {next} = strip(settings, true)
+  const next = withoutOursOrPasted(settings)
   const hooks = (next.hooks ??= {})
   for (const wiring of WIRINGS) {
     const group: Group = wiring.matcher === undefined ? {} : {matcher: wiring.matcher}
@@ -274,20 +314,44 @@ function same(a: string, b: string): boolean {
   }
 }
 
+/** A unique name to move a binary aside to; `sweepAside` removes them. */
+function aside(binary: string): string {
+  return `${binary}.old-${process.pid}-${Date.now()}`
+}
+
+/** Remove what earlier runs moved aside; one still running stays until the next run. */
+function sweepAside(binary: string): void {
+  const dir = dirname(binary)
+  const prefix = `${basename(binary)}.old`
+  let names: string[]
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (!name.startsWith(prefix)) continue
+    try {
+      rmSync(join(dir, name), {force: true})
+    } catch {
+      // In use on Windows: the next run removes it.
+    }
+  }
+}
+
 /**
  * Copy the binary in through a temp file. On Windows a running .exe cannot be
- * replaced but can be renamed: the old one moves to `.old`, which the next run
- * removes.
+ * replaced or deleted but can be renamed: the old one moves aside first.
  */
 function place(source: string, binary: string, platform: string): boolean {
-  rmQuietly(`${binary}.old`)
+  sweepAside(binary)
   if (existsSync(binary) && same(source, binary)) return false
   mkdirSync(dirname(binary), {recursive: true})
   const temp = `${binary}.tmp-${process.pid}`
   try {
     copyFileSync(source, temp)
     chmodSync(temp, 0o755)
-    if (platform === 'win32' && existsSync(binary)) renameSync(binary, `${binary}.old`)
+    if (platform === 'win32' && existsSync(binary)) renameSync(binary, aside(binary))
     renameSync(temp, binary)
   } catch (error) {
     rmSync(temp, {force: true})
@@ -296,12 +360,14 @@ function place(source: string, binary: string, platform: string): boolean {
   return true
 }
 
-function rmQuietly(path: string): void {
+function removeBinary(binary: string, platform: string): void {
   try {
-    rmSync(path, {force: true})
-  } catch {
-    // In use on Windows: the next run removes it.
+    rmSync(binary, {force: true})
+  } catch (error) {
+    if (platform !== 'win32') throw error
+    renameSync(binary, aside(binary))
   }
+  sweepAside(binary)
 }
 
 function protocolOf(path: string): string | null {
@@ -316,18 +382,61 @@ function protocolOf(path: string): string | null {
   }
 }
 
-function settingsError(loaded: Exclude<Loaded, {kind: 'ok'}>, path: string): CommandResult {
+function statusOf(path: string): BinaryStatus | null {
+  try {
+    const text = execFileSync(path, ['--status'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    const parsed: unknown = JSON.parse(text)
+    return isObject(parsed) ? (parsed as BinaryStatus) : null
+  } catch {
+    return null
+  }
+}
+
+function settingsError(
+  loaded: Exclude<Loaded, {kind: 'ok'}>,
+  path: string,
+  rerun: string,
+): CommandResult {
   return loaded.kind === 'invalid'
     ? {
-        text: `greenrack hook: ${path} is not usable (${loaded.reason});\nfix or remove it, then rerun. Nothing was changed.`,
+        text: [
+          `greenrack hook: ${path} cannot be used:`,
+          `  ${loaded.reason}`,
+          'Nothing was changed. Fix the file, then run:',
+          `  ${rerun}`,
+        ].join('\n'),
         data: {kind: 'usage-error', reason: loaded.reason},
         exitCode: 2,
       }
     : {
-        text: `greenrack hook: cannot read ${path} (${loaded.reason}). Nothing was changed.`,
+        text: [
+          `greenrack hook: cannot read ${path} (${loaded.reason}).`,
+          "Nothing was changed. Check the file's permissions.",
+        ].join('\n'),
         data: {kind: 'unreadable', reason: loaded.reason},
         exitCode: 3,
       }
+}
+
+/** A file this could not write: exit 3, naming the file, never a stack trace. */
+function writeFailed(error: unknown, home: string): CommandResult {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  if (code === undefined) throw error
+  // A copy names its source in `path` and the file it could not write in `dest`.
+  const failed = error as NodeJS.ErrnoException & {dest?: string}
+  const path = failed.dest ?? failed.path
+  return {
+    text: [
+      `greenrack hook: cannot write ${path === undefined ? 'a file' : shown(path, home)} (${code}).`,
+      'Check its permissions; on Windows, close what holds it, then rerun.',
+    ].join('\n'),
+    data: {kind: 'write-failed', path: path ?? null, code},
+    exitCode: 3,
+  }
 }
 
 /** `greenrack hook install --user`, or with `check`, `--check`. */
@@ -340,25 +449,35 @@ function install(options: UserHookOptions): CommandResult {
   const source = options.source ?? firstTouchBinary(at.env, at.host)
   if ('error' in source) {
     return {
-      text: `greenrack hook install --user: ${source.error}.\nNothing was written: a hook with no binary cannot run.`,
+      text: [
+        'greenrack hook install --user: nothing was written.',
+        `  ${source.error}`,
+        ...(source.fix === undefined ? [] : [`  ${source.fix}`]),
+        'A hook with no binary cannot run.',
+      ].join('\n'),
       data: {kind: 'usage-error', reason: source.error},
       exitCode: 2,
     }
   }
   const loaded = load(at.settings)
-  if (loaded.kind !== 'ok') return settingsError(loaded, shown(at.settings, at.home))
-
-  const lines: string[] = []
-  if (place(source.path, at.binary, at.host.platform)) {
-    lines.push(`  written  ${shown(at.binary, at.home)}`)
+  if (loaded.kind !== 'ok') {
+    return settingsError(loaded, shown(at.settings, at.home), INSTALL_COMMAND)
   }
-  const before = drift(loaded.settings, at.binary)
-  if (before.length > 0) {
-    save(loaded.target, wire(loaded.settings, at.binary), loaded.exists)
-    lines.push(`  wired    ${shown(at.settings, at.home)}: SessionStart, PreToolUse`)
-    if (before.some((line) => line.includes('pasted'))) {
-      lines.push('  removed  the pasted greenrack-cli context entry')
+  const lines: string[] = []
+  try {
+    if (place(source.path, at.binary, at.host.platform)) {
+      lines.push(`  written  ${shown(at.binary, at.home)}`)
     }
+    const before = drift(loaded.settings, at.binary, at.home)
+    if (before.length > 0) {
+      save(loaded.target, wire(loaded.settings, at.binary), loaded.exists)
+      lines.push(`  wired    ${shown(at.settings, at.home)}: SessionStart, PreToolUse`)
+      if (before.some((line) => line.includes('pasted'))) {
+        lines.push('  removed  the pasted greenrack-cli context entry')
+      }
+    }
+  } catch (error) {
+    return writeFailed(error, at.home)
   }
   if (lines.length === 0) {
     return {
@@ -376,20 +495,29 @@ function install(options: UserHookOptions): CommandResult {
 export function runUserUninstall(options: UserHookOptions = {}): CommandResult {
   const at = where(options)
   const loaded = load(at.settings)
-  if (loaded.kind !== 'ok') return settingsError(loaded, shown(at.settings, at.home))
+  if (loaded.kind !== 'ok') {
+    return settingsError(loaded, shown(at.settings, at.home), UNINSTALL_COMMAND)
+  }
   const lines: string[] = []
-  const {next, removed} = strip(loaded.settings, false)
-  if (removed > 0) {
-    save(loaded.target, next, loaded.exists)
-    lines.push(
-      `  unwired  ${shown(at.settings, at.home)}: ${removed} entr${removed === 1 ? 'y' : 'ies'}`,
-    )
+  try {
+    // The entries first: a binary with no entry is inert, an entry with no
+    // binary fails on every tool call.
+    const {next, removed} = withoutOurs(loaded.settings)
+    if (removed > 0) {
+      save(loaded.target, next, loaded.exists)
+      lines.push(
+        `  unwired  ${shown(at.settings, at.home)}: ${removed} entr${removed === 1 ? 'y' : 'ies'}`,
+      )
+    }
+    if (existsSync(at.binary)) {
+      removeBinary(at.binary, at.host.platform)
+      lines.push(`  removed  ${shown(at.binary, at.home)}`)
+    } else {
+      sweepAside(at.binary)
+    }
+  } catch (error) {
+    return writeFailed(error, at.home)
   }
-  if (existsSync(at.binary)) {
-    rmSync(at.binary, {force: true})
-    lines.push(`  removed  ${shown(at.binary, at.home)}`)
-  }
-  rmQuietly(`${at.binary}.old`)
   if (lines.length === 0) {
     return {
       text: 'greenrack first-touch hook: not installed',
@@ -402,72 +530,24 @@ export function runUserUninstall(options: UserHookOptions = {}): CommandResult {
   }
 }
 
-/** The binary's state folder, as the binary computes it. */
-export function stateDir(env: NodeJS.ProcessEnv, home: string, platform: string): string | null {
-  if (platform === 'win32') return env.LOCALAPPDATA ? join(env.LOCALAPPDATA, FIRST_TOUCH_BIN) : null
-  const xdg = env.XDG_STATE_HOME
-  const base = xdg && xdg.startsWith('/') ? xdg : join(env.HOME || home, '.local/state')
-  return join(base, FIRST_TOUCH_BIN)
-}
-
-/** The binary backs off after this many failures for a root inside the window. */
-const BACKOFF_FAILURES = 3
-const BACKOFF_WINDOW_SECS = 600
-
-interface Health {
-  lastFailure?: {ts: number; root: string; outcome: string}
-  backingOff: Array<{count: number; ts: number; reason: string}>
-}
-
-/** The last failure in the decision log, and the roots the binary backs off from. */
-function health(state: string | null, now: number): Health {
-  const out: Health = {backingOff: []}
-  if (state === null) return out
-  try {
-    const lines = readFileSync(join(state, 'log.jsonl'), 'utf8').trimEnd().split('\n')
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const row = JSON.parse(lines[i]!) as {ts?: number; root?: string; outcome?: string}
-        if (row.outcome?.startsWith('failed')) {
-          out.lastFailure = {ts: row.ts ?? 0, root: row.root ?? '', outcome: row.outcome}
-          break
-        }
-      } catch {
-        // A line cut by a trim: skip it.
-      }
-    }
-  } catch {
-    // No log yet.
-  }
-  try {
-    for (const name of readdirSync(join(state, 'failures'))) {
-      const [count, ts, ...reason] = readFileSync(join(state, 'failures', name), 'utf8').split(' ')
-      const failure = {count: Number(count), ts: Number(ts), reason: reason.join(' ')}
-      if (failure.count >= BACKOFF_FAILURES && now - failure.ts < BACKOFF_WINDOW_SECS) {
-        out.backingOff.push(failure)
-      }
-    }
-  } catch {
-    // No failures.
-  }
-  return out
-}
-
 function runUserCheck(options: UserHookOptions): CommandResult {
   const at = where(options)
   const override = Boolean(at.env.GREENRACK_FIRST_TOUCH_BIN)
   if (!override && targetFor(at.host) === undefined) {
     const host = `${at.host.platform}/${at.host.arch}${at.host.libc ? `/${at.host.libc}` : ''}`
     return {
-      text: `greenrack hook install --user --check: no first-touch binary is built for ${host}`,
+      text: `greenrack hook install --user --check:\n  no first-touch binary is built for ${host}`,
       data: {kind: 'usage-error', reason: 'unsupported platform'},
       exitCode: 2,
     }
   }
   const loaded = load(at.settings)
-  if (loaded.kind !== 'ok') return settingsError(loaded, shown(at.settings, at.home))
+  if (loaded.kind !== 'ok') {
+    return settingsError(loaded, shown(at.settings, at.home), `${INSTALL_COMMAND} --check`)
+  }
 
   const problems: string[] = []
+  let status: BinaryStatus | null = null
   if (!existsSync(at.binary)) {
     problems.push(`binary: not at ${shown(at.binary, at.home)}`)
   } else {
@@ -475,43 +555,45 @@ function runUserCheck(options: UserHookOptions): CommandResult {
     if (spoken === null) problems.push('binary: does not run')
     else if (spoken !== FIRST_TOUCH_PROTOCOL) {
       problems.push(`binary: protocol ${spoken}, this CLI speaks ${FIRST_TOUCH_PROTOCOL}`)
+    } else {
+      status = (options.statusOf ?? statusOf)(at.binary)
     }
   }
-  problems.push(...drift(loaded.settings, at.binary))
+  problems.push(...drift(loaded.settings, at.binary, at.home))
 
   const source = options.source ?? firstTouchBinary(at.env, at.host)
   const outdated = problems.length === 0 && !('error' in source) && !same(source.path, at.binary)
   const now = options.now ?? Math.floor(Date.now() / 1000)
-  const report = health(stateDir(at.env, at.home, at.host.platform), now)
   const notes: string[] = []
-  if (report.lastFailure) {
-    const ago = Math.max(0, Math.round((now - report.lastFailure.ts) / 60))
-    notes.push(`  last failure ${ago} min ago: ${report.lastFailure.outcome}`)
+  const last = status?.lastFailure
+  if (last) {
+    const ago = Math.max(0, Math.round((now - last.ts) / 60))
+    notes.push(`  last failure ${ago} min ago: ${last.outcome}`)
   }
-  for (const failure of report.backingOff) {
-    notes.push(`  backing off: ${failure.count} failures, last: ${failure.reason}`)
+  for (const failure of status?.backingOff ?? []) {
+    notes.push(`  backing off: ${failure.count} failures, last: ${failure.reason ?? 'unknown'}`)
   }
   const state = problems.length === 0 ? 'present' : 'absent'
-  const data = {state, outdated, problems, binary: at.binary, settings: at.settings, ...report}
+  const data = {state, outdated, problems, binary: at.binary, settings: at.settings, status}
   if (problems.length > 0) {
     return {
       text: [
         'greenrack first-touch hook: not installed as expected',
-        ...problems.map((line) => `  ${line}`),
-        ...notes,
-        `run: ${INSTALL}`,
+        ...problems.map((line) => clip(`  ${line}`)),
+        ...notes.map(clip),
+        'run:',
+        `  ${INSTALL_COMMAND}`,
       ].join('\n'),
       data,
       exitCode: 1,
     }
   }
-  return {
-    text: [
-      outdated
-        ? `greenrack first-touch hook: outdated (another release); run: ${INSTALL}`
-        : 'greenrack first-touch hook: installed',
-      ...notes,
-    ].join('\n'),
-    data,
-  }
+  const head = outdated
+    ? [
+        'greenrack first-touch hook: outdated (from another release)',
+        'run:',
+        `  ${INSTALL_COMMAND}`,
+      ]
+    : ['greenrack first-touch hook: installed']
+  return {text: [...head, ...notes.map(clip)].join('\n'), data}
 }

@@ -226,6 +226,26 @@ install --user` writes the new ones and the template is patched from the
   doctor guard name `@greenharness/greenrack-` only. A prefilter wider than the
   CLI's test would start `npx` for repositories the CLI then turns away. The
   `.claude/hooks/duro-catalog.sh` own-hook check stays, as on main.
+- 2026-11-23 — a cold `npx` exceeds the 10 s cap on a loaded host, so the
+  first touch after a new 7.x release can time out. The cap stays: the
+  install already warms the cache with the exact spec the hook runs, npm keeps
+  a cut download, so a retry goes on from it, and three failures back off for
+  ten minutes, which `--check` reports.
+- 2026-11-23 — after the code review (round 1, eight reviewers): the binary
+  publishes `--status` and passes `GREENRACK_FIRST_TOUCH_PROTOCOL`, so the
+  CLI reads neither its files nor its constants and drops an unknown
+  protocol; the event, the ids and the CLI's failures are types; a reclaim
+  puts a live claim back; a back-off is logged; every exit kills the process
+  group; `uninstall --check` is refused; settings with a malformed group exit
+  2 and a file it cannot write exits 3; the release builds glibc targets
+  against glibc 2.17 through zig and attaches `SHA256SUMS` last. Kept as
+  `holds-until:` comments: the unlocked failure counter, a Windows child
+  starting processes before it joins the Job Object, and an npx outliving a
+  binary that Claude Code kills first.
+- 2026-11-23 — moving the crate to its own repository would also move the
+  six npm names and their trusted publishers, and `scripts/build-platform-packages.mjs`
+  would lose the CLI's target table it imports: the binary's release is tied
+  to the CLI's until then.
 - 2026-11-23 — the exec-form entries carry `args: []`: the binary reads only
   its first argument, `--protocol`. Phase 4's real session proves that Claude
   Code accepts an empty `args`.
@@ -247,8 +267,12 @@ install --user` writes the new ones and the template is patched from the
   bound plus 1 s on all three jobs; a forced panic exits 0 with empty stdout. A
   cold `npx` (empty `npm_config_cache`) is timed against the 10 s cap.
   Observed on macOS, release build, interleaved: a hit 7.0 ms at the median,
-  an empty `sh -c :` 22.6 ms, so a hit costs 15.5 ms less than the empty start
-  (`cargo test --release --test contract -- --ignored`).
+  against 22.6 ms for `sh -c 'cat >/dev/null'` reading the same 1 MB event,
+  the baseline the test runs, not an empty `sh -c :`
+  (`cargo test --release --test contract -- --ignored`). A cold `npx` of the
+  published CLI with an empty `npm_config_cache` took 44.6 s, 92.5 s and
+  171.2 s on this host at full load (twelve commands queued for three slots),
+  far over the 10 s cap; an idle-host figure is owed before the release.
 - Phase 2: a `dry_run` dispatch builds the six platform packages and publishes
   nothing; each one's `os` and `cpu` match its name, and the CLI's optional
   dependencies equal the version; `npm pack` of the CLI lists the six optional

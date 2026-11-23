@@ -13,7 +13,9 @@ import {runManifest, cliVersion} from './commands/manifest.js'
 
 function emit(result: CommandResult, json: boolean): never {
   for (const note of result.notes ?? []) process.stderr.write(note + '\n')
-  if (result.exitCode === 2) {
+  // 2 (usage) and 3 (a file it cannot read or write) are errors: their words
+  // go to stderr. 1 is a report (`--check`'s drift), so it stays on stdout.
+  if (result.exitCode === 2 || result.exitCode === 3) {
     process.stderr.write(result.text.endsWith('\n') ? result.text : result.text + '\n')
     // A --json caller still gets its result on stdout; the failure is the exit status and stderr.
     if (json) process.stdout.write(JSON.stringify(result.data, null, 2) + '\n')

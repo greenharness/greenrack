@@ -28,11 +28,12 @@ import {
   writeFileSync,
 } from 'node:fs'
 import {dirname, join} from 'node:path'
-import {fileURLToPath} from 'node:url'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const {PLATFORM_TARGETS, FIRST_TOUCH_BIN} = await import(
-  join(here, '../packages/cli/dist/native.js')
+  // A URL, not a path: Windows refuses `import()` of `C:\...`.
+  pathToFileURL(join(here, '../packages/cli/dist/native.js')).href
 )
 
 const die = (message) => {
