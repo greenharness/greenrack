@@ -69,7 +69,7 @@ export default [
 - **`react`**: UI primitives come from `@greenharness/greenrack-ui` only. react-aria,
   Spectrum, MUI, Radix, Chakra, headlessui, antd and `@frontjutsu/ui` are
   banned with a message that says where to add a missing component. Rich
-  text goes through `@fredericrous/lexical-multi`, never raw `lexical`. It
+  text goes through `@fredericrous/greenrack-lexical`, never raw `lexical`. It
   also carries everything in `@greenharness/greenrack-eslint-plugin`: html.\* elements,
   deep token imports, token values and the form kit.
 - `effect` and `tests` are documented with `@aval-adr/eslint-config`.
