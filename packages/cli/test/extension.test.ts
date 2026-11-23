@@ -343,7 +343,7 @@ describe('greenrack context', () => {
     const outside = runContext(registry, {cwd: bystander(), cacheHome})
     expect(nonConsumerNote(outside, false, '/work')).toBeNull()
     expect(nonConsumerNote(outside, true, '/work')).toBe(
-      'greenrack: not a greenrack consumer: no @greenharness/greenrack-ui (or legacy @duro-app/ui) dependency in /work',
+      'greenrack: not a greenrack consumer: no @greenharness/greenrack-ui in /work; install it with: pnpm add @greenharness/greenrack-ui',
     )
     const inside = runContext(registry, {cwd: consumer(), cacheHome})
     expect(nonConsumerNote(inside, true, '/work')).toBeNull()
@@ -409,7 +409,10 @@ describe('greenrack context', () => {
 describe('greenrack doctor outside a consumer', () => {
   it('prints not a greenrack consumer and exits 0', () => {
     const result = runDoctor({cwd: bystander()})
-    expect(result.text).toBe('not a greenrack consumer')
+    expect(result.text).toBe('')
+    expect(result.notes).toEqual([
+      'not a greenrack consumer; to become one: pnpm add @greenharness/greenrack-ui',
+    ])
     expect(result.exitCode).toBeUndefined()
   })
 })

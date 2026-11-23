@@ -3,14 +3,6 @@ import {basename, dirname, join, relative, resolve, sep} from 'node:path'
 import type {CommandResult} from './lookup.js'
 import {cliVersion} from './manifest.js'
 import {lineOf, maskComments} from '../scan.js'
-import {
-  LEGACY_CLI_PACKAGE,
-  LEGACY_CSS_VARIABLE_PREFIX,
-  LEGACY_DATA_ATTRIBUTE_PREFIX,
-  LEGACY_PROSE_LAYER,
-  LEGACY_TOKENS_PACKAGE,
-  LEGACY_UI_PACKAGE,
-} from '../legacy-names.js'
 
 /**
  * `greenrack doctor` — checks how the app in the cwd wires @greenharness/greenrack-ui into its
@@ -39,7 +31,6 @@ export type DoctorRule =
   | 'version-skew'
   | 'tokens-compiled'
   | 'media-var'
-  | 'legacy-names'
 
 export interface DoctorFinding {
   rule: DoctorRule
@@ -68,8 +59,7 @@ export interface DoctorOptions {
  * the other scope's names are never evidence of a correct wiring.
  */
 export interface Scope {
-  /** The current names, or the old ones this CLI still recognises until the census. */
-  kind: 'greenrack' | 'legacy'
+  kind: 'greenrack'
   ui: string
   tokens: string
   cli: string
@@ -90,18 +80,8 @@ const GREENRACK_SCOPE: Scope = {
   dataAttributePrefix: 'data-gr',
 }
 
-const LEGACY_SCOPE: Scope = {
-  kind: 'legacy',
-  ui: LEGACY_UI_PACKAGE,
-  tokens: LEGACY_TOKENS_PACKAGE,
-  cli: LEGACY_CLI_PACKAGE,
-  proseLayer: LEGACY_PROSE_LAYER,
-  cssVariablePrefix: LEGACY_CSS_VARIABLE_PREFIX,
-  dataAttributePrefix: LEGACY_DATA_ATTRIBUTE_PREFIX,
-}
-
-/** New scope first: an app that depends on both is checked as the new one. */
-export const SCOPES: readonly Scope[] = [GREENRACK_SCOPE, LEGACY_SCOPE]
+/** The only scope: an app that does not depend on its UI package is not a consumer. */
+export const SCOPES: readonly Scope[] = [GREENRACK_SCOPE]
 
 const PRIORITIES = ['priority1', 'priority2', 'priority3', 'priority4', 'priority5']
 const LAYER_STATEMENT = `@layer reset, ${PRIORITIES.join(', ')};`
@@ -199,8 +179,12 @@ export function runDoctor(options: DoctorOptions = {}): CommandResult {
   const packages = consumerPackages(root)
   if (packages.length === 0) {
     return {
-      text: options.session ? '' : 'not a greenrack consumer',
+      text: '',
       data: {ok: true, findings: [], checked: [], skipped: [], packages: [], scopes: []},
+      // On stderr, so a --json caller's stdout stays the result and a hook (--session) hears nothing.
+      notes: options.session
+        ? []
+        : [`not a greenrack consumer; to become one: pnpm add ${GREENRACK_SCOPE.ui}`],
     }
   }
 
@@ -296,7 +280,6 @@ function checkPackage(
       fix: `npx -y ${skew.cli}@${skew.installed} doctor, or upgrade ${skew.ui}.`,
     })
   }
-  findings.push(...checkLegacyNames(dir, scope, rel))
   return findings
 }
 
@@ -1103,85 +1086,6 @@ const CONSEQUENCE: Record<DoctorRule, string> = {
   'version-skew': 'the CLI checks a different version than the one installed',
   'tokens-compiled': 'css.create cannot use the design tokens',
   'media-var': 'breakpoint media queries never match',
-  'legacy-names': 'the app still reads names the old scope published',
-}
-
-/** The old CSS names an app's own stylesheet may still carry, with the names that replace them. */
-const LEGACY_CSS_NAME = new RegExp(
-  `${escapeRegExp(LEGACY_SCOPE.cssVariablePrefix)}[\\w-]+|${escapeRegExp(LEGACY_SCOPE.dataAttributePrefix)}[\\w-]*|${escapeRegExp(LEGACY_SCOPE.proseLayer)}`,
-  'g',
-)
-
-function renamedCssName(name: string): string {
-  const from = LEGACY_SCOPE
-  const to = GREENRACK_SCOPE
-  if (name.startsWith(from.cssVariablePrefix)) {
-    return `${to.cssVariablePrefix}${name.slice(from.cssVariablePrefix.length)}`
-  }
-  if (name.startsWith(from.dataAttributePrefix)) {
-    return `${to.dataAttributePrefix}${name.slice(from.dataAttributePrefix.length)}`
-  }
-  return to.proseLayer
-}
-
-/** How many leftover names are reported one by one, before `… and N more`. */
-const LEGACY_NAME_LIMIT = 10
-
-/**
- * Old CSS names in the app's own stylesheets (the old variable prefix, data attribute prefix and
- * prose layer), each with its new name: the first LEGACY_NAME_LIMIT, then
- * one line counting the rest.
- */
-function checkLegacyNames(
-  dir: string,
-  scope: Scope,
-  rel: (path: string) => string,
-): DoctorFinding[] {
-  const found: DoctorFinding[] = []
-  walkFiles(
-    ['src', 'app'].map((name) => join(dir, name)),
-    (name) => name.endsWith('.css'),
-    (path) => {
-      const source = readText(path)
-      if (source === null) return
-      for (const match of maskComments(source, {line: false}).matchAll(LEGACY_CSS_NAME)) {
-        const renamed = renamedCssName(match[0])
-        found.push({
-          rule: 'legacy-names',
-          severity: 'warn',
-          file: rel(path),
-          line: lineOf(source, match.index),
-          message: `${match[0]} is the old name; the new name is ${renamed}.`,
-          fix: `Rename ${match[0]} to ${renamed}.`,
-        })
-      }
-    },
-    [],
-  )
-  if (found.length === 0) return found
-  // On the old scope these names are still right: one line says what to do on the move.
-  if (scope.kind === 'legacy') {
-    return [
-      {
-        rule: 'legacy-names',
-        severity: 'warn',
-        file: rel(dir),
-        message: `${found.length} old CSS name(s) in the app's own stylesheets, right for ${scope.ui}.`,
-        fix: `Rename them (${LEGACY_SCOPE.cssVariablePrefix}* to ${GREENRACK_SCOPE.cssVariablePrefix}*) when the app moves to ${GREENRACK_SCOPE.ui}.`,
-      },
-    ]
-  }
-  if (found.length <= LEGACY_NAME_LIMIT) return found
-  return [
-    ...found.slice(0, LEGACY_NAME_LIMIT),
-    {
-      rule: 'legacy-names',
-      severity: 'warn',
-      file: rel(dir),
-      message: `… and ${found.length - LEGACY_NAME_LIMIT} more`,
-      fix: 'Rename them the same way.',
-    },
-  ]
 }
 
 function report(
@@ -1197,7 +1101,7 @@ function report(
   const summary = {ok: errors.length === 0, findings, checked, skipped, packages, scopes}
   const scopeNames = scopes.join(' + ')
   const recheck = SCOPES.filter(({ui}) => scopes.includes(ui)).map(
-    ({cli}) => `npx -y ${cli} doctor`,
+    ({cli}) => `npx -y ${cli}@^7 doctor`,
   )
   const where = (finding: DoctorFinding) =>
     finding.line ? `${finding.file}:${finding.line}` : finding.file

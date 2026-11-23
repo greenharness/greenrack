@@ -158,7 +158,7 @@ const NOT_A_CONSUMER = Object.freeze({consumer: false})
  */
 export function nonConsumerNote(result: CommandResult, isTTY: boolean, cwd: string): string | null {
   if (!isTTY || result.data !== NOT_A_CONSUMER) return null
-  return `greenrack: not a greenrack consumer: no @greenharness/greenrack-ui (or legacy @duro-app/ui) dependency in ${cwd}`
+  return `greenrack: not a greenrack consumer: no @greenharness/greenrack-ui in ${cwd}; install it with: pnpm add @greenharness/greenrack-ui`
 }
 
 /**

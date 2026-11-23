@@ -3,37 +3,19 @@ import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {isGreenrackConsumer, runDoctor, type DoctorFinding} from '../src/commands/doctor.js'
-import {
-  LEGACY_CSS_VARIABLE_PREFIX,
-  LEGACY_PROSE_LAYER,
-  LEGACY_TOKENS_PACKAGE,
-  LEGACY_UI_PACKAGE,
-} from '../src/legacy-names.js'
-
 interface ScopeFixture {
-  label: string
-  kind: 'greenrack' | 'legacy'
   ui: string
   tokens: string
-  proseLayer: string
 }
 
-const SCOPES: ScopeFixture[] = [
-  {
-    label: 'new scope',
-    kind: 'greenrack',
-    ui: '@greenharness/greenrack-ui',
-    tokens: '@greenharness/greenrack-tokens',
-    proseLayer: 'gr-prose',
-  },
-  {
-    label: 'old scope',
-    kind: 'legacy',
-    ui: LEGACY_UI_PACKAGE,
-    tokens: LEGACY_TOKENS_PACKAGE,
-    proseLayer: LEGACY_PROSE_LAYER,
-  },
-]
+/** The scope this CLI recognises. */
+const GREENRACK: ScopeFixture = {
+  ui: '@greenharness/greenrack-ui',
+  tokens: '@greenharness/greenrack-tokens',
+}
+
+/** The retired scope, spelled out: nothing detects it any more. */
+const RETIRED: ScopeFixture = {ui: '@duro-app/ui', tokens: '@duro-app/tokens'}
 
 const inRegex = (name: string) => name.replace(/\//g, '\\/')
 
@@ -78,7 +60,9 @@ function app(scope: ScopeFixture, options: {compileTokens?: boolean; inline?: bo
 const findings = (root: string) =>
   (runDoctor({cwd: root}).data as {findings: DoctorFinding[]}).findings
 
-describe.each(SCOPES)('greenrack doctor on the $label', (scope) => {
+describe('greenrack doctor', () => {
+  const scope = GREENRACK
+
   it('is a consumer', () => {
     expect(isGreenrackConsumer(app(scope))).toBe(true)
   })
@@ -89,7 +73,7 @@ describe.each(SCOPES)('greenrack doctor on the $label', (scope) => {
 
   it('wants the stylesheet of its own scope', () => {
     const root = app(scope)
-    const other = SCOPES.find((candidate) => candidate !== scope)!
+    const other = RETIRED
     write(root, {'app/root.tsx': `import '${other.ui}/dist/index.css'\n`})
     expect(findings(root)).toEqual([
       expect.objectContaining({
@@ -113,7 +97,7 @@ describe.each(SCOPES)('greenrack doctor on the $label', (scope) => {
   })
 
   it('does not take the other scope tokens for its own', () => {
-    const other = SCOPES.find((candidate) => candidate !== scope)!
+    const other = RETIRED
     const root = app(scope, {compileTokens: false, inline: false})
     write(root, {
       'vite.config.ts': `${`import babel from 'vite-plugin-babel'\nconst a = '${other.tokens}'\n`}export default {plugins: [babel({filter: /x/, babelConfig: {presets: ['react-strict-dom/babel-preset']}})], ssr: {noExternal: ['${other.tokens}']}}\n`,
@@ -135,37 +119,20 @@ describe.each(SCOPES)('greenrack doctor on the $label', (scope) => {
     expect(runDoctor({cwd: app(scope)}).text.split('\n')[0]).toContain(scope.ui)
   })
 
-  it('reports an old CSS variable with its new name', () => {
-    const root = app(scope)
-    write(root, {
-      'app/styles/own.css': `.a { padding: var(${LEGACY_CSS_VARIABLE_PREFIX}spacing-md); }\n`,
-    })
-    const legacy = findings(root).filter(({rule}) => rule === 'legacy-names')
-    expect(legacy).toHaveLength(1)
-    if (scope.kind === 'greenrack') {
-      expect(legacy[0]!.message).toContain('--gr-spacing-md')
-      expect(legacy[0]!.file).toBe('app/styles/own.css')
-    } else {
-      // Still right on the old scope: one line saying what to do on the move.
-      expect(legacy[0]!.message).toContain('1 old CSS name(s)')
-      expect(legacy[0]!.fix).toContain('when the app moves to @greenharness/greenrack-ui')
-    }
+  it('is not a consumer of the retired scope, and says how to become one', () => {
+    const root = app(RETIRED)
+    expect(isGreenrackConsumer(root)).toBe(false)
+    const result = runDoctor({cwd: root})
+    expect(result.exitCode).toBeUndefined()
+    expect(result.data).toMatchObject({ok: true, findings: [], packages: [], scopes: []})
+    expect(result.text).toBe('')
+    expect(result.notes).toEqual([expect.stringContaining('pnpm add @greenharness/greenrack-ui')])
+    expect(result.notes![0]!.length).toBeLessThanOrEqual(80)
   })
 
-  it('reports the first 10 old names, then how many more', () => {
-    const root = app(scope)
-    const rules = Array.from(
-      {length: 13},
-      (_, index) => `.a${index} { gap: var(${LEGACY_CSS_VARIABLE_PREFIX}spacing-md); }`,
-    )
-    write(root, {'app/styles/own.css': rules.join('\n')})
-    const legacy = findings(root).filter(({rule}) => rule === 'legacy-names')
-    if (scope.kind === 'greenrack') {
-      expect(legacy).toHaveLength(11)
-      expect(legacy[10]!.message).toBe('… and 3 more')
-    } else {
-      expect(legacy).toHaveLength(1)
-      expect(legacy[0]!.message).toContain('13 old CSS name(s)')
-    }
+  it('says nothing to a session hook in an app on the retired scope', () => {
+    const result = runDoctor({cwd: app(RETIRED), session: true})
+    expect(result.text).toBe('')
+    expect(result.notes).toEqual([])
   })
 })

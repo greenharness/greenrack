@@ -642,7 +642,7 @@ describe('the /greenrack-mockup skill names only what the CLI ships', () => {
 })
 
 describe('the version-skew warning', () => {
-  it('names the scope and the CLI of the ui the app installs, old scope included', () => {
+  it('does not check the retired scope: its ui is no consumer, so no skew line', () => {
     const root = mkdtempSync(join(tmpdir(), 'greenrack-skew-'))
     const ui = join(root, 'node_modules', '@duro-app', 'ui')
     mkdirSync(ui, {recursive: true})
@@ -654,8 +654,7 @@ describe('the version-skew warning', () => {
       cwd: root,
       encoding: 'utf8',
     })
-    expect(run.stderr).toContain('you have @duro-app/ui@6.3.0')
-    expect(run.stderr).toContain('npm i -D @duro-app/cli@6.3.0')
+    expect(run.stderr).not.toContain('@duro-app')
     expect(run.stderr).not.toContain('@greenharness/greenrack-cli@6.3.0')
   })
 })
