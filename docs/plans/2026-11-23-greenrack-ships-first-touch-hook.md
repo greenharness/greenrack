@@ -11,7 +11,7 @@ plan-id: p-01M80J3H0J2PMKPCBGXMTM48B7
 ## Review panel
 
 👉 **Decide:** none — you chose Rust, Windows and amending ADR-0075 first; approve if the hook crate lives in greenrack.
-📍 greenrack, dotfiles, decisions · 6 phases · 4 releases · 2 steps for you · next: Phase 0. Panel: architect, backend, rust, typescript, platform, po, tui, unix (all opus); codex not run.
+📍 greenrack, dotfiles, decisions · Phases 0–3 built, your npm steps done · next: Phase 4, release 7.7.0. Panel: architect, backend, rust, typescript, platform, po, tui, unix (all opus); codex not run.
 **Changed by review:** grh reads status as JSON and a newer binary says `outdated`; the binary kills its process tree and exits 0 on a panic; the release checks the six npm names first and publishes the CLI last.
 **Verdicts:** sh design: 6 seats, then a backend delta, approve. Rust rewrite: 4 seats approve-with-changes, then all 4 approve; 8 carried; words 1083 → 2071 (×1.91, mostly the rewrite you asked for); remove 0, merge 0.
 📄 Full reviews: [2026-11-23-greenrack-ships-first-touch-hook.reviews.md](2026-11-23-greenrack-ships-first-touch-hook.reviews.md)
@@ -136,7 +136,7 @@ install|uninstall --user`; status args are `-y
       session hooks and grh runs its installer;
       `docs/adr/0082-a-part-installs-its-own-session-hooks.md` (0080 and 0081
       were taken), `docs/adr/HEADS.md`; one PR, merged before Phase 3
-- [ ] Phase 1 — the binary and the command: `Cargo.toml`, `Cargo.lock`,
+- [x] Phase 1 — the binary and the command: `Cargo.toml`, `Cargo.lock`,
       `rust-toolchain.toml`, `crates/first-touch/Cargo.toml`,
       `crates/first-touch/src/main.rs`, `crates/first-touch/tests/contract.rs`,
       `packages/cli/src/commands/first-touch.ts`, `packages/cli/src/bin.ts`,
@@ -145,7 +145,7 @@ install|uninstall --user`; status args are `-y
       ubuntu, macOS and `windows-latest`, cached on `Cargo.lock`, run when
       `crates/`, `Cargo.*` or `ci.yaml` change); the dotfiles Python tests are the
       spec, mapped case by case to a contract test or `n/a (Python)`
-- [ ] Phase 2 — packaging, as greengate does: `npm/platform/package.json.in`,
+- [x] Phase 2 — packaging, as greengate does: `npm/platform/package.json.in`,
       `scripts/build-platform-packages.mjs` (sets the CLI's six optional
       dependencies to the tag's exact version), `packages/cli/package.json`
       (optional dependencies, `files`), `packages/cli/src/native.ts` (finds the
@@ -155,7 +155,7 @@ install|uninstall --user`; status args are `-y
       unless `npm view` finds all six names; platform packages publish first and
       the CLI last, with `--provenance`, from artifacts checked against
       `SHA256SUMS`, so a resume reuses them; a `dry_run` input publishes nothing)
-- [ ] Phase 3 — install, uninstall, check and the manifest:
+- [x] Phase 3 — install, uninstall, check and the manifest:
       `packages/cli/src/commands/hook.ts`, `packages/cli/greenharness.toml`,
       `packages/cli/test/hook-user.test.ts`, `packages/cli/test/extension.test.ts`
       (its `parseToml` learns dotted and inline tables, `GRH_V1_KEYS` gains `tool`),
@@ -246,6 +246,11 @@ install --user` writes the new ones and the template is patched from the
   six npm names and their trusted publishers, and `scripts/build-platform-packages.mjs`
   would lose the CLI's target table it imports: the binary's release is tied
   to the CLI's until then.
+- 2026-11-23 — main filed follow-up f07 (the repo hook should prefer the
+  lockfile's greenrack binary over `npx`). Its answer would also shorten this
+  hook's cold start, so it is a follow-up for this hook too, not a change here.
+- 2026-11-23 — the person published the six `0.0.0-reserved` placeholders and
+  set their trusted publishers; all six resolve on the registry 276 s later.
 - 2026-11-23 — the exec-form entries carry `args: []`: the binary reads only
   its first argument, `--protocol`. Phase 4's real session proves that Claude
   Code accepts an empty `args`.
@@ -273,7 +278,8 @@ install --user` writes the new ones and the template is patched from the
   published CLI with an empty `npm_config_cache` took 44.6 s, 92.5 s and
   171.2 s on this host at full load (twelve commands queued for three slots),
   far over the 10 s cap. With the host less loaded (load about 10, two of
-  three slots held), two cold runs took 10.5 s and 7.6 s: at the cap.
+  three slots held), two cold runs took 10.5 s, over the 10 s cap by
+  0.5 s, and 7.6 s, under it.
 - Phase 2: a `dry_run` dispatch builds the six platform packages and publishes
   nothing; each one's `os` and `cpu` match its name, and the CLI's optional
   dependencies equal the version; `npm pack` of the CLI lists the six optional
@@ -315,6 +321,14 @@ install --user` writes the new ones and the template is patched from the
   the path form and the entries' acceptance on Windows are guesses.
 - Phase 5: the template renders identical to the live `settings.json`; the same
   three-read session through the real wiring gives the same result.
+
+## Implementation review
+
+- implementation-review (opus): approve-with-changes three rounds; 3 blocking fixed (discards, dependency ownership, flag arguments); 135k, 88k, 121k.
+- Profiles (opus), final tree: backend, lang:rust, unix, tui, platform, architect approve; lang:typescript approve-with-changes, two lows deliberate.
+- deliberate: `f`/`result` in the install tests are the file's convention (73 and 47 uses); renaming one test splits it.
+- deliberate: unchecked `--status` `reason`/`root` cannot crash `--check`; `+` joins; unit-test folders left on failure; release assets only this workflow writes.
+- Carried: a real Windows run, the dry-run dispatch on the zig pins, and a cold `npx` over the cap after a release.
 
 ## Outcome
 
