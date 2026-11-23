@@ -22,6 +22,11 @@ import {Stack} from '../Stack/Stack'
 import {Prose} from '../Prose/Prose'
 import {SplitPane} from '../SplitPane/SplitPane'
 import {VirtualList} from '../VirtualList/VirtualList'
+import {Spinner} from '../Spinner/Spinner'
+import {TagGroup} from '../TagGroup/TagGroup'
+import {DragDrop} from '../DragDrop/DragDrop'
+import {LiveRegion} from '../LiveRegion/LiveRegion'
+import {VisuallyHidden} from '../VisuallyHidden/VisuallyHidden'
 
 // --- the story's frame -----------------------------------------------------
 
@@ -52,6 +57,8 @@ const styles = css.create({
     outlineColor: colors.border,
   }),
   fit: {maxWidth: '100%'},
+  // Pushes what follows it well below the fold of Main.
+  belowTheFold: {height: '300vh'},
 })
 
 function Frame({px, children}: {px: number; children?: ReactNode}) {
@@ -920,4 +927,110 @@ export const ScrollMainBoundsMain: Story = {
     // The document itself does not scroll: Main does.
     await expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(window.innerHeight)
   },
+}
+
+// --- visually hidden text below the fold of a scrolling Main ---------------
+
+/**
+ * One owner of visually hidden text (`position: absolute`), placed far below the fold of a
+ * `scroll="main"` shell. Its hidden element must be placed against Main, the scroller, or it
+ * escapes Main and lengthens the document.
+ */
+function HiddenBelowTheFold({children}: {children: ReactNode}) {
+  return (
+    <AppShell.Root
+      menuLabel="Menu"
+      closeLabel="Close navigation"
+      skipLabel="Skip to content"
+      brand={BRAND}
+      scroll="main"
+    >
+      <AppShell.Rail aria-label="Navigation">
+        <SideNav.Root value="/sessions">
+          <SideNav.Item value="/sessions">Sessions</SideNav.Item>
+        </SideNav.Root>
+      </AppShell.Rail>
+      <AppShell.Main>
+        {/* Something to focus: a scrolling region needs keyboard access. */}
+        <TextLink href="#sessions">All sessions</TextLink>
+        <html.div style={styles.belowTheFold} />
+        {children}
+      </AppShell.Main>
+    </AppShell.Root>
+  )
+}
+
+const hiddenStaysInMain = async () => {
+  const main = document.querySelector('main')!
+  const hidden = await waitFor(() => {
+    const found = [...main.querySelectorAll<HTMLElement>('*')].filter(
+      (el) => getComputedStyle(el).position === 'absolute' && el.offsetWidth === 1,
+    )
+    expect(found.length).toBeGreaterThan(0)
+    return found
+  })
+  for (const el of hidden) await expect(el.offsetParent).toBe(main)
+  // The document itself does not scroll: Main does.
+  await expect(document.documentElement.scrollHeight).toBe(window.innerHeight)
+}
+
+/** VisuallyHidden below the fold stays inside Main. */
+export const ScrollMainHoldsVisuallyHidden: Story = {
+  tags: TEST_ONLY,
+  render: () => (
+    <HiddenBelowTheFold>
+      <VisuallyHidden>Read by assistive tech only</VisuallyHidden>
+    </HiddenBelowTheFold>
+  ),
+  play: hiddenStaysInMain,
+}
+
+/** A Spinner's hidden label below the fold stays inside Main. */
+export const ScrollMainHoldsSpinnerLabel: Story = {
+  tags: TEST_ONLY,
+  render: () => (
+    <HiddenBelowTheFold>
+      <Spinner label="Loading sessions" />
+    </HiddenBelowTheFold>
+  ),
+  play: hiddenStaysInMain,
+}
+
+/** A TagGroup's live region below the fold stays inside Main. */
+export const ScrollMainHoldsTagGroupLiveRegion: Story = {
+  tags: TEST_ONLY,
+  render: () => (
+    <HiddenBelowTheFold>
+      <TagGroup.Root aria-label="Labels" defaultValue={['design']}>
+        <Text>Labels</Text>
+      </TagGroup.Root>
+    </HiddenBelowTheFold>
+  ),
+  play: hiddenStaysInMain,
+}
+
+/** DragDrop's live region below the fold stays inside Main. */
+export const ScrollMainHoldsDragDropLiveRegion: Story = {
+  tags: TEST_ONLY,
+  render: () => (
+    <HiddenBelowTheFold>
+      <DragDrop.Root onDrop={() => {}}>
+        <DragDrop.Zone id="board" label="Board">
+          <Text>Board</Text>
+        </DragDrop.Zone>
+      </DragDrop.Root>
+    </HiddenBelowTheFold>
+  ),
+  play: hiddenStaysInMain,
+}
+
+/** A visually hidden LiveRegion below the fold stays inside Main. */
+export const ScrollMainHoldsLiveRegion: Story = {
+  tags: TEST_ONLY,
+  render: () => (
+    <HiddenBelowTheFold>
+      <LiveRegion visuallyHidden>Saved</LiveRegion>
+    </HiddenBelowTheFold>
+  ),
+  play: hiddenStaysInMain,
 }
