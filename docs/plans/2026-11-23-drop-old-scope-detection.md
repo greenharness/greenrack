@@ -148,9 +148,10 @@ census and archiving `duro-design-system`.
 
 ## Implementation review
 
-- implementation-review: approve-with-changes after the delta; plan findings fixed in this commit; `isTTY` flag argument and the `result` name removed; tokens 58k.
+- implementation-review: approve after the delta; plan findings and the `isTTY` flag argument fixed; 58k + 60k tokens.
 - backend: approve after the delta; `--json` quiet, test and comments fixed.
-- lang:typescript: approve-with-changes; `Scope.kind` removed, titles fixed; one-element `SCOPES` kept, deliberate.
-- unix, tui: approve-with-changes; context note unprefixed and 76 columns, `context --json` quiet, all fixed after the delta.
+- lang:typescript: approve-with-changes; `Scope.kind` removed, titles fixed; deliberate: one-element `SCOPES`; the TTY gate in `bin.ts` has no test of its own, kept to avoid a fourth review round.
+- unix: approve after the delta; context note unprefixed (76 columns), `context --json` quiet.
+- tui: approve-with-changes; same low as typescript, deliberate: the test title "to nobody else" now checks the note text only.
 
 <!-- panel: repos=greenrack,grh,adr-lint adds=contract reviewers=backend,lang:rust,lang:typescript,tui,unix,architect,po body-sha=9a101e6813d4 -->
