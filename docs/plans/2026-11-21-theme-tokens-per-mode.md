@@ -272,6 +272,8 @@ Observed on the branch's final tree (`3a415a99`, tree `7a4beff77f1f`), before th
 - Size: the theme `<style>` is 946 B gzip with no cookie (ceiling 5 KB).
   The `/` HTML is 97,848 B vs 95,207 B on base. CSP: the app sets none, so
   an inline `<style>` is allowed.
+  Observed after the greenrack release, on the trees each entry names:
+
 - Phase 4, application-landscape on greenrack 7.7.0 from npm (tree
   `3e299180aeb1`, pointer plan's Verification): 0 diffs against
   `origin/main` in the 8 JS-disabled cells × `/` and `/admin` and in 4 JS
@@ -280,11 +282,12 @@ Observed on the branch's final tree (`3a415a99`, tree `7a4beff77f1f`), before th
   (merged fd45845e), released v0.67.0 (ghcr and Forgejo).
 - Production, after homelab#1287 (merged 4cc221849): `web` and `yjs` on
   0.67.0, Flux Ready, the pod 4/4 Running with 0 restarts (two sidecars
-  beside `web` and `yjs`); the 16 JS-disabled cells give 0 diffs against
-  the previous main. Signed out, `/admin` lands on `/`, so its cells read
-  the home page on both sides. The rollback trigger never fired.
+  beside `web` and `yjs`); the 8 JS-disabled cells × 2 routes give 0
+  diffs against the previous main (8 distinct pages: signed out, `/admin`
+  lands on `/`, so its cells read the home page on both sides). Evidence:
+  `~/.claude/greenbelay/attestations/3e299180aeb1/prod-diff/`. The rollback trigger never fired.
 - decisions#347 (merged 0e0e9aa) closes f107 and files f116, the
-  DS-system-theme follow-up.
+  DS-system-theme follow-up, with the map line and the handoff.
 
 ## Decision log
 
