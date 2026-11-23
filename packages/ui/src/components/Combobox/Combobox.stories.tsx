@@ -507,14 +507,17 @@ export const ControlledInputValue: StoryObj<{onInput: (text: string) => void}> =
  * label, then the option's label replaces it, and the list still opens with
  * every option.
  */
-function LoadsOnOpenDemo({delayMs}: {delayMs: number}) {
+function LoadsOnOpenDemo({delayMs, hold}: {delayMs?: number; hold?: Promise<void>}) {
   const [loaded, setLoaded] = useState(false)
   return (
     <Combobox.Root
       defaultValue="cherry"
       initialLabels={{cherry: 'cherry'}}
       onOpenChange={(open) => {
-        if (open) setTimeout(() => setLoaded(true), delayMs)
+        if (!open) return
+        // A held load waits for the test; a timed one is the story a person watches.
+        if (hold) void hold.then(() => setLoaded(true))
+        else setTimeout(() => setLoaded(true), delayMs)
       }}
     >
       <Combobox.Input aria-label="Fruit" />
@@ -537,14 +540,24 @@ export const LoadOnOpen: Story = {
   render: () => <LoadsOnOpenDemo delayMs={1000} />,
 }
 
+/** The options arrive when the test says so, never on a timer a slow browser can miss. */
+let releaseFruits: () => void = () => {}
+let fruitsHeld: Promise<void> = Promise.resolve()
+
 export const OptionsLoadOnOpen: Story = {
   tags: TEST_ONLY,
-  render: () => <LoadsOnOpenDemo delayMs={50} />,
+  beforeEach: () => {
+    fruitsHeld = new Promise<void>((resolve) => {
+      releaseFruits = resolve
+    })
+  },
+  render: () => <LoadsOnOpenDemo hold={fruitsHeld} />,
   play: async ({canvas, userEvent}) => {
     const input = canvas.getByRole('combobox')
     await expect(input).toHaveValue('cherry')
     await userEvent.click(input)
     await expect(await screen.findByText('Loading fruits')).toBeInTheDocument()
+    releaseFruits()
     await waitFor(() => expect(optionCount()).toBe(fruits.length))
     await waitFor(() => expect(input).toHaveValue('Cherry'))
     await expect(screen.getByRole('option', {name: 'Cherry'})).toHaveAttribute(
