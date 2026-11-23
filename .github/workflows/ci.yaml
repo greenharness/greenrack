@@ -218,3 +218,53 @@ jobs:
       - name: Export iOS and Android bundles
         if: steps.filter.outputs.run == 'true'
         run: pnpm native:export
+
+  # The first-touch hook (crates/first-touch) on the three systems it ships for:
+  # Windows kills a process tree through a Job Object and spells paths its own
+  # way, so it is tested there, not assumed.
+  rust:
+    name: First-touch hook (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Content-based skip, as the native job: fails open, and a skipped job is green.
+      - name: Rust-relevant changes
+        id: filter
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if ! changed="$(git diff --name-only "$base" HEAD 2>/dev/null)"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^(crates/|Cargo\.(toml|lock)$|rust-toolchain\.toml$|\.github/workflows/ci\.yaml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No Rust change; skipping."
+          fi
+      # rust-toolchain.toml names the version; this installs it with clippy and rustfmt.
+      - name: Install the pinned toolchain
+        if: steps.filter.outputs.run == 'true'
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        if: steps.filter.outputs.run == 'true'
+        with:
+          key: ${{ hashFiles('Cargo.lock') }}
+      - name: Format
+        if: steps.filter.outputs.run == 'true' && matrix.os == 'ubuntu-latest'
+        run: cargo fmt --all --check
+      - name: Clippy
+        if: steps.filter.outputs.run == 'true'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Contract tests
+        if: steps.filter.outputs.run == 'true'
+        run: cargo test --workspace --locked

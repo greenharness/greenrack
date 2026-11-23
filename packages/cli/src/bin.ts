@@ -80,7 +80,9 @@ async function main(): Promise<void> {
   // version; warn (stderr only) when a locally installed ui differs. doctor
   // reports the same skew as one of its findings instead, and mockup under the
   // findings it may explain (an unknown-component newer than the checker).
-  if (!values.json && first !== 'doctor' && first !== 'mockup') {
+  // A hook's output is the agent's context: no warning rides along with it.
+  const fromHook = first === 'hook' && rest[0] === 'first-touch'
+  if (!values.json && first !== 'doctor' && first !== 'mockup' && !fromHook) {
     const skew = uiVersionSkew(process.cwd(), SCOPES)
     if (skew) {
       process.stderr.write(

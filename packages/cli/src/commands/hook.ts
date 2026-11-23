@@ -21,6 +21,7 @@ import {
 import type {Registry} from '../registry-types.js'
 import type {CommandResult} from './lookup.js'
 import {runContext} from './context.js'
+import {firstTouchOptions, runFirstTouch} from './first-touch.js'
 import {
   GITIGNORE_BLOCK,
   HOOK_CACHE_IGNORE,
@@ -41,7 +42,7 @@ export interface HookOptions {
   cwd?: string
 }
 
-const EVENTS = ['session-start', 'install']
+const EVENTS = ['session-start', 'install', 'first-touch']
 
 export function runHook(
   registry: Registry,
@@ -49,6 +50,8 @@ export function runHook(
   options: HookOptions = {},
 ): CommandResult {
   if (event === 'install') return runHookInstall(options)
+  // Run by the greenrack-first-touch binary, which passes the root and event.
+  if (event === 'first-touch') return runFirstTouch(registry, firstTouchOptions())
   if (event !== 'session-start') {
     return {
       text: `greenrack hook: unknown event "${event ?? ''}" — expected ${EVENTS.join(' | ')}`,

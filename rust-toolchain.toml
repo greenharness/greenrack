@@ -1,0 +1,6 @@
+# The toolchain the first-touch crate builds with, pinned like greengate's:
+# clippy runs with `-D warnings`, so a floating stable would turn an untouched
+# commit red. Bumping it is a deliberate change of its own.
+[toolchain]
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]

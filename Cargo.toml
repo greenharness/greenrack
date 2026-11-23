@@ -1,0 +1,15 @@
+# The Rust half of greenrack: one small binary, the first-touch hook. The
+# design system itself stays a pnpm workspace; this file only lets cargo find
+# the crate. See docs/plans/2026-11-23-greenrack-ships-first-touch-hook.md.
+[workspace]
+members = ["crates/first-touch"]
+resolver = "2"
+
+[profile.release]
+# The hook must exit 0 even when it panics: `catch_unwind` in main needs
+# unwinding, so `panic = "abort"` is never set here.
+panic = "unwind"
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

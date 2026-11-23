@@ -63,6 +63,15 @@ timeout_seconds = 900
 argv = ["pnpm", "exec", "vitest", "run", "--project=unit"]
 timeout_seconds = 900
 
+# The first-touch hook crate: its contract tests build the examples they use.
+[[verification.profiles.default.commands]]
+argv = ["cargo", "clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"]
+timeout_seconds = 900
+
+[[verification.profiles.default.commands]]
+argv = ["cargo", "test", "--workspace", "--locked"]
+timeout_seconds = 900
+
 # A candidate that touches what the profile's verdict depends on — build
 # manifests, lockfiles, the test tree, fixtures, or a program the profile
 # runs — is reviewed explicitly whatever the route said (SPEC §10). The

@@ -1,0 +1,31 @@
+[package]
+name = "greenrack-first-touch"
+version = "0.0.0"
+edition = "2021"
+# std's safe quoting of `.cmd` arguments on Windows (CVE-2024-24576).
+rust-version = "1.77.2"
+publish = false
+description = "Claude Code hook: gives a session the greenrack index once, on the first touch of a repository that uses it"
+
+[[bin]]
+name = "greenrack-first-touch"
+path = "src/main.rs"
+
+[dependencies]
+# Derived structs read only the event's ids and paths; serde skips the rest
+# (a Write's file content) without building a value for it.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+# killpg: a timeout kills the whole process group npx started.
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# A Job Object: a timeout kills npx.cmd and the node it started.
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }

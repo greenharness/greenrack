@@ -83,7 +83,8 @@ export const COMMANDS: CommandSpec[] = [
       {
         name: 'event',
         required: true,
-        description: 'session-start (print the index) | install (wire both hooks into this repo)',
+        description:
+          'session-start (print the index) | install (wire both hooks into this repo) | first-touch (run by the greenrack-first-touch hook: the index for GREENRACK_FIRST_TOUCH_ROOT, text for SessionStart or one PreToolUse JSON object)',
         valuesFrom: 'events',
       },
     ],
@@ -262,7 +263,7 @@ export function buildManifest(registry: Registry, version: string) {
       // Guides are fetched by name (guide:<skill>) and stay out of the manifest.
       names: lookupNames(registry).filter((name) => !name.startsWith('guide:')),
       kinds: ['components', 'recipes', 'tokens'],
-      events: ['session-start', 'install'],
+      events: ['session-start', 'install', 'first-touch'],
       mockupActions: MOCKUP_SUBCOMMANDS,
       skillActions: ['install'],
     },

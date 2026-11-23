@@ -31,6 +31,8 @@ keys:
 areas:
   # cli: packages/cli/package.json — a `bin` entry
   packages/cli/**: [cli]
+  # cli: crates/first-touch/Cargo.toml — the first-touch hook binary, a `[[bin]]` target
+  crates/first-touch/**: [cli]
   # ui: packages/diagrams/package.json — `react` in dependencies
   packages/diagrams/**: [ui]
   # ui: packages/ui-email/package.json — `react` in dependencies
