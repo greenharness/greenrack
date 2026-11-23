@@ -118,8 +118,8 @@ async function main(): Promise<void> {
       catalogOnly: values['catalog-only'],
       view: values.full ? 'full' : 'index',
     })
-    // A person at a terminal gets the reason for the silence; a hook or a pipe stays quiet.
-    const note = nonConsumerNote(context, Boolean(process.stderr.isTTY), process.cwd())
+    // A person at a terminal gets the reason for the silence; a hook, a pipe or --json stays quiet.
+    const note = process.stderr.isTTY && !values.json ? nonConsumerNote(context) : null
     if (note !== null) process.stderr.write(`${note}\n`)
     emit(context, values.json)
   }
@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   if (first === 'doctor') {
     if (rest.length > 0)
       usageError('greenrack doctor takes no arguments — run it from the package root')
-    emit(runDoctor({session: values.session}), values.json)
+    emit(runDoctor({session: values.session, json: values.json}), values.json)
   }
   if (first === 'mcp') {
     const {runMcp} = await import('./commands/mcp.js')

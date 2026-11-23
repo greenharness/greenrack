@@ -341,12 +341,13 @@ describe('greenrack context', () => {
   it('says why it is silent to a person at a terminal, and to nobody else', () => {
     const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
     const outside = runContext(registry, {cwd: bystander(), cacheHome})
-    expect(nonConsumerNote(outside, false, '/work')).toBeNull()
-    expect(nonConsumerNote(outside, true, '/work')).toBe(
-      'greenrack: not a greenrack consumer: no @greenharness/greenrack-ui (or legacy @duro-app/ui) dependency in /work',
+    const note = nonConsumerNote(outside)
+    expect(note).toBe(
+      'not a greenrack consumer; to become one: pnpm add @greenharness/greenrack-ui',
     )
+    expect(note!.length).toBeLessThanOrEqual(80)
     const inside = runContext(registry, {cwd: consumer(), cacheHome})
-    expect(nonConsumerNote(inside, true, '/work')).toBeNull()
+    expect(nonConsumerNote(inside)).toBeNull()
   })
 
   it('--full prints the whole catalog after one header line, also through the bin', () => {
@@ -409,7 +410,10 @@ describe('greenrack context', () => {
 describe('greenrack doctor outside a consumer', () => {
   it('prints not a greenrack consumer and exits 0', () => {
     const result = runDoctor({cwd: bystander()})
-    expect(result.text).toBe('not a greenrack consumer')
+    expect(result.text).toBe('')
+    expect(result.notes).toEqual([
+      'not a greenrack consumer; to become one: pnpm add @greenharness/greenrack-ui',
+    ])
     expect(result.exitCode).toBeUndefined()
   })
 })
