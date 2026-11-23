@@ -5,45 +5,191 @@ on:
     tags:
       - 'v*'
   # Resume a publish that failed part-way: `gh workflow run release.yaml -f
-  # tag=v7.0.0`. The publish step skips each name@version that `npm view`
-  # already finds, so the run publishes only what is missing; its log shows
-  # the skips as `already on npm, skipped:` lines.
+  # tag=v7.0.0`. Each name@version that `npm view` already finds is skipped,
+  # so the run publishes only what is missing; its log shows the skips as
+  # `already on npm, skipped:` lines. A resume publishes the first run's
+  # binaries, from the GitHub release, never the ones it rebuilt.
+  #
+  # Rehearse a release with `-f dry_run=true`: everything is built, laid out
+  # and checked, and nothing is published or attached.
   workflow_dispatch:
     inputs:
       tag:
         description: 'The release tag to publish again, for example v7.0.0'
         required: true
+      dry_run:
+        description: 'Build and check everything, publish nothing'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    # Git Bash on the Windows runner, so every step is one script language.
+    shell: bash
+
+env:
+  # One tag for every job. On a dispatch, github.ref_name is the branch, so
+  # the input wins. Passed through env, never written into a script.
+  TAG: ${{ inputs.tag || github.ref_name }}
+  DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+
 jobs:
+  guard:
+    name: Tag and npm names
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - id: tag
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "not a release tag: $TAG" >&2
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ (inputs.dry_run && github.sha) || (inputs.tag && format('refs/tags/{0}', inputs.tag)) || github.ref }}
+      # Trusted publishing cannot create a package: a name with no
+      # 0.0.0-reserved placeholder (and no trusted publisher) would 404 after
+      # the CLI's dependencies were already promised. Refuse before anything
+      # is built. A dry run only warns, so packaging can be rehearsed before
+      # the names exist.
+      - name: The six platform packages exist on npm
+        run: |
+          names=$(grep -o "'@greenharness/greenrack-first-touch-[a-z0-9-]*'" packages/cli/src/native.ts | tr -d "'")
+          [ "$(printf '%s\n' "$names" | wc -l)" -eq 6 ] || { echo "expected six names in native.ts" >&2; exit 1; }
+          missing=0
+          for name in $names; do
+            # The registry document, not `npm view`: a placeholder published
+            # under the `reserved` tag has no `latest` for npm view to read.
+            if ! curl -sf -o /dev/null "https://registry.npmjs.org/$name"; then
+              echo "::error::$name is not on npm: publish its 0.0.0-reserved placeholder and set its trusted publisher"
+              missing=1
+            fi
+          done
+          if [ "$missing" = 1 ] && [ "$DRY_RUN" != true ]; then exit 1; fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: guard
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # One broken target must not hide the others.
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            run: true
+          # Static, for Alpine and other musl distributions.
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            packages: musl-tools
+            run: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            packages: gcc-aarch64-linux-gnu
+            linker: aarch64-linux-gnu-gcc
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            run: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            run: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ (inputs.dry_run && github.sha) || (inputs.tag && format('refs/tags/{0}', inputs.tag)) || github.ref }}
+      # The channel comes from rust-toolchain.toml.
+      - run: rustup target add ${{ matrix.target }}
+      - name: Install cross-compilation packages
+        if: matrix.packages != ''
+        # The Azure apt mirror has hung `apt-get update` for a whole job
+        # (greengate v1.7.0): the canonical archive, timeouts and a step
+        # budget each bound it.
+        timeout-minutes: 5
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf 'http://archive.ubuntu.com/ubuntu\tpriority:1\n' | sudo tee /etc/apt/apt-mirrors.txt
+          fi
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 install -y ${{ matrix.packages }}
+      - name: Point cargo at the cross linker
+        if: matrix.linker != ''
+        run: |
+          target_upper=$(echo "${{ matrix.target }}" | tr 'a-z-' 'A-Z_')
+          echo "CARGO_TARGET_${target_upper}_LINKER=${{ matrix.linker }}" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked -p greenrack-first-touch --target ${{ matrix.target }}
+      - name: Archive
+        run: |
+          set -euo pipefail
+          version="${{ needs.guard.outputs.version }}"
+          exe=
+          if [ "${{ runner.os }}" = Windows ]; then exe=.exe; fi
+          name="greenrack-first-touch-${version}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/greenrack-first-touch$exe" "dist/$name/"
+          cp LICENSE "dist/$name/"
+          if [ -n "$exe" ]; then
+            (cd dist && 7z a "$name.zip" "$name" > /dev/null)
+          else
+            (cd dist && tar czf "$name.tar.gz" "$name")
+          fi
+      # The packaged binary answers the protocol the CLI expects, on every
+      # target this runner can execute.
+      - name: The packaged binary runs
+        if: matrix.run
+        run: |
+          set -euo pipefail
+          exe=
+          if [ "${{ runner.os }}" = Windows ]; then exe=.exe; fi
+          bin="dist/greenrack-first-touch-${{ needs.guard.outputs.version }}-${{ matrix.target }}/greenrack-first-touch$exe"
+          got=$("$bin" --protocol)
+          [ "$got" = 1 ] || { echo "--protocol printed '$got', expected 1" >&2; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-touch-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
   publish:
     name: Publish to npm
+    needs: [guard, build]
     runs-on: ubuntu-latest
     # A tag push and a resume of the same tag never publish at once.
     concurrency:
       group: release-${{ inputs.tag || github.ref_name }}
       cancel-in-progress: false
-    # `id-token: write` is the whole credential: npm's trusted publishing
-    # trades this workflow's OIDC token for a short-lived publish token, and
+    # `id-token: write` is the whole npm credential: trusted publishing trades
+    # this workflow's OIDC token for a short-lived publish token, and
     # `--provenance` signs with the same grant. There is no NPM_TOKEN. Each
     # @greenharness/greenrack-* package names greenharness/greenrack's
     # `release.yaml` (no environment) as its trusted publisher on npmjs.com;
     # a package that does not is refused with a 404. A new name is created
     # once by hand (a 0.0.0-reserved placeholder) before its first release.
+    # `contents: write` attaches the binaries to the GitHub release, which is
+    # what a resume publishes from.
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
-      # One tag for every step. On a dispatch, github.ref_name is the branch,
-      # so the input wins. Passed through env, never written into a script.
-      TAG: ${{ inputs.tag || github.ref_name }}
+      VERSION: ${{ needs.guard.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           # The full ref: a branch named like the tag must never be checked out.
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          # A dry run builds the dispatched commit: the tag may not exist yet.
+          ref: ${{ (inputs.dry_run && github.sha) || (inputs.tag && format('refs/tags/{0}', inputs.tag)) || github.ref }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -57,67 +203,146 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Set version from git tag
         run: |
-          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
-            echo "not a release tag: $TAG" >&2
-            exit 1
-          fi
-          VERSION="${TAG#v}"
           echo "Publishing version $VERSION"
           pnpm -r exec npm pkg set "version=$VERSION"
           sed -i "s/^version = \".*\"$/version = \"$VERSION\"/" packages/cli/greenharness.toml
           grep -qx "version = \"$VERSION\"" packages/cli/greenharness.toml
       - name: CLI floors match the release's major
-        run: node packages/cli/scripts/check-pin-major.mjs "${TAG#v}"
+        run: node packages/cli/scripts/check-pin-major.mjs "$VERSION"
       - run: pnpm build
       - run: pnpm check:types-packed
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: first-touch-*
+          path: ${{ runner.temp }}/fresh
+          merge-multiple: true
+      # The first run of a tag attaches its archives and SHA256SUMS to the
+      # GitHub release; every later run (a resume) publishes those, so npm
+      # never carries two builds of one version.
+      - name: The binaries this version ships
+        run: |
+          set -euo pipefail
+          archives="$RUNNER_TEMP/archives"
+          mkdir -p "$archives"
+          if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx SHA256SUMS; then
+            echo "reusing the binaries attached to release $TAG"
+            gh release download "$TAG" --dir "$archives" --pattern 'greenrack-first-touch-*' --pattern SHA256SUMS
+          else
+            cp "$RUNNER_TEMP"/fresh/* "$archives/"
+            (cd "$archives" && sha256sum greenrack-first-touch-* > SHA256SUMS)
+            if [ "$DRY_RUN" = true ]; then
+              echo "dry run: release $TAG not created"
+            elif gh release view "$TAG" > /dev/null 2>&1; then
+              gh release upload "$TAG" "$archives"/*
+            else
+              gh release create "$TAG" --verify-tag --title "$TAG" --notes "" "$archives"/*
+            fi
+          fi
+          cat "$archives/SHA256SUMS"
+      - name: Lay out the platform packages
+        run: |
+          node scripts/build-platform-packages.mjs "$VERSION" "$RUNNER_TEMP/archives" "$RUNNER_TEMP/platform"
+          node scripts/build-platform-packages.mjs --inject packages/cli "$VERSION"
+      # What the plan's Phase 2 verification asks of every run, dry or not.
+      - name: Each package matches its name, the CLI its version
+        run: |
+          set -euo pipefail
+          n=0
+          for dir in "$RUNNER_TEMP"/platform/@greenharness/*/; do
+            pkg="$dir/package.json"
+            name=$(jq -r .name "$pkg")
+            os=$(jq -r '.os[0]' "$pkg")
+            cpu=$(jq -r '.cpu[0]' "$pkg")
+            case "$name" in
+              *-"$os-$cpu"|*-"$os-$cpu"-gnu|*-"$os-$cpu"-musl) ;;
+              *) echo "$name says os=$os cpu=$cpu" >&2; exit 1 ;;
+            esac
+            [ "$(jq -r .version "$pkg")" = "$VERSION" ] || { echo "$name is not $VERSION" >&2; exit 1; }
+            [ -x "$dir/bin/greenrack-first-touch" ] || [ -f "$dir/bin/greenrack-first-touch.exe" ] \
+              || { echo "$name holds no binary" >&2; exit 1; }
+            n=$((n + 1))
+          done
+          [ "$n" -eq 6 ] || { echo "expected 6 platform packages, found $n" >&2; exit 1; }
+          deps=$(jq -r '.optionalDependencies | to_entries[] | select(.value == env.VERSION) | .key' packages/cli/package.json | wc -l)
+          [ "$deps" -eq 6 ] || { echo "the CLI names $deps optional dependencies at $VERSION, not 6" >&2; exit 1; }
       # pnpm packs (it rewrites `workspace:` ranges); npm publishes. `pnpm -r
       # publish` hands npm a tarball, and npm then never tried the OIDC
       # exchange (ENEEDAUTH, v7.0.0's fourth run). npm publishing a directory
       # is greengate's path, which trusted publishing serves.
+      #
+      # The platform packages go first and the CLI last: a CLI on npm whose
+      # binaries are not would install with nothing to run.
       - name: Publish (trusted publishing)
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
           out="$RUNNER_TEMP/publish"
           mkdir -p "$out"
-          # Workspace packages in dependency order, one path per line.
-          pnpm -r --workspace-concurrency=1 exec pwd > "$out/order"
-          while IFS= read -r dir; do
+          publish() {
+            local dir=$1 name
             name=$(jq -r .name "$dir/package.json")
-            if [ "$(jq -r '.private // false' "$dir/package.json")" = true ]; then
-              echo "private, skipped: $name"
-              continue
-            fi
             # A missing version prints nothing and still exits 0.
             if [ -n "$(npm view "$name@$VERSION" version 2>/dev/null)" ]; then
               echo "already on npm, skipped: $name@$VERSION"
-              continue
+              return
             fi
-            work="$out/$(basename "$dir")"
-            mkdir -p "$work"
-            (cd "$dir" && pnpm pack --pack-destination "$work" >/dev/null)
-            tar -xzf "$work"/*.tgz -C "$work"
+            if [ "$DRY_RUN" = true ]; then
+              echo "dry run, not published: $name@$VERSION"
+              (cd "$dir" && npm pack --dry-run --ignore-scripts 2>&1 | grep -E 'name:|version:|total files:')
+              return
+            fi
             # Sigstore's client resubmits a Rekor entry after a timeout, and
             # the resubmit gets 409 (TLOG_CREATE_ENTRY_ERROR) for the entry
             # its first try already wrote. npm stops before the registry PUT,
             # so the version is not published; a fresh try signs again with a
             # new key. Any other failure stops the run (v7.0.1 needed three
             # runs for this).
-            try=1
+            local try=1
             while :; do
-              if npm publish "$work/package" --provenance --access public --ignore-scripts 2>&1 | tee "$work/publish.log"; then
+              if npm publish "$dir" --provenance --access public --ignore-scripts 2>&1 | tee "$out/publish.log"; then
                 echo "published: $name@$VERSION"
-                break
+                return
               fi
-              if ! grep -q TLOG_CREATE_ENTRY_ERROR "$work/publish.log" || [ "$try" -ge 3 ]; then
+              if ! grep -q TLOG_CREATE_ENTRY_ERROR "$out/publish.log" || [ "$try" -ge 3 ]; then
                 exit 1
               fi
               sleep $((try * 15))
               try=$((try + 1))
               if [ -n "$(npm view "$name@$VERSION" version 2>/dev/null)" ]; then
                 echo "already on npm after tlog 409, skipped: $name@$VERSION"
-                break
+                return
               fi
               echo "tlog 409, retrying ($try/3): $name@$VERSION"
             done
+          }
+          for dir in "$RUNNER_TEMP"/platform/@greenharness/*/; do
+            publish "${dir%/}"
+          done
+          # Workspace packages in dependency order, one path per line; the
+          # CLI is held back to the end.
+          pnpm -r --workspace-concurrency=1 exec pwd > "$out/order"
+          cli=
+          while IFS= read -r dir; do
+            name=$(jq -r .name "$dir/package.json")
+            if [ "$(jq -r '.private // false' "$dir/package.json")" = true ]; then
+              echo "private, skipped: $name"
+              continue
+            fi
+            if [ "$name" = @greenharness/greenrack-cli ]; then
+              cli=$dir
+              continue
+            fi
+            work="$out/$(basename "$dir")"
+            mkdir -p "$work"
+            (cd "$dir" && pnpm pack --pack-destination "$work" >/dev/null)
+            tar -xzf "$work"/*.tgz -C "$work"
+            publish "$work/package"
           done < "$out/order"
+          [ -n "$cli" ] || { echo "no @greenharness/greenrack-cli in the workspace" >&2; exit 1; }
+          work="$out/cli"
+          mkdir -p "$work"
+          (cd "$cli" && pnpm pack --pack-destination "$work" >/dev/null)
+          tar -xzf "$work"/*.tgz -C "$work"
+          # The packed manifest, the one npm will see, names all six.
+          [ "$(jq '.optionalDependencies | length' "$work/package/package.json")" -eq 6 ] \
+            || { echo "the packed CLI lost its optional dependencies" >&2; exit 1; }
+          publish "$work/package"
