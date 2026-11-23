@@ -209,8 +209,12 @@ export const styles = css.create({
     outlineStyle: 'none',
   },
   // scroll="main": Main is a bounded region that scrolls by itself, and a
-  // child that fills it (height 100%) gets that bound.
+  // child that fills it (height 100%) gets that bound. Positioned, so it is
+  // the containing block of what is absolutely placed inside it (visually
+  // hidden text, live regions): without it that escapes the scroller to the
+  // shell's container and lengthens the document.
   mainScrolls: {
+    position: 'relative',
     minHeight: 0,
     overflowY: 'auto',
   },
