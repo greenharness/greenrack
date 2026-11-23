@@ -14,9 +14,11 @@ boundary.
 
 ## Decisions so far
 
+- [The Combobox story that loads on open passes under load](f03-combobox-story-flaky-under-load.md): the story held the load behind a promise instead of a 50 ms timer (greenrack#223).
+
 ## Handoff
 
-2026-11-21, boundary 3 (greenrack#212 merged, released in v7.4.0, pinned in happier#27, closing happier's f02). Filed f02 from the inbox. Next: f01, f02.
+2026-11-23, boundary 4 (greenrack-rename t13 merged and released, f03 closed in greenrack#223). Filed f04 to f07 from the inbox (four lines of 2026-11-20). Next: f01, f02, f04, f05, f06, f07.
 
 ## Not yet specified
 

@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 plan-id: p-01M83KVH44FXHV7JGXV1F7QVKV
 branch: chore/drop-old-scope-detection
 repos: [greenrack, grh, adr-lint]
@@ -51,7 +51,7 @@ release.
 
 ## Phases
 
-- [ ] Phase 1 — greenrack drops the old scope (PR, then release `v7.8.0`):
+- [x] Phase 1 — greenrack drops the old scope (PR, then release `v7.8.0`):
       `packages/cli/src/legacy-names.ts` (delete the detection constants and the
       doc block at lines 16-19; only `doctor.ts` and `test/doctor-scopes.test.ts` import the detection names; `hook.ts`, `skill.ts` and the migrate tests keep importing the migration names),
       `packages/cli/src/commands/doctor.ts` (`SCOPES` is the greenrack scope alone,
@@ -69,21 +69,23 @@ release.
       naming `@greenharness/greenrack-ui` and the install command; exit stays 0;
       `--session` stays silent. Low findings 3 (two `--check` lines over 80
       columns), 4 (recheck line without `@^7`) and 8 (comment on an empty catch)
-      ride along; the other six stay deliberate. Gate:
+      ride along (3 and 8 were not done, see the Decision log); the other six
+      stay deliberate. Gate:
       `rg 'LEGACY_(UI|TOKENS|CLI)_PACKAGE|LEGACY_PROSE|LEGACY_CSS|LEGACY_DATA'`
       finds nothing; `hook-migrate` and `skill-migrate` pass unchanged. Regenerated, not hand-written: `packages/cli/registry.json`, `packages/cli/skills/*/SKILL.md` and `.claude/skills/*/SKILL.md` follow `skill-template.ts` (`build-registry --check` passes).
-- [ ] Phase 2 — grh drops its `dep:@duro-app/` rule, minor release:
+- [x] Phase 2 — grh drops its `dep:@duro-app/` rule, minor release:
       `catalog.toml`, `tests/audit_golden.rs` (delete the `duro` and `both_scopes`
       fixtures and the old-scope assertion at :450; rename the test),
       `tests/fixtures/audit/duro.json`, `tests/fixtures/audit/both_scopes.json`,
       `tests/fixtures/audit/expected-new.json` (settle the `"duro"` key),
-      `tests/fixtures/greenrack-greenharness.toml` (a 7.x snapshot: only its
-      comment at :34 changes). The byte-identical v1 fixture stays.
-- [ ] Phase 3 — adr-lint `DS_PACKAGES` names the greenrack eslint-config only,
+      `tests/fixtures/greenrack-greenharness.toml` (a 7.x snapshot: stays
+      byte-identical, see the Decision log). The byte-identical v1 fixture
+      stays.
+- [x] Phase 3 — adr-lint `DS_PACKAGES` refuses an `adrLint` import from any source but `@aval-adr/eslint-config` (amended in review, see the Decision log),
       minor release: `src/sync/typescript.rs` (also rename `duro_package`,
-      `duroimported`, `duro_adr_lint_imports`), `tests/sync_typescript.rs` (flip
-      `an_adr_lint_import_from_duro_is_refused_and_nothing_is_written` to the
-      not-refused outcome; exit code and output named). Parallel with Phase 2.
+      `duroimported`, `duro_adr_lint_imports`), `tests/sync_typescript.rs` (the
+      retired-scope test stays a refusal, exit 1 and the file unchanged, and a
+      `./local-lint.js` case joins the greenrack one). Parallel with Phase 2.
 
 Machine follow-through, not a phase (config outside the repositories, after
 `npx @greenharness/greenrack-cli@^7 --version` reports 7.8.0): the
@@ -117,10 +119,19 @@ Phase 1, observed 2026-11-23 on the built CLI (`packages/cli/dist/bin.js`):
   50 files, 911 tests passed (`doctor-scopes`, `extension`, `cli`,
   `hook-migrate`, `skill-migrate`); `check-rename-allowlist.sh` exit 0;
   the `rg` gate for the deleted constants finds nothing.
-- Still open: with `@greenharness/greenrack-ui` the doctor result is as before
-  (covered by `doctor-scopes.test.ts`); `npm view @greenharness/greenrack-cli
-version` = 7.8.0; the grh and adr-lint checks; the SessionStart guard and
-  zero-hits check after the machine follow-through.
+- grh, observed on `de30a9c`: `cargo test --test audit_golden` passes; with
+  the old catalog rule restored the new test fails. adr-lint, on `270e8d8`:
+  `cargo test --test sync_typescript` passes; the retired-scope import, a
+  `./local-lint.js` import and the greenrack import are each refused (exit 1,
+  file unchanged).
+- Released and read back: greenrack `v7.8.0` (all five packages on npm, and
+  `npx @greenharness/greenrack-cli@7.8.0 doctor` in a `@duro-app/ui`-only app
+  prints the one-line note), grh `v0.15.0` (crates.io, 6 release assets, the
+  tap's `stable`), adr-lint `v0.19.0` (npm, 5 release assets, the tap).
+- Machine: `~/.claude/settings.json`, the dotfiles template (dotfiles#73), the
+  four skill gates and the `design-system-lookup` agent hold no `@duro-app`.
+  The pty run of `greenrack context` was never made (no tty on this host);
+  its text and 80-column cap are pinned by `extension.test.ts`.
 
 ## Non-goals
 
@@ -131,7 +142,7 @@ census and archiving `duro-design-system`.
 
 ## Code review
 
-- greenrack: backend, lang:typescript, unix, tui (architect left out: no new contract)
+- greenrack: none — markdown only (the closing docs branch; the code was reviewed with these profiles on #224: backend, lang:typescript, unix, tui)
 - grh: backend, lang:rust (unix, tui left out: no output change)
 - adr-lint: backend, lang:rust (unix, tui left out: no output change)
 
@@ -145,6 +156,15 @@ census and archiving `duro-design-system`.
   from the tag, and `greenharness.toml` hard-codes `@^7` too.
 - 2026-11-23 — `SCOPES` stays a one-element list (a second scope is not
   expected; `bin.ts` and `mockup.ts` keep importing it unchanged).
+- 2026-11-23 — Phase 3 is amended. `DS_PACKAGES` naming the greenrack config
+  only would have made `adr-lint sync` accept an `adrLint` import from
+  `@duro-app/eslint-config` (it exported `adrLint` from 5.33.0) and write a
+  second binding. The rule refuses an `adrLint` specifier from any source
+  other than `@aval-adr/eslint-config` (adr-lint#66, 0.19.0).
+- 2026-11-23 — grh's `tests/fixtures/greenrack-greenharness.toml` stays a
+  byte-identical 7.x snapshot, not a comment edit (grh#63).
+- 2026-11-23 — A flaky Storybook story failed the first land; fixed in
+  greenrack#223 and closed as follow-up f03.
 
 ## Implementation review
 
