@@ -118,8 +118,8 @@ async function main(): Promise<void> {
       catalogOnly: values['catalog-only'],
       view: values.full ? 'full' : 'index',
     })
-    // A person at a terminal gets the reason for the silence; a hook or a pipe stays quiet.
-    const note = nonConsumerNote(context, Boolean(process.stderr.isTTY))
+    // A person at a terminal gets the reason for the silence; a hook, a pipe or --json stays quiet.
+    const note = process.stderr.isTTY && !values.json ? nonConsumerNote(context) : null
     if (note !== null) process.stderr.write(`${note}\n`)
     emit(context, values.json)
   }

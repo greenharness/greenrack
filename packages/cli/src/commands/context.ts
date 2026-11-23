@@ -153,12 +153,11 @@ function fitDoctor(doctor: string, room: number): string {
 const NOT_A_CONSUMER = Object.freeze({consumer: false})
 
 /**
- * The line a person at a terminal gets where a hook gets silence, or null when
- * nothing should be said: the result is a consumer's, or nobody is at a terminal.
+ * The line a person gets where a hook gets silence, or null when the context
+ * is a consumer's. The caller says it only to a person at a terminal.
  */
-export function nonConsumerNote(result: CommandResult, isTTY: boolean): string | null {
-  if (!isTTY || result.data !== NOT_A_CONSUMER) return null
-  return `greenrack: ${NOT_A_CONSUMER_NOTE}`
+export function nonConsumerNote(context: CommandResult): string | null {
+  return context.data === NOT_A_CONSUMER ? NOT_A_CONSUMER_NOTE : null
 }
 
 /**

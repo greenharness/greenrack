@@ -341,12 +341,13 @@ describe('greenrack context', () => {
   it('says why it is silent to a person at a terminal, and to nobody else', () => {
     const cacheHome = mkdtempSync(join(tmpdir(), 'greenrack-cache-'))
     const outside = runContext(registry, {cwd: bystander(), cacheHome})
-    expect(nonConsumerNote(outside, false)).toBeNull()
-    expect(nonConsumerNote(outside, true)).toBe(
-      'greenrack: not a greenrack consumer; to become one: pnpm add @greenharness/greenrack-ui',
+    const note = nonConsumerNote(outside)
+    expect(note).toBe(
+      'not a greenrack consumer; to become one: pnpm add @greenharness/greenrack-ui',
     )
+    expect(note!.length).toBeLessThanOrEqual(80)
     const inside = runContext(registry, {cwd: consumer(), cacheHome})
-    expect(nonConsumerNote(inside, true)).toBeNull()
+    expect(nonConsumerNote(inside)).toBeNull()
   })
 
   it('--full prints the whole catalog after one header line, also through the bin', () => {

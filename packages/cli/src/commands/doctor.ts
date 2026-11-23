@@ -184,7 +184,7 @@ export function runDoctor(options: DoctorOptions = {}): CommandResult {
     return {
       text: '',
       data: {ok: true, findings: [], checked: [], skipped: [], packages: [], scopes: []},
-      // On stderr, and only for a person: --json and --session callers get no note.
+      // On stderr, for any caller that passed neither --json nor --session.
       notes: options.session || options.json ? [] : [NOT_A_CONSUMER_NOTE],
     }
   }

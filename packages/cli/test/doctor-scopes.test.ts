@@ -128,11 +128,12 @@ describe('greenrack doctor', () => {
     expect(report.notes![0]!.length).toBeLessThanOrEqual(80)
   })
 
-  it('says nothing to a session hook or a --json caller in an app on the retired scope', () => {
-    for (const options of [{session: true}, {json: true}]) {
+  it.each([{session: true}, {json: true}])(
+    'says nothing under %o in an app on the retired scope',
+    (options) => {
       const report = runDoctor({cwd: app(RETIRED), ...options})
       expect(report.text).toBe('')
       expect(report.notes).toEqual([])
-    }
-  })
+    },
+  )
 })

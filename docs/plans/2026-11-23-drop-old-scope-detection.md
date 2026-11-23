@@ -71,7 +71,7 @@ release.
       columns), 4 (recheck line without `@^7`) and 8 (comment on an empty catch)
       ride along; the other six stay deliberate. Gate:
       `rg 'LEGACY_(UI|TOKENS|CLI)_PACKAGE|LEGACY_PROSE|LEGACY_CSS|LEGACY_DATA'`
-      finds nothing; `hook-migrate` and `skill-migrate` pass unchanged.
+      finds nothing; `hook-migrate` and `skill-migrate` pass unchanged. Regenerated, not hand-written: `packages/cli/registry.json`, `packages/cli/skills/*/SKILL.md` and `.claude/skills/*/SKILL.md` follow `skill-template.ts` (`build-registry --check` passes).
 - [ ] Phase 2 — grh drops its `dep:@duro-app/` rule, minor release:
       `catalog.toml`, `tests/audit_golden.rs` (delete the `duro` and `both_scopes`
       fixtures and the old-scope assertion at :450; rename the test),
@@ -104,21 +104,23 @@ entry (settings.json:229) stays as migration, named in the allowlist. The
 
 ## Verification
 
-- Temp app with only `@duro-app/ui`: `greenrack doctor` exit 0 with one line
-  naming `@greenharness/greenrack-ui`; `--json` `{ok:true, packages:[]}`;
-  `--session` empty; `greenrack context` on a pty prints one note, piped
-  prints nothing. With `@greenharness/greenrack-ui` it passes as before.
-- `pnpm -C packages/cli exec tsc --noEmit`, `pnpm test`, the allowlist check.
-- Fixture with old `duro-*` wiring: `hook install` and `skill install` still
-  migrate it.
-- grh: audit on a fixture with only `@duro-app/ui` gives no `design`
-  recommendation; with `@greenharness/greenrack-ui` it recommends.
-- adr-lint: sync on a fixture importing `adrLint` from
-  `@greenharness/greenrack-eslint-config` is refused; `DS_PACKAGES` has one
-  entry.
-- `npm view @greenharness/greenrack-cli version` = 7.8.0.
-- `@duro-app/` has zero hits outside the allowlist in greenrack, grh,
-  adr-lint and `~/.claude`.
+Phase 1, observed 2026-11-23 on the built CLI (`packages/cli/dist/bin.js`):
+
+- Temp app with only `@duro-app/ui`: `greenrack doctor` → exit 0, stderr one
+  line of 76 columns (`not a greenrack consumer; to become one: pnpm add
+@greenharness/greenrack-ui`), stdout empty. `--json`: stdout
+  `{ok:true, findings:[], …}`, stderr 0 bytes. `--session`: 0 bytes. `context`
+  piped: 0 bytes. The pty run of `context` could not be made here (`script`
+  has no tty on this host); the note's text and 80-column cap are pinned in
+  `extension.test.ts`, the TTY and `--json` gate is the one line in `bin.ts`.
+- `pnpm -C packages/cli exec tsc --noEmit` exit 0; `vitest --project unit`
+  50 files, 911 tests passed (`doctor-scopes`, `extension`, `cli`,
+  `hook-migrate`, `skill-migrate`); `check-rename-allowlist.sh` exit 0;
+  the `rg` gate for the deleted constants finds nothing.
+- Still open: with `@greenharness/greenrack-ui` the doctor result is as before
+  (covered by `doctor-scopes.test.ts`); `npm view @greenharness/greenrack-cli
+version` = 7.8.0; the grh and adr-lint checks; the SessionStart guard and
+  zero-hits check after the machine follow-through.
 
 ## Non-goals
 
@@ -132,5 +134,23 @@ census and archiving `duro-design-system`.
 - greenrack: backend, lang:typescript, unix, tui (architect left out: no new contract)
 - grh: backend, lang:rust (unix, tui left out: no output change)
 - adr-lint: backend, lang:rust (unix, tui left out: no output change)
+
+## Decision log
+
+- 2026-11-23 — Low findings 3 (two `--check` lines over 80 columns) and 8 (a
+  comment on an empty catch) are not done: the nine findings' list was not
+  recoverable to a line, and nothing in this diff touches `hook.ts` or
+  `skill.ts`. Finding 4 (recheck line `@^7`) is done. The `@^7` stays hard
+  coded: `cliVersion()` reads 1.0.0 in the tree, the release sets versions
+  from the tag, and `greenharness.toml` hard-codes `@^7` too.
+- 2026-11-23 — `SCOPES` stays a one-element list (a second scope is not
+  expected; `bin.ts` and `mockup.ts` keep importing it unchanged).
+
+## Implementation review
+
+- implementation-review: approve-with-changes after the delta; plan findings fixed in this commit; `isTTY` flag argument and the `result` name removed; tokens 58k.
+- backend: approve after the delta; `--json` quiet, test and comments fixed.
+- lang:typescript: approve-with-changes; `Scope.kind` removed, titles fixed; one-element `SCOPES` kept, deliberate.
+- unix, tui: approve-with-changes; context note unprefixed and 76 columns, `context --json` quiet, all fixed after the delta.
 
 <!-- panel: repos=greenrack,grh,adr-lint adds=contract reviewers=backend,lang:rust,lang:typescript,tui,unix,architect,po body-sha=9a101e6813d4 -->
