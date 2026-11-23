@@ -5,6 +5,9 @@ import {expect, fn, waitFor} from 'storybook/test'
 import {css, html} from 'react-strict-dom'
 import {Field} from './Field'
 import {Input} from '../Input/Input'
+import {Textarea} from '../Textarea/Textarea'
+import {Select} from '../Select/Select'
+import {Combobox} from '../Combobox/Combobox'
 import {Button} from '../Button/Button'
 import {Form} from '../Form/Form'
 import {ToggleGroup} from '../ToggleGroup/ToggleGroup'
@@ -71,6 +74,118 @@ export const WithError: Story = {
     const error = canvas.getByRole('alert')
     await expect(error).toBeInTheDocument()
     await expect(error).toHaveTextContent('Please enter a valid email address.')
+  },
+}
+
+// Every control in a Field names only ids that are mounted (follow-up f04).
+function expectNoDanglingDescribedBy(element: HTMLElement) {
+  const ids = element.getAttribute('aria-describedby')?.split(/\s+/).filter(Boolean) ?? []
+  for (const id of ids) expect(document.getElementById(id)).not.toBeNull()
+}
+
+function DescribedControls({invalid}: {invalid?: boolean}) {
+  return (
+    <Stack gap="md">
+      <Field.Root invalid={invalid}>
+        <Field.Label>Name</Field.Label>
+        <Input placeholder="Name" />
+      </Field.Root>
+      <Field.Root invalid={invalid}>
+        <Field.Label>Bio</Field.Label>
+        <Textarea placeholder="Bio" />
+      </Field.Root>
+      <Field.Root invalid={invalid}>
+        <Field.Label>Language</Field.Label>
+        <Select.Root defaultValue="en">
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Icon />
+          </Select.Trigger>
+          <Select.Popup>
+            <Select.Item value="en">
+              <Select.ItemText>English</Select.ItemText>
+            </Select.Item>
+          </Select.Popup>
+        </Select.Root>
+      </Field.Root>
+      <Field.Root invalid={invalid}>
+        <Field.Label>Fruit</Field.Label>
+        <Combobox.Root>
+          <Combobox.Input />
+          <Combobox.Popup label="Fruit">
+            <Combobox.Item value="apple">
+              <Combobox.ItemText>Apple</Combobox.ItemText>
+            </Combobox.Item>
+          </Combobox.Popup>
+        </Combobox.Root>
+      </Field.Root>
+      <Field.Root invalid={invalid}>
+        <Field.Label>Plan</Field.Label>
+        <RadioGroup.Root defaultValue="free">
+          <RadioGroup.Item value="free">Free</RadioGroup.Item>
+        </RadioGroup.Root>
+      </Field.Root>
+    </Stack>
+  )
+}
+
+async function expectControlsDescribedByNothing(canvas: {
+  getByPlaceholderText: (text: string) => HTMLElement
+  getByRole: (role: string, options: {name: string}) => HTMLElement
+}) {
+  const controls = [
+    canvas.getByPlaceholderText('Name'),
+    canvas.getByPlaceholderText('Bio'),
+    canvas.getByRole('combobox', {name: 'Language'}),
+    canvas.getByRole('combobox', {name: 'Fruit'}),
+    canvas.getByRole('radiogroup', {name: 'Plan'}),
+  ]
+  for (const control of controls) {
+    expectNoDanglingDescribedBy(control)
+    await expect(control).not.toHaveAttribute('aria-describedby')
+  }
+}
+
+export const WithoutDescriptionDescribesNothing: Story = {
+  render: () => <DescribedControls />,
+  play: async ({canvas}) => {
+    await expectControlsDescribedByNothing(canvas)
+  },
+}
+
+export const InvalidWithoutErrorDescribesNothing: Story = {
+  render: () => <DescribedControls invalid />,
+  play: async ({canvas}) => {
+    await expect(canvas.getByPlaceholderText('Name')).toHaveAttribute('aria-invalid', 'true')
+    await expectControlsDescribedByNothing(canvas)
+  },
+}
+
+function DescriptionMounts() {
+  const [shown, setShown] = useState(true)
+  return (
+    <Stack gap="md">
+      <Field.Root invalid>
+        <Field.Label>Handle</Field.Label>
+        <Input placeholder="Handle" />
+        {shown && <Field.Description>Letters and numbers only.</Field.Description>}
+        <Field.Error>Choose another handle.</Field.Error>
+      </Field.Root>
+      <Button onClick={() => setShown(false)}>Hide description</Button>
+    </Stack>
+  )
+}
+
+export const DescribedByFollowsMountedParts: Story = {
+  render: () => <DescriptionMounts />,
+  play: async ({canvas, userEvent}) => {
+    const input = canvas.getByPlaceholderText('Handle')
+    await expect(input).toHaveAccessibleDescription(
+      'Letters and numbers only. Choose another handle.',
+    )
+    await userEvent.click(canvas.getByRole('button', {name: 'Hide description'}))
+    await waitFor(() => expect(input).toHaveAccessibleDescription('Choose another handle.'))
+    expectNoDanglingDescribedBy(input)
   },
 }
 

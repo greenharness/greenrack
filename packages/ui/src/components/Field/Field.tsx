@@ -28,6 +28,31 @@ function useNativeErrorState() {
   return {nativeError, setNativeError, errorCount, registerError}
 }
 
+// A count of mounted Field.Description parts, so the control names the
+// description id only while one is there.
+function useDescriptionState() {
+  const [descriptionCount, setDescriptionCount] = useState(0)
+  const registerDescription = useCallback(() => {
+    setDescriptionCount((count) => count + 1)
+    return () => setDescriptionCount((count) => count - 1)
+  }, [])
+  return {hasDescription: descriptionCount > 0, registerDescription}
+}
+
+// The ids the control's aria-describedby names: each only while its element
+// is mounted. An invalid Field shows an error line when a Field.Error is
+// mounted (it renders whenever the Field is invalid), or when Root shows the
+// native message itself.
+function describedByIds(
+  id: string,
+  hasDescription: boolean,
+  invalid: boolean,
+  errorShown: boolean,
+): string | undefined {
+  const ids = [hasDescription && `${id}-description`, invalid && errorShown && `${id}-error`]
+  return ids.filter(Boolean).join(' ') || undefined
+}
+
 function ownError(fieldContext: FieldContextValue, errorCount: number): ReactNode {
   if (fieldContext.nativeError === undefined || errorCount > 0) return null
   return (
@@ -96,7 +121,14 @@ function ControlledRoot({
   const {control} = useRHFFormContext()
   const {field, fieldState} = useController({control, name})
   const {nativeError, setNativeError, errorCount, registerError} = useNativeErrorState()
+  const {hasDescription, registerDescription} = useDescriptionState()
   const invalid = invalidProp || !!fieldState.error || nativeError !== undefined
+  const describedBy = describedByIds(
+    id,
+    hasDescription,
+    invalid,
+    errorCount > 0 || nativeError !== undefined,
+  )
 
   const effectiveDisabled = disabled ?? formCtx.disabled
   const effectiveLabelPosition = labelPosition ?? formCtx.labelPosition
@@ -125,6 +157,8 @@ function ControlledRoot({
       nativeError,
       setNativeError,
       registerError,
+      registerDescription,
+      describedBy,
     }),
     [
       id,
@@ -143,6 +177,8 @@ function ControlledRoot({
       nativeError,
       setNativeError,
       registerError,
+      registerDescription,
+      describedBy,
     ],
   )
 
@@ -173,7 +209,14 @@ function StaticRoot({
 }) {
   const id = useId()
   const {nativeError, setNativeError, errorCount, registerError} = useNativeErrorState()
+  const {hasDescription, registerDescription} = useDescriptionState()
   const invalid = invalidProp || nativeError !== undefined
+  const describedBy = describedByIds(
+    id,
+    hasDescription,
+    invalid,
+    errorCount > 0 || nativeError !== undefined,
+  )
   const ctx = useMemo(
     () => ({
       controlId: `${id}-control`,
@@ -188,6 +231,8 @@ function StaticRoot({
       nativeError,
       setNativeError,
       registerError,
+      registerDescription,
+      describedBy,
     }),
     [
       id,
@@ -199,6 +244,8 @@ function StaticRoot({
       nativeError,
       setNativeError,
       registerError,
+      registerDescription,
+      describedBy,
     ],
   )
 
@@ -306,6 +353,8 @@ interface DescriptionProps {
 
 function Description({children}: DescriptionProps) {
   const ctx = useFieldContext()
+  const registerDescription = ctx?.registerDescription
+  useLayoutEffect(() => registerDescription?.(), [registerDescription])
   return (
     <html.span id={ctx?.descriptionId} style={styles.description}>
       {children}

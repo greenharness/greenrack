@@ -76,9 +76,7 @@ function Input({
     inputRef,
   } = useCombobox()
   const fieldCtx = useFieldContext()
-  const describedBy = fieldCtx
-    ? `${fieldCtx.descriptionId} ${fieldCtx.invalid ? fieldCtx.errorId : ''}`.trim()
-    : undefined
+  const describedBy = fieldCtx?.describedBy
   const pointerFocusRef = useRef(false)
   const localRef = useRef<HTMLInputElement>(null)
   const [focused, setFocused] = useState(false)

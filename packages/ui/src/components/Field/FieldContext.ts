@@ -29,6 +29,12 @@ interface FieldContextValue {
   setNativeError?: (message: string | undefined) => void
   /** A mounted Field.Error registers here; the returned function unregisters it. */
   registerError?: () => () => void
+  /** A mounted Field.Description registers here; the returned function unregisters it. */
+  registerDescription?: () => () => void
+  /** What the control's `aria-describedby` names: the description id while a
+   *  Field.Description is mounted, the error id while an error line is
+   *  showing. Undefined when neither is, so no IDREF dangles. */
+  describedBy?: string
 }
 
 export type {FieldContextValue}
@@ -128,10 +134,9 @@ interface GroupLabelling {
  *  pass one. */
 export function useFieldGroupLabelling(own: GroupLabelling) {
   const ctx = useFieldContext()
-  const describedBy = ctx ? `${ctx.descriptionId} ${ctx.invalid ? ctx.errorId : ''}`.trim() : ''
   return {
     'aria-label': own['aria-label'],
     'aria-labelledby': own['aria-labelledby'] ?? (own['aria-label'] ? undefined : ctx?.labelId),
-    'aria-describedby': describedBy || undefined,
+    'aria-describedby': ctx?.describedBy,
   }
 }

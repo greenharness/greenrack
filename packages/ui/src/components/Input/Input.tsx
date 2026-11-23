@@ -120,9 +120,7 @@ export function Input({
   const effectiveVariant = ghost ? 'ghost' : ctx?.invalid ? 'error' : variant
   // Field context owns describedby (description + error); fall back to the
   // explicit prop only when standalone.
-  const describedBy = ctx
-    ? `${ctx.descriptionId} ${ctx.invalid ? ctx.errorId : ''}`.trim()
-    : ariaDescribedby
+  const describedBy = ctx ? ctx.describedBy : ariaDescribedby
 
   // react-strict-dom omits some web-only props from its types, but the
   // underlying DOM element supports them. Type-assert to pass them through.

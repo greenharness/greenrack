@@ -144,9 +144,7 @@ export function Textarea({
       value={effectiveValue}
       defaultValue={defaultValue}
       disabled={effectiveDisabled}
-      aria-describedby={
-        ctx ? `${ctx.descriptionId} ${ctx.invalid ? ctx.errorId : ''}`.trim() : undefined
-      }
+      aria-describedby={ctx?.describedBy}
       aria-invalid={ctx?.invalid || variant === 'error' || undefined}
       onChange={
         (afterChange

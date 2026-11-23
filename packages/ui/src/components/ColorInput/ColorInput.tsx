@@ -59,11 +59,7 @@ export function ColorInput({
       required={required}
       aria-label={ariaLabel}
       aria-invalid={ctx?.invalid || undefined}
-      aria-describedby={
-        ctx
-          ? `${ctx.descriptionId} ${ctx.invalid ? ctx.errorId : ''}`.trim() || undefined
-          : undefined
-      }
+      aria-describedby={ctx?.describedBy}
       onChange={effectiveOnChange as React.ComponentProps<typeof html.input>['onChange']}
       onBlur={effectiveOnBlur as React.ComponentProps<typeof html.input>['onBlur']}
       ref={effectiveRef as React.Ref<HTMLInputElement>}
