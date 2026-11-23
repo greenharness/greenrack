@@ -1,0 +1,20 @@
+greengate-provenance-v1
+commit 13f83f6625d7194fea4d16f940e05fd2ed370fcd
+tree c2c8b6451b2079f781fa722cace7aaa07f62840f
+canon 207c4602451a649d900f0cd94c091230f2faab62
+patch f87c83589bbb4c0a6755803a43d69675cfd475b7
+plan docs/plans/2026-11-23-drop-old-scope-detection.md 110c013f824e53cfdb5feda2409627ca4dfeff629184a92939262bf60adb5cff
+review reviewed e1a8722a520789950e197dabf0a8be45c77828d63a313bf2f02a949c7af70082
+code-review backend carried 063bdb9ce18f38c6feec819229c30289c4caa1c0692cadd6e257d4da23d39c67
+code-review lang:typescript reviewed e1a8722a520789950e197dabf0a8be45c77828d63a313bf2f02a949c7af70082
+code-review unix reviewed e1a8722a520789950e197dabf0a8be45c77828d63a313bf2f02a949c7af70082
+code-review tui reviewed e1a8722a520789950e197dabf0a8be45c77828d63a313bf2f02a949c7af70082
+preview not-required
+producer greenbelay 6.8.0
+
+-----BEGIN SSH SIGNATURE-----
+U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg7UOvJ8myo4dhW907VFty7T/bUV
+RFQerK+MWJ4bjChwcAAAAUZ3JlZW5nYXRlLXByb3ZlbmFuY2UAAAAAAAAABnNoYTUxMgAA
+AFMAAAALc3NoLWVkMjU1MTkAAABAmRWon+B9RJcPqdvIuHmjsPEE7yAiboKwv9dODO5Fqw
+rffOpuoFM6QsRAgk6Asfi7UFQGiUlziOOvYEYWpZhVBg==
+-----END SSH SIGNATURE-----
