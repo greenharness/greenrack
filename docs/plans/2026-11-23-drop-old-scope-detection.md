@@ -69,7 +69,8 @@ release.
       naming `@greenharness/greenrack-ui` and the install command; exit stays 0;
       `--session` stays silent. Low findings 3 (two `--check` lines over 80
       columns), 4 (recheck line without `@^7`) and 8 (comment on an empty catch)
-      ride along; the other six stay deliberate. Gate:
+      ride along (3 and 8 were not done, see the Decision log); the other six
+      stay deliberate. Gate:
       `rg 'LEGACY_(UI|TOKENS|CLI)_PACKAGE|LEGACY_PROSE|LEGACY_CSS|LEGACY_DATA'`
       finds nothing; `hook-migrate` and `skill-migrate` pass unchanged. Regenerated, not hand-written: `packages/cli/registry.json`, `packages/cli/skills/*/SKILL.md` and `.claude/skills/*/SKILL.md` follow `skill-template.ts` (`build-registry --check` passes).
 - [x] Phase 2 — grh drops its `dep:@duro-app/` rule, minor release:
@@ -77,13 +78,14 @@ release.
       fixtures and the old-scope assertion at :450; rename the test),
       `tests/fixtures/audit/duro.json`, `tests/fixtures/audit/both_scopes.json`,
       `tests/fixtures/audit/expected-new.json` (settle the `"duro"` key),
-      `tests/fixtures/greenrack-greenharness.toml` (a 7.x snapshot: only its
-      comment at :34 changes). The byte-identical v1 fixture stays.
+      `tests/fixtures/greenrack-greenharness.toml` (a 7.x snapshot: stays
+      byte-identical, see the Decision log). The byte-identical v1 fixture
+      stays.
 - [x] Phase 3 — adr-lint `DS_PACKAGES` refuses an `adrLint` import from any source but `@aval-adr/eslint-config` (amended in review, see the Decision log),
       minor release: `src/sync/typescript.rs` (also rename `duro_package`,
-      `duroimported`, `duro_adr_lint_imports`), `tests/sync_typescript.rs` (flip
-      `an_adr_lint_import_from_duro_is_refused_and_nothing_is_written` to the
-      not-refused outcome; exit code and output named). Parallel with Phase 2.
+      `duroimported`, `duro_adr_lint_imports`), `tests/sync_typescript.rs` (the
+      retired-scope test stays a refusal, exit 1 and the file unchanged, and a
+      `./local-lint.js` case joins the greenrack one). Parallel with Phase 2.
 
 Machine follow-through, not a phase (config outside the repositories, after
 `npx @greenharness/greenrack-cli@^7 --version` reports 7.8.0): the

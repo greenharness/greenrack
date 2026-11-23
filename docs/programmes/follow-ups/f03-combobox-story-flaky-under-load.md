@@ -43,6 +43,8 @@ window. With the demo's delay forced to 0 the same story fails at that
 that `beforeEach` creates and the play function releases after it has seen
 "Loading fruits"; the visible `LoadOnOpen` keeps its timer.
 
+The reproduction that fails before the fix is the delay forced to 0, not the load; under load the fixed story is what was repeated.
+
 Evidence: the story passes 20 of 20 runs with 12 busy processes pinning the
 CPU (`vitest --project=storybook`, `-t "Options Load On Open"`), and the
 Combobox stories pass 17 of 17.
