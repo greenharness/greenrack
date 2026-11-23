@@ -14,9 +14,8 @@ packages/cli/test/doctor-scopes.test.ts	paired fixtures on the old @duro-app sco
 packages/cli/test/doctor.test.ts	DURO_APP: the Duro app's own vite.config.ts shape
 packages/ui/src/components/ColorMode/	LEGACY_STORAGE_KEY duro-color-mode, migrated once
 packages/ui/test/color-mode-migrate.test.ts	seeds the old duro-color-mode key
-.adr.yaml	in_scopes duro-stack: renamed in one step with the fleet (greenrack-rename t12)
-packages/cli/skills/	"On `duro-stack`": the aval scope, renamed at t12
-.claude/skills/	generated copies of packages/cli/skills (duro-stack, see above)
+packages/cli/skills/	the skills' gate names the legacy @duro-app/ui
+.claude/skills/	generated copies of packages/cli/skills (same legacy gate)
 examples/native/	the example app's own identity (name, slug, scheme, bundle ids, brand) and demo data
 packages/ui-email/scripts/duro-app.variants.json	sample props for the Duro app's emails (appName: Duro)
 packages/ui-email/scripts/render-consumer-emails.mjs	renders against the Duro app, still on @duro-app until its sweep (t08)
@@ -28,6 +27,5 @@ docs/mockups/docs-nav/Mobile.dc.html	"duro-app AppShell pattern": the Duro app
 packages/cli/test/cli.test.ts	the skew-warning test: an app on the old @duro-app/ui scope
 packages/cli/src/commands/hook.ts	the old duro CLI it migrates from, named in comments and output
 packages/cli/greenharness.toml	detection reads both scopes, @duro-app/ included, until the census
-packages/cli/skills/	the Gate line names the old @duro-app/ui scope until the census
 packages/cli/agents/design-system-lookup.md	its condition names the old @duro-app/ui scope until the census
 packages/cli/src/skill-template.ts	the Gate line names the old @duro-app/ui scope until the census
