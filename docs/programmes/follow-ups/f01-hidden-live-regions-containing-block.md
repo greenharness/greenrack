@@ -36,7 +36,7 @@ the measurement that shows it cannot escape.
 
 ## Resolution
 
-2026-11-23, greenrack#PR. Picked the positioned `AppShell.Main`: under
+2026-11-23, greenrack#229. Picked the positioned `AppShell.Main`: under
 `scroll="main"`, Main is `position: relative`. The per-component option cannot
 cover every case. `VisuallyHidden` has no owner it could make positioned,
 `DragDrop.Root` renders no element, and `LiveRegion visuallyHidden` (which

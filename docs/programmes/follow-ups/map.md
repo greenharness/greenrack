@@ -14,12 +14,12 @@ boundary.
 
 ## Decisions so far
 
-- [Visually hidden text stays inside its owner](f01-hidden-live-regions-containing-block.md): `AppShell.Main` with `scroll="main"` is positioned, rather than one positioned root per component (greenrack#PR).
+- [Visually hidden text stays inside its owner](f01-hidden-live-regions-containing-block.md): `AppShell.Main` with `scroll="main"` is positioned, rather than one positioned root per component (greenrack#229).
 - [The Combobox story that loads on open passes under load](f03-combobox-story-flaky-under-load.md): the story held the load behind a promise instead of a 50 ms timer (greenrack#223).
 
 ## Handoff
 
-2026-11-23, boundary 3 (f01 closed in greenrack#PR). Filed f08 (the same escape inside inner scrollers). Next: f02, f04, f05, f06, f07, f08.
+2026-11-23, boundary 3 (f01 closed in greenrack#229). Filed f08 (the same escape inside inner scrollers). Next: f02, f04, f05, f06, f07, f08.
 
 ## Not yet specified
 
