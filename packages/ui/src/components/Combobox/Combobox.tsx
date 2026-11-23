@@ -136,7 +136,7 @@ function Input({
 
 // --- Trigger ---
 function Trigger({children}: {children?: ReactNode}) {
-  const {open, openPopup, close, inputRef} = useCombobox()
+  const {open, openPopup, close, refocusInput} = useCombobox()
 
   return (
     <html.button
@@ -149,7 +149,9 @@ function Trigger({children}: {children?: ReactNode}) {
         } else {
           openPopup()
         }
-        inputRef.current?.focus()
+        // The click took focus off the input; a plain focus() would reopen
+        // the list it just closed.
+        refocusInput()
       }}
       style={styles.trigger}
     >

@@ -382,7 +382,9 @@ function OpenChangeDemo({onOpen}: {onOpen: (open: boolean) => void}) {
             onOpen(next)
           }}
         >
-          <Combobox.Input aria-label="Fruit" />
+          <Combobox.Input aria-label="Fruit">
+            <Combobox.Trigger />
+          </Combobox.Input>
           <FruitList />
         </Combobox.Root>
         <Text variant="bodySm" color="muted">
@@ -462,6 +464,15 @@ async function runOpenChangeSequence({
     await userEvent.keyboard('gr{ArrowDown}{Enter}')
     await waitFor(() => expect(input).toHaveValue('Grape'))
     await pause(AFTER_BLUR_CLOSE_MS)
+    await expect(sequence()).toEqual([true, false])
+    // The trigger opens, then its Close closes, and the input keeps focus.
+    onOpen.mockClear()
+    await userEvent.click(screen.getByRole('button', {name: 'Open'}))
+    await waitFor(() => expect(input).toHaveAttribute('aria-expanded', 'true'))
+    await userEvent.click(screen.getByRole('button', {name: 'Close'}))
+    await pause(AFTER_BLUR_CLOSE_MS)
+    await expect(input).toHaveAttribute('aria-expanded', 'false')
+    await expect(input).toHaveFocus()
     await expect(sequence()).toEqual([true, false])
   }
 }

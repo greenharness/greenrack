@@ -12,6 +12,8 @@ export interface ComboboxContextValue {
   setInputValue: (value: string) => void
   onInputFocus: () => void
   onInputBlur: () => void
+  /** Focuses the input without opening the list. */
+  refocusInput: () => void
   labels: Record<string, string>
   registerLabel: (value: string, label: string) => void
   listboxId: string

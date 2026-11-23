@@ -87,20 +87,26 @@ export function useComboboxRoot(options: ComboboxStateOptions) {
     }, 150)
   }, [cancelBlurClose, close])
 
+  // Returns focus to the input without the focus opening the list: after a
+  // choice, and after the trigger (a click on it moves focus off the input).
+  const refocusInput = useCallback(() => {
+    refocusAfterChooseRef.current = true
+    try {
+      inputRef.current?.focus()
+    } finally {
+      refocusAfterChooseRef.current = false
+    }
+  }, [])
+
   // Choosing keeps focus in the input (the web's editable combobox).
   const selectValue = useCallback(
     (itemValue: string) => {
       cancelBlurClose()
       chooseValue(itemValue)
       setHighlightedId(null)
-      refocusAfterChooseRef.current = true
-      try {
-        inputRef.current?.focus()
-      } finally {
-        refocusAfterChooseRef.current = false
-      }
+      refocusInput()
     },
-    [chooseValue, cancelBlurClose, setHighlightedId],
+    [chooseValue, cancelBlurClose, setHighlightedId, refocusInput],
   )
 
   const registerItem = useCallback(
@@ -239,6 +245,7 @@ export function useComboboxRoot(options: ComboboxStateOptions) {
       setInputValue,
       onInputFocus,
       onInputBlur,
+      refocusInput,
       labels,
       registerLabel,
       listboxId,
@@ -260,6 +267,7 @@ export function useComboboxRoot(options: ComboboxStateOptions) {
       setInputValue,
       onInputFocus,
       onInputBlur,
+      refocusInput,
       labels,
       registerLabel,
       listboxId,
