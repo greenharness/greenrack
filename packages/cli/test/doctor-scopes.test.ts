@@ -71,10 +71,9 @@ describe('greenrack doctor', () => {
     expect(findings(app(scope))).toEqual([])
   })
 
-  it('wants the stylesheet of its own scope', () => {
+  it("refuses the retired scope's stylesheet", () => {
     const root = app(scope)
-    const other = RETIRED
-    write(root, {'app/root.tsx': `import '${other.ui}/dist/index.css'\n`})
+    write(root, {'app/root.tsx': `import '${RETIRED.ui}/dist/index.css'\n`})
     expect(findings(root)).toEqual([
       expect.objectContaining({
         rule: 'css-imported',
@@ -96,11 +95,10 @@ describe('greenrack doctor', () => {
     expect(finding!.fix).toContain(`'${scope.tokens}'`)
   })
 
-  it('does not take the other scope tokens for its own', () => {
-    const other = RETIRED
+  it("does not take the retired scope's tokens for its own", () => {
     const root = app(scope, {compileTokens: false, inline: false})
     write(root, {
-      'vite.config.ts': `${`import babel from 'vite-plugin-babel'\nconst a = '${other.tokens}'\n`}export default {plugins: [babel({filter: /x/, babelConfig: {presets: ['react-strict-dom/babel-preset']}})], ssr: {noExternal: ['${other.tokens}']}}\n`,
+      'vite.config.ts': `${`import babel from 'vite-plugin-babel'\nconst a = '${RETIRED.tokens}'\n`}export default {plugins: [babel({filter: /x/, babelConfig: {presets: ['react-strict-dom/babel-preset']}})], ssr: {noExternal: ['${RETIRED.tokens}']}}\n`,
     })
     expect(findings(root).map(({rule}) => rule)).toContain('tokens-compiled')
   })
@@ -122,17 +120,19 @@ describe('greenrack doctor', () => {
   it('is not a consumer of the retired scope, and says how to become one', () => {
     const root = app(RETIRED)
     expect(isGreenrackConsumer(root)).toBe(false)
-    const result = runDoctor({cwd: root})
-    expect(result.exitCode).toBeUndefined()
-    expect(result.data).toMatchObject({ok: true, findings: [], packages: [], scopes: []})
-    expect(result.text).toBe('')
-    expect(result.notes).toEqual([expect.stringContaining('pnpm add @greenharness/greenrack-ui')])
-    expect(result.notes![0]!.length).toBeLessThanOrEqual(80)
+    const report = runDoctor({cwd: root})
+    expect(report.exitCode).toBeUndefined()
+    expect(report.data).toMatchObject({ok: true, findings: [], packages: [], scopes: []})
+    expect(report.text).toBe('')
+    expect(report.notes).toEqual([expect.stringContaining('pnpm add @greenharness/greenrack-ui')])
+    expect(report.notes![0]!.length).toBeLessThanOrEqual(80)
   })
 
-  it('says nothing to a session hook in an app on the retired scope', () => {
-    const result = runDoctor({cwd: app(RETIRED), session: true})
-    expect(result.text).toBe('')
-    expect(result.notes).toEqual([])
+  it('says nothing to a session hook or a --json caller in an app on the retired scope', () => {
+    for (const options of [{session: true}, {json: true}]) {
+      const report = runDoctor({cwd: app(RETIRED), ...options})
+      expect(report.text).toBe('')
+      expect(report.notes).toEqual([])
+    }
   })
 })

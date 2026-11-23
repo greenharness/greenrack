@@ -5,7 +5,7 @@ import {join, relative, resolve} from 'node:path'
 import type {Registry} from '../registry-types.js'
 import {renderCatalog, renderIndex} from '../catalog.js'
 import type {CatalogRender} from '../catalog.js'
-import {isGreenrackConsumer, runDoctor} from './doctor.js'
+import {isGreenrackConsumer, NOT_A_CONSUMER_NOTE, runDoctor} from './doctor.js'
 import type {CommandResult} from './lookup.js'
 import {cliVersion} from './manifest.js'
 
@@ -156,9 +156,9 @@ const NOT_A_CONSUMER = Object.freeze({consumer: false})
  * The line a person at a terminal gets where a hook gets silence, or null when
  * nothing should be said: the result is a consumer's, or nobody is at a terminal.
  */
-export function nonConsumerNote(result: CommandResult, isTTY: boolean, cwd: string): string | null {
+export function nonConsumerNote(result: CommandResult, isTTY: boolean): string | null {
   if (!isTTY || result.data !== NOT_A_CONSUMER) return null
-  return `greenrack: not a greenrack consumer: no @greenharness/greenrack-ui in ${cwd}; install it with: pnpm add @greenharness/greenrack-ui`
+  return `greenrack: ${NOT_A_CONSUMER_NOTE}`
 }
 
 /**

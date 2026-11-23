@@ -51,15 +51,16 @@ export interface DoctorOptions {
    * a non-zero exit is what the hook script reads as "npx failed".
    */
   session?: boolean
+  /** `--json`: the result is the whole answer, so a non-consumer gets no stderr note. */
+  json?: boolean
 }
 
 /**
- * The package names one scope reads and writes. An app is on the scope whose
- * UI package it depends on; every package-sensitive check takes that scope, so
- * the other scope's names are never evidence of a correct wiring.
+ * The package and CSS names one scope reads and writes. An app is on the scope
+ * whose UI package it depends on; every package-sensitive check takes that
+ * scope, so a retired scope's names are never evidence of a correct wiring.
  */
 export interface Scope {
-  kind: 'greenrack'
   ui: string
   tokens: string
   cli: string
@@ -71,7 +72,6 @@ export interface Scope {
 }
 
 const GREENRACK_SCOPE: Scope = {
-  kind: 'greenrack',
   ui: '@greenharness/greenrack-ui',
   tokens: '@greenharness/greenrack-tokens',
   cli: '@greenharness/greenrack-cli',
@@ -79,6 +79,9 @@ const GREENRACK_SCOPE: Scope = {
   cssVariablePrefix: '--gr-',
   dataAttributePrefix: 'data-gr',
 }
+
+/** What a person at a terminal reads outside a consumer, from doctor and context alike. */
+export const NOT_A_CONSUMER_NOTE = `not a greenrack consumer; to become one: pnpm add ${GREENRACK_SCOPE.ui}`
 
 /** The only scope: an app that does not depend on its UI package is not a consumer. */
 export const SCOPES: readonly Scope[] = [GREENRACK_SCOPE]
@@ -169,7 +172,7 @@ const COMPONENT_ELEMENTS = new Set([
 const ZERO_SPACING =
   /(?:^|[;{\s])((?:padding|margin)(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?)\s*:\s*0(?:px|rem|em)?\s*(?:!important\s*)?(?=;|$)/g
 
-/** True when the root, a workspace package or a package one directory down depends on either scope's UI package. */
+/** True when the root, a workspace package or a package one directory down depends on the greenrack UI package. */
 export function isGreenrackConsumer(root: string): boolean {
   return consumerPackages(resolve(root)).length > 0
 }
@@ -181,10 +184,8 @@ export function runDoctor(options: DoctorOptions = {}): CommandResult {
     return {
       text: '',
       data: {ok: true, findings: [], checked: [], skipped: [], packages: [], scopes: []},
-      // On stderr, so a --json caller's stdout stays the result and a hook (--session) hears nothing.
-      notes: options.session
-        ? []
-        : [`not a greenrack consumer; to become one: pnpm add ${GREENRACK_SCOPE.ui}`],
+      // On stderr, and only for a person: --json and --session callers get no note.
+      notes: options.session || options.json ? [] : [NOT_A_CONSUMER_NOTE],
     }
   }
 
@@ -390,7 +391,7 @@ function parsePackage(raw: string): PackageJson {
   }
 }
 
-/** The scope whose UI package the package depends on, or null when it uses neither. */
+/** The scope whose UI package the package depends on, or null when it does not use it. */
 function scopeOf(pkg: PackageJson): Scope | null {
   return (
     SCOPES.find((scope) =>
@@ -407,7 +408,7 @@ function isLibrary(pkg: PackageJson): boolean {
 
 /**
  * The installed UI package's version when it differs from this CLI's: the
- * given scope's, or either scope's when none is given. The package's exports
+ * given scope's, or the greenrack scope's when none is given. The package's exports
  * map does not expose ./package.json, so require() cannot read it: walk up
  * node_modules the way resolution does and read the file. A workspace link
  * (the design system's own checkout) resolves outside any node_modules: its
