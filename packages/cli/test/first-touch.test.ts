@@ -71,8 +71,12 @@ describe('greenrack hook first-touch', () => {
       cacheHome: cache(),
     })
     const lines = after.text.split('\n')
-    expect(lines[1]).toBe('greenrack index unavailable (timeout); check it with:')
-    expect(lines[2]).toBe('  npx -y @greenharness/greenrack-cli@^7 hook install --user --check')
+    expect(lines.slice(1, 5)).toEqual([
+      'greenrack index unavailable:',
+      '  timeout',
+      'check it with:',
+      '  npx -y @greenharness/greenrack-cli@^7 hook install --user --check',
+    ])
   })
 
   it('stays under the binary limit, a large doctor block included', () => {

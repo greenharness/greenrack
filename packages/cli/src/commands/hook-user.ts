@@ -145,7 +145,7 @@ function wanted(binary: string): Entry {
 }
 
 type Loaded =
-  | {kind: 'ok'; settings: Settings; target: string; exists: boolean}
+  | {kind: 'ok'; settings: Settings; target: string}
   | {kind: 'invalid'; reason: string}
   | {kind: 'unreadable'; reason: string}
 
@@ -203,11 +203,12 @@ function load(path: string): Loaded {
       }
     }
   }
-  return {kind: 'ok', settings: parsed as Settings, target, exists: raw !== null}
+  return {kind: 'ok', settings: parsed as Settings, target}
 }
 
 /** Through a temp file beside the target, keeping the target's mode. */
-function save(target: string, settings: Settings, existed: boolean): void {
+function save(target: string, settings: Settings): void {
+  const existed = existsSync(target)
   mkdirSync(dirname(target), {recursive: true})
   const temp = `${target}.tmp-${process.pid}`
   try {
@@ -389,11 +390,28 @@ function statusOf(path: string): BinaryStatus | null {
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
     })
-    const parsed: unknown = JSON.parse(text)
-    return isObject(parsed) ? (parsed as BinaryStatus) : null
+    return readStatus(JSON.parse(text))
   } catch {
     return null
   }
+}
+
+/** The binary's `--status` report, or null when its shape is not the one this reads. */
+export function readStatus(parsed: unknown): BinaryStatus | null {
+  if (!isObject(parsed)) return null
+  const last = parsed.lastFailure
+  const backing = parsed.backingOff ?? []
+  const lastOk =
+    last === undefined ||
+    last === null ||
+    (isObject(last) && typeof last.ts === 'number' && typeof last.outcome === 'string')
+  const backingOk =
+    Array.isArray(backing) &&
+    backing.every(
+      (failure) =>
+        isObject(failure) && typeof failure.count === 'number' && typeof failure.ts === 'number',
+    )
+  return lastOk && backingOk ? (parsed as BinaryStatus) : null
 }
 
 function settingsError(
@@ -431,7 +449,8 @@ function writeFailed(error: unknown, home: string): CommandResult {
   const path = failed.dest ?? failed.path
   return {
     text: [
-      `greenrack hook: cannot write ${path === undefined ? 'a file' : shown(path, home)} (${code}).`,
+      `greenrack hook: cannot write (${code}):`,
+      `  ${path === undefined ? 'a file' : shown(path, home)}`,
       'Check its permissions; on Windows, close what holds it, then rerun.',
     ].join('\n'),
     data: {kind: 'write-failed', path: path ?? null, code},
@@ -470,7 +489,7 @@ function install(options: UserHookOptions): CommandResult {
     }
     const before = drift(loaded.settings, at.binary, at.home)
     if (before.length > 0) {
-      save(loaded.target, wire(loaded.settings, at.binary), loaded.exists)
+      save(loaded.target, wire(loaded.settings, at.binary))
       lines.push(`  wired    ${shown(at.settings, at.home)}: SessionStart, PreToolUse`)
       if (before.some((line) => line.includes('pasted'))) {
         lines.push('  removed  the pasted greenrack-cli context entry')
@@ -504,7 +523,7 @@ export function runUserUninstall(options: UserHookOptions = {}): CommandResult {
     // binary fails on every tool call.
     const {next, removed} = withoutOurs(loaded.settings)
     if (removed > 0) {
-      save(loaded.target, next, loaded.exists)
+      save(loaded.target, next)
       lines.push(
         `  unwired  ${shown(at.settings, at.home)}: ${removed} entr${removed === 1 ? 'y' : 'ies'}`,
       )

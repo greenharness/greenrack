@@ -17,6 +17,7 @@ import {runHook} from '../src/commands/hook.js'
 import {
   FIRST_TOUCH_MATCHER,
   INSTALL_COMMAND,
+  readStatus,
   runUserInstall,
   runUserUninstall,
   type UserHookOptions,
@@ -175,7 +176,9 @@ describe('greenrack hook install --user', () => {
       const result = runUserInstall(f.options)
       expect(result.exitCode).toBe(3)
       expect(result.data).toMatchObject({kind: 'write-failed', code: 'EACCES'})
-      expect(result.text).toMatch(/cannot write ~\/claude-config\/hooks\/greenrack-first-touch/)
+      expect(result.text).toMatch(
+        /cannot write \(EACCES\):\n {2}~\/claude-config\/hooks\/greenrack-first-touch/,
+      )
     } finally {
       chmodSync(join(f.claude, 'hooks'), 0o700)
     }
@@ -338,5 +341,23 @@ describe('greenrack hook flags', () => {
     const repo = runHook(registry, 'uninstall', {})
     expect(repo.exitCode).toBe(2)
     narrow(repo.text)
+  })
+})
+
+describe('the binary report', () => {
+  it('reads a well-formed --status and refuses any other shape, so --check never crashes', () => {
+    const good = {lastFailure: {ts: 1, root: '/r', outcome: 'failed: timeout'}, backingOff: []}
+    expect(readStatus(good)).toEqual(good)
+    expect(readStatus({lastFailure: null})).toEqual({lastFailure: null})
+    for (const bad of [
+      [],
+      'x',
+      {backingOff: 'x'},
+      {backingOff: [{count: '3', ts: 1}]},
+      {lastFailure: {ts: '1', outcome: 'x'}},
+      {lastFailure: 'x'},
+    ]) {
+      expect(readStatus(bad), JSON.stringify(bad)).toBeNull()
+    }
   })
 })

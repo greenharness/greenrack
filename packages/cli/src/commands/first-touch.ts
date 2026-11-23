@@ -72,8 +72,11 @@ export function runFirstTouch(registry: Registry, options: FirstTouchOptions): C
   const head = [`greenrack index for ${root} (first touch this session)`]
   const start = event === 'SessionStart'
   if (start && options.unavailable) {
+    // The reason (up to 200 characters from npx) gets a line of its own.
     head.push(
-      `greenrack index unavailable (${options.unavailable}); check it with:`,
+      'greenrack index unavailable:',
+      `  ${options.unavailable}`,
+      'check it with:',
       `  ${INSTALL_COMMAND} --check`,
     )
   }

@@ -117,7 +117,7 @@ jobs:
         if: matrix.zig
         run: |
           python3 -m venv "$RUNNER_TEMP/zig"
-          "$RUNNER_TEMP/zig/bin/pip" install 'ziglang==0.13.0' 'cargo-zigbuild>=0.19,<0.20'
+          "$RUNNER_TEMP/zig/bin/pip" install 'ziglang==0.14.1' 'cargo-zigbuild==0.24.1'
           echo "$RUNNER_TEMP/zig/bin" >> "$GITHUB_PATH"
       - name: Install cross-compilation packages
         if: matrix.packages != ''
@@ -255,6 +255,7 @@ jobs:
             && gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx SHA256SUMS; then
             echo "reusing the binaries attached to release $TAG"
             gh release download "$TAG" --dir "$archives" --pattern 'greenrack-first-touch-*' --pattern SHA256SUMS
+            (cd "$archives" && sha256sum -c SHA256SUMS)
           else
             cp "$RUNNER_TEMP"/fresh/* "$archives/"
             (cd "$archives" && sha256sum greenrack-first-touch-* > SHA256SUMS)

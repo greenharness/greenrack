@@ -74,7 +74,7 @@ fn fake_npx() -> PathBuf {
 }
 
 struct Case {
-    tmp: PathBuf,
+    case_dir: PathBuf,
     state: PathBuf,
 }
 
@@ -84,28 +84,32 @@ static NEXT_CASE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsiz
 
 impl Case {
     fn new() -> Case {
-        let n = NEXT_CASE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let tmp = std::env::temp_dir().join(format!(
-            "gft-{}-{n}-{}",
+        let case_number = NEXT_CASE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let case_dir = std::env::temp_dir().join(format!(
+            "gft-{}-{case_number}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&tmp).unwrap();
-        let tmp = std::fs::canonicalize(&tmp).unwrap();
-        let state = tmp.join("state");
-        Case { tmp, state }
+        std::fs::create_dir_all(&case_dir).unwrap();
+        let case_dir = std::fs::canonicalize(&case_dir).unwrap();
+        let state = case_dir.join("state");
+        Case { case_dir, state }
     }
 
-    /// A repository: a `.git` folder, and a consumer `package.json` when asked.
-    fn repo(&self, name: &str, consumer: bool) -> PathBuf {
-        let root = self.tmp.join(name);
+    /// A repository: a `.git` folder and nothing else.
+    fn plain_repo(&self, name: &str) -> PathBuf {
+        let root = self.case_dir.join(name);
         std::fs::create_dir_all(root.join(".git")).unwrap();
-        if consumer {
-            self.package(&root.join("package.json"));
-        }
+        root
+    }
+
+    /// A repository whose `package.json` names the design system.
+    fn consumer_repo(&self, name: &str) -> PathBuf {
+        let root = self.plain_repo(name);
+        self.package(&root.join("package.json"));
         root
     }
 
@@ -141,7 +145,7 @@ impl Case {
     }
 
     fn count(&self) -> PathBuf {
-        self.tmp.join("count")
+        self.case_dir.join("count")
     }
 
     fn runs(&self) -> usize {
@@ -156,7 +160,7 @@ impl Case {
 
 impl Drop for Case {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.tmp); // a left temp folder costs disk only
+        let _ = std::fs::remove_dir_all(&self.case_dir); // a left temp folder costs disk only
     }
 }
 
@@ -214,7 +218,7 @@ fn protocol_answers_without_reading_stdin() {
 #[test]
 fn a_forced_panic_exits_zero() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut command = case.command("ok");
     command.env("GREENRACK_FIRST_TOUCH_PANIC", "1");
     let output = case.run_with(command, read(&root, "s1").to_string().as_bytes());
@@ -239,7 +243,7 @@ fn garbage_input_exits_zero() {
 #[test]
 fn an_unsafe_session_id_exits_zero() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     for id in ["../x", "a/b", ""] {
         assert!(quiet(&case.run(&read(&root, id), "ok")), "{id:?}");
     }
@@ -249,7 +253,7 @@ fn an_unsafe_session_id_exits_zero() {
 #[test]
 fn outside_a_repository_prints_nothing() {
     let case = Case::new();
-    let plain = case.tmp.join("plain");
+    let plain = case.case_dir.join("plain");
     std::fs::create_dir_all(&plain).unwrap();
     let output = case.run(&start(&plain, "s1", "startup"), "ok");
     assert!(quiet(&output) && output.stderr.is_empty(), "{output:?}");
@@ -260,7 +264,7 @@ fn outside_a_repository_prints_nothing() {
 #[test]
 fn session_start_in_a_consumer_prints_once() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let first = case.run(&start(&root, "s1", "startup"), "ok");
     assert!(gave(&first), "{first:?}");
     assert!(stdout(&first).contains("event=SessionStart"));
@@ -270,7 +274,7 @@ fn session_start_in_a_consumer_prints_once() {
 #[test]
 fn resume_compact_and_clear_print_again() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&start(&root, "s1", "startup"), "ok");
     for source in ["resume", "compact", "clear"] {
         assert!(
@@ -284,9 +288,9 @@ fn resume_compact_and_clear_print_again() {
 #[test]
 fn a_compact_clears_the_session_markers() {
     let case = Case::new();
-    let plain = case.tmp.join("plain");
+    let plain = case.case_dir.join("plain");
     std::fs::create_dir_all(&plain).unwrap();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     assert!(gave(&case.run(&read(&root, "s1"), "ok")));
     assert!(quiet(&case.run(&read(&root, "s1"), "ok")));
     assert!(quiet(&case.run(&start(&plain, "s1", "compact"), "ok")));
@@ -296,7 +300,7 @@ fn a_compact_clears_the_session_markers() {
 #[test]
 fn a_repo_with_its_own_hook_stays_silent_and_is_marked() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     std::fs::create_dir_all(root.join(".claude/hooks")).unwrap();
     std::fs::write(root.join(".claude/hooks/greenrack-catalog.sh"), "").unwrap();
     assert!(quiet(&case.run(&start(&root, "s1", "startup"), "ok")));
@@ -307,7 +311,7 @@ fn a_repo_with_its_own_hook_stays_silent_and_is_marked() {
 #[test]
 fn a_subfolder_resolves_the_git_root() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let sub = root.join("packages/x");
     std::fs::create_dir_all(&sub).unwrap();
     let output = case.run(&start(&sub, "s1", "startup"), "ok");
@@ -331,7 +335,7 @@ fn a_subfolder_resolves_the_git_root() {
 #[test]
 fn first_read_in_a_consumer_prints_once() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut command = case.command("ok");
     command.env("FAKE_COUNT", case.count());
     let first = case.run_with(command, read(&root, "s1").to_string().as_bytes());
@@ -344,7 +348,7 @@ fn first_read_in_a_consumer_prints_once() {
 #[test]
 fn a_session_started_in_the_repo_is_not_told_twice() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&start(&root, "s1", "startup"), "ok");
     assert!(quiet(&case.run(&read(&root, "s1"), "ok")));
 }
@@ -352,7 +356,7 @@ fn a_session_started_in_the_repo_is_not_told_twice() {
 #[test]
 fn a_subagent_gets_its_own_index() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&read(&root, "s1"), "ok");
     let mut event = read(&root, "s1");
     event["agent_id"] = json!("a1");
@@ -363,7 +367,7 @@ fn a_subagent_gets_its_own_index() {
 #[test]
 fn another_session_is_told_again() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&read(&root, "s1"), "ok");
     assert!(gave(&case.run(&read(&root, "s2"), "ok")));
 }
@@ -371,7 +375,7 @@ fn another_session_is_told_again() {
 #[test]
 fn bash_uses_the_cwd() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let bash = json!({"session_id": "s1", "cwd": root, "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "ls"}});
     assert!(gave(&case.run(&bash, "ok")));
 }
@@ -379,9 +383,9 @@ fn bash_uses_the_cwd() {
 #[test]
 fn a_file_follows_its_own_repository() {
     let case = Case::new();
-    let plain = case.tmp.join("plain");
+    let plain = case.case_dir.join("plain");
     std::fs::create_dir_all(&plain).unwrap();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut event = read(&root, "s1");
     event["cwd"] = json!(plain);
     assert!(gave(&case.run(&event, "ok")));
@@ -390,7 +394,7 @@ fn a_file_follows_its_own_repository() {
 #[test]
 fn a_write_into_a_new_folder() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut event = read(&root, "s1");
     event["tool_name"] = json!("Write");
     event["tool_input"] = json!({"file_path": root.join("new/deeper/file.ts"), "content": "x"});
@@ -400,7 +404,7 @@ fn a_write_into_a_new_folder() {
 #[test]
 fn a_notebook_path() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut event = read(&root, "s1");
     event["tool_name"] = json!("NotebookEdit");
     event["tool_input"] = json!({"notebook_path": root.join("notes/a.ipynb")});
@@ -410,7 +414,7 @@ fn a_notebook_path() {
 #[test]
 fn a_relative_path_resolves_against_the_cwd() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut event = read(&root, "s1");
     event["tool_input"] = json!({"file_path": "src/a.ts"});
     assert!(gave(&case.run(&event, "ok")));
@@ -419,7 +423,7 @@ fn a_relative_path_resolves_against_the_cwd() {
 #[test]
 fn escaped_characters_in_a_path_still_read() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut event = read(&root, "s1");
     event["tool_input"] = json!({"file_path": root.join("src").join("é \"q\".ts")});
     assert!(gave(&case.run(&event, "ok")));
@@ -428,7 +432,7 @@ fn escaped_characters_in_a_path_still_read() {
 #[test]
 fn a_worktree_marks_its_root_with_a_dot_git_file() {
     let case = Case::new();
-    let root = case.tmp.join("wt");
+    let root = case.case_dir.join("wt");
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join(".git"), "gitdir: /nowhere/.git/worktrees/wt\n").unwrap();
     case.package(&root.join("package.json"));
@@ -439,8 +443,8 @@ fn a_worktree_marks_its_root_with_a_dot_git_file() {
 #[test]
 fn a_symlinked_path_names_the_same_root() {
     let case = Case::new();
-    let root = case.repo("app", true);
-    let link = case.tmp.join("link");
+    let root = case.consumer_repo("app");
+    let link = case.case_dir.join("link");
     std::os::unix::fs::symlink(&root, &link).unwrap();
     case.run(&read(&root, "s1"), "ok");
     assert!(quiet(&case.run(&read(&link, "s1"), "ok")));
@@ -449,7 +453,7 @@ fn a_symlinked_path_names_the_same_root() {
 #[test]
 fn a_repository_that_is_not_a_consumer_prints_nothing() {
     let case = Case::new();
-    let root = case.repo("other", false);
+    let root = case.plain_repo("other");
     let mut command = case.command("ok");
     command.env("FAKE_COUNT", case.count());
     let output = case.run_with(command, read(&root, "s1").to_string().as_bytes());
@@ -461,13 +465,13 @@ fn a_repository_that_is_not_a_consumer_prints_nothing() {
 #[test]
 fn the_consumer_test_looks_three_levels_down() {
     let case = Case::new();
-    let deep = case.repo("deep", false);
+    let deep = case.plain_repo("deep");
     case.package(&deep.join("packages/ui/package.json"));
     assert!(gave(&case.run(&read(&deep, "s1"), "ok")));
-    let hidden = case.repo("hidden", false);
+    let hidden = case.plain_repo("hidden");
     case.package(&hidden.join("node_modules/x/package.json"));
     assert!(quiet(&case.run(&read(&hidden, "s1"), "ok")));
-    let too_deep = case.repo("toodeep", false);
+    let too_deep = case.plain_repo("toodeep");
     case.package(&too_deep.join("a/b/c/package.json"));
     assert!(quiet(&case.run(&read(&too_deep, "s1"), "ok")));
 }
@@ -475,7 +479,7 @@ fn the_consumer_test_looks_three_levels_down() {
 #[test]
 fn nested_roots_keep_separate_markers() {
     let case = Case::new();
-    let outer = case.repo("outer", true);
+    let outer = case.consumer_repo("outer");
     let inner = outer.join("sub");
     std::fs::create_dir_all(inner.join(".git")).unwrap();
     case.package(&inner.join("package.json"));
@@ -486,7 +490,7 @@ fn nested_roots_keep_separate_markers() {
 #[test]
 fn a_command_with_no_output_keeps_the_marker() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     for _ in 0..2 {
         let mut command = case.command("empty");
         command.env("FAKE_COUNT", case.count());
@@ -500,7 +504,7 @@ fn a_command_with_no_output_keeps_the_marker() {
 #[test]
 fn output_over_the_cap_is_dropped() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     assert!(quiet(&case.run(&read(&root, "s1"), "big")));
     assert!(case.log().contains("too large"));
 }
@@ -508,7 +512,7 @@ fn output_over_the_cap_is_dropped() {
 #[test]
 fn a_failing_command_exits_zero_and_retries() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let failed = case.run(&read(&root, "s1"), "fail");
     assert!(quiet(&failed), "{failed:?}");
     let err = String::from_utf8_lossy(&failed.stderr);
@@ -520,7 +524,7 @@ fn a_failing_command_exits_zero_and_retries() {
 #[test]
 fn a_failure_reason_reaches_the_next_session_start() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&read(&root, "s1"), "fail");
     let output = case.run(&start(&root, "s2", "startup"), "ok");
     assert!(
@@ -532,7 +536,7 @@ fn a_failure_reason_reaches_the_next_session_start() {
 #[test]
 fn three_failures_back_off() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     for _ in 0..5 {
         let mut command = case.command("fail");
         command.env("FAKE_COUNT", case.count());
@@ -544,7 +548,7 @@ fn three_failures_back_off() {
 #[test]
 fn a_hanging_command_is_killed_at_the_timeout() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut command = case.command("hang");
     command.env("GREENRACK_FIRST_TOUCH_TIMEOUT_MS", "1000");
     let started = Instant::now();
@@ -578,8 +582,8 @@ fn alive(pid: u32) -> bool {
 #[test]
 fn a_timeout_kills_the_commands_children_too() {
     let case = Case::new();
-    let root = case.repo("app", true);
-    let pid_file = case.tmp.join("child.pid");
+    let root = case.consumer_repo("app");
+    let pid_file = case.case_dir.join("child.pid");
     let mut command = case.command("hangchild");
     command
         .env("GREENRACK_FIRST_TOUCH_TIMEOUT_MS", "2000")
@@ -587,7 +591,11 @@ fn a_timeout_kills_the_commands_children_too() {
     let started = Instant::now();
     let output = case.run_with(command, read(&root, "s1").to_string().as_bytes());
     // The bound plus one second: the plan's promise.
-    assert!(started.elapsed() < Duration::from_millis(2000) + Duration::from_secs(1));
+    assert!(
+        started.elapsed() < Duration::from_millis(2000) + Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
     assert!(quiet(&output));
     let pid: u32 = std::fs::read_to_string(&pid_file)
         .unwrap()
@@ -607,7 +615,7 @@ fn a_timeout_kills_the_commands_children_too() {
 #[test]
 fn output_that_is_not_utf8_still_gives_the_index() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let output = case.run(&read(&root, "s1"), "badbytes");
     assert!(gave(&output), "{output:?}");
     assert!(stdout(&output).contains('\u{fffd}'));
@@ -616,9 +624,12 @@ fn output_that_is_not_utf8_still_gives_the_index() {
 #[test]
 fn a_missing_command_exits_zero() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut command = case.command("ok");
-    command.env("GREENRACK_FIRST_TOUCH_NPX", case.tmp.join("no-such-npx"));
+    command.env(
+        "GREENRACK_FIRST_TOUCH_NPX",
+        case.case_dir.join("no-such-npx"),
+    );
     let output = case.run_with(command, read(&root, "s1").to_string().as_bytes());
     assert!(quiet(&output));
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot start npx"));
@@ -627,7 +638,7 @@ fn a_missing_command_exits_zero() {
 #[test]
 fn a_log_over_a_megabyte_is_cut() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let dir = case.state.join("greenrack-first-touch");
     std::fs::create_dir_all(&dir).unwrap();
     let lines: String = (0..30_000)
@@ -644,7 +655,7 @@ fn a_log_over_a_megabyte_is_cut() {
 #[test]
 fn parallel_calls_print_and_run_once() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let event = read(&root, "s1").to_string();
     let children: Vec<_> = (0..4)
         .map(|_| {
@@ -672,7 +683,7 @@ fn parallel_calls_print_and_run_once() {
 #[test]
 fn a_stale_claim_is_reclaimed_once() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let event = read(&root, "s1").to_string();
     // A claim left by a run killed outright: a hang, killed by the test.
     let mut stuck = case.command("hang");
@@ -716,7 +727,7 @@ fn a_stale_claim_is_reclaimed_once() {
 #[test]
 fn a_hit_starts_no_process() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&read(&root, "s1"), "ok");
     // Once marked, a command that would fail is never reached.
     let mut command = case.command("fail");
@@ -735,7 +746,7 @@ fn a_hit_starts_no_process() {
 #[ignore]
 fn a_hit_is_close_to_an_empty_start() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     case.run(&read(&root, "s1"), "ok");
     let mut event = read(&root, "s1");
     event["tool_name"] = json!("Write");
@@ -773,14 +784,14 @@ fn a_hit_is_close_to_an_empty_start() {
 #[test]
 fn the_cli_is_told_the_protocol() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     assert!(stdout(&case.run(&read(&root, "s1"), "ok")).contains("protocol=1"));
 }
 
 #[test]
 fn an_event_that_is_neither_start_nor_tool_prints_nothing() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     let mut event = read(&root, "s1");
     event["hook_event_name"] = json!("PostToolUse");
     assert!(quiet(&case.run(&event, "ok")));
@@ -791,7 +802,7 @@ fn an_event_that_is_neither_start_nor_tool_prints_nothing() {
 #[test]
 fn a_back_off_is_logged_and_reported_by_status() {
     let case = Case::new();
-    let root = case.repo("app", true);
+    let root = case.consumer_repo("app");
     for _ in 0..3 {
         case.run(&read(&root, "s1"), "fail");
     }
@@ -826,10 +837,11 @@ fn answers_never_wait_on_stdin() {
         // stdin stays open: an answer that read it would never end.
         let started = Instant::now();
         while child.try_wait().unwrap().is_none() {
-            assert!(
-                started.elapsed() < Duration::from_secs(10),
-                "{flag} waited on stdin"
-            );
+            if started.elapsed() > Duration::from_secs(10) {
+                // Killed first: a failing run leaves no process behind.
+                let _ = child.kill(); // already gone is fine; the panic below is the report
+                panic!("{flag} waited on stdin");
+            }
             std::thread::sleep(Duration::from_millis(20));
         }
         let out = child.wait_with_output().unwrap();

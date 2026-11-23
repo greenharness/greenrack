@@ -176,11 +176,11 @@ fn run() -> Option<String> {
         let _ = fs::remove_dir_all(&session_dir); // left markers cost one index this session, nothing more
     }
     let event_name = call.event_name();
-    let touched = match &call {
-        Call::Start { cwd, .. } => cwd.clone(),
-        Call::Tool { dir } => dir.clone(),
+    let touched: &Path = match &call {
+        Call::Start { cwd, .. } => cwd,
+        Call::Tool { dir } => dir,
     };
-    let root = git_root(&touched)?;
+    let root = git_root(touched)?;
     let root_text = normalize(&root.to_string_lossy());
     let key = root_key(&root_text);
     let marker = session_dir.join(&agent.0).join(&key).join(".m");
@@ -224,9 +224,9 @@ fn run() -> Option<String> {
         Call::Tool { .. } => None,
     };
     let started = Instant::now();
-    let result = run_cli(event_name, input, &root, &root_text, unavailable.as_deref());
+    let cli_outcome = run_cli(event_name, input, &root, &root_text, unavailable.as_deref());
     let ms = Some(started.elapsed().as_millis());
-    match result {
+    match cli_outcome {
         Ok(text) => {
             let _ = fs::remove_file(&failures); // usually absent; a left counter expires with FAIL_WINDOW
             finish(&marker, &root_text);
@@ -390,15 +390,24 @@ fn claim(marker: &Path) -> bool {
             // reclaimed the stale marker and made a fresh one: that one is
             // live, so it goes back and this caller stands down.
             if age(&aside).is_some_and(|age| age < claim_ttl()) {
-                if fs::rename(&aside, marker).is_err() {
-                    let _ = fs::remove_dir_all(&aside); // a third caller holds the marker now; this copy is spare
-                }
+                stand_down(&aside, marker);
                 return false;
             }
             let _ = fs::remove_dir_all(&aside); // a left folder costs disk only; prune removes it with its session
             fs::create_dir(marker).is_ok()
         }
         Err(_) => false,
+    }
+}
+
+/// Put back a live claim moved aside by mistake. A third caller may already
+/// hold the marker path, and on Unix a rename silently replaces an empty
+/// directory, so the path is tested first and theirs stands.
+// holds-until: a report of a double index under three racing callers; one
+// can still create the marker between the test and the rename.
+fn stand_down(aside: &Path, marker: &Path) {
+    if marker.exists() || fs::rename(aside, marker).is_err() {
+        let _ = fs::remove_dir_all(aside); // another caller holds the marker; this copy is spare
     }
 }
 
@@ -889,6 +898,43 @@ mod tests {
         };
         assert_eq!(bare.to_string(), "exit signal");
         assert_eq!(CliFailure::Timeout.to_string(), "timeout");
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("{NAME}-{name}-{}", nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    // Opening a directory to set its time is Unix-only in std.
+    #[cfg(unix)]
+    #[test]
+    fn a_stale_claim_is_taken_and_a_fresh_one_is_not() {
+        let dir = scratch("claim");
+        let marker = dir.join(".m");
+        fs::create_dir(&marker).unwrap();
+        assert!(!claim(&marker), "a fresh claim is another call's work");
+        let old = SystemTime::now() - Duration::from_secs(3600);
+        fs::File::open(&marker).unwrap().set_modified(old).unwrap();
+        assert!(claim(&marker), "a claim older than the TTL is taken");
+        assert!(age(&marker).is_some_and(|age| age < claim_ttl()));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn standing_down_puts_a_live_claim_back_unless_the_path_is_held() {
+        let dir = scratch("stand-down");
+        let marker = dir.join(".m");
+        let aside = dir.join(".m.stale");
+        fs::create_dir(&aside).unwrap();
+        stand_down(&aside, &marker);
+        assert!(marker.is_dir() && !aside.exists(), "put back where it was");
+        // An empty marker made by a third caller in between stays theirs.
+        fs::create_dir(&aside).unwrap();
+        fs::write(aside.join("mine"), b"").unwrap();
+        stand_down(&aside, &marker);
+        assert!(marker.is_dir() && !marker.join("mine").exists() && !aside.exists());
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

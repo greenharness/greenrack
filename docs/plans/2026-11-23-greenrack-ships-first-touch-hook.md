@@ -272,7 +272,8 @@ install --user` writes the new ones and the template is patched from the
   (`cargo test --release --test contract -- --ignored`). A cold `npx` of the
   published CLI with an empty `npm_config_cache` took 44.6 s, 92.5 s and
   171.2 s on this host at full load (twelve commands queued for three slots),
-  far over the 10 s cap; an idle-host figure is owed before the release.
+  far over the 10 s cap. With the host less loaded (load about 10, two of
+  three slots held), two cold runs took 10.5 s and 7.6 s: at the cap.
 - Phase 2: a `dry_run` dispatch builds the six platform packages and publishes
   nothing; each one's `os` and `cpu` match its name, and the CLI's optional
   dependencies equal the version; `npm pack` of the CLI lists the six optional

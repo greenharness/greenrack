@@ -75,10 +75,14 @@ export function runHook(
     return runUserUninstall()
   }
   if (options.user)
-    return usage(`greenrack hook ${event ?? ''}: --user is for install and uninstall`)
+    return usage(`greenrack hook${event ? ` ${event}` : ''}: --user is for install and uninstall`)
   // Run by the greenrack-first-touch binary, which passes the root and event.
   if (event === 'first-touch') {
-    if (options.check) return usage('greenrack hook first-touch: --check is for install')
+    if (options.check) {
+      return usage(
+        'greenrack hook first-touch: --check is for install:\n  ' + USER_INSTALL + ' --check',
+      )
+    }
     return runFirstTouch(registry, firstTouchOptions())
   }
   if (event !== 'session-start') {
