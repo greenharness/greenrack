@@ -1,7 +1,7 @@
 +++
 type = "task"
 mode = "afk"
-status = "open"
+status = "closed"
 blocked_by = []
 repos = ["greenrack"]
 +++
@@ -31,3 +31,18 @@ input focused so typing still works.
 A greenrack PR where a story clicks "Open", then "Close", and the list is closed with
 the input still focused (`onOpenChange` reports one open and one close), merged on
 green and released.
+
+## Resolution
+
+2026-11-23. A click on the trigger moves focus to it (the input blurs), and the
+trigger's `inputRef.current?.focus()` then ran `onInputFocus`, which reopened
+the list `close()` had just closed. The refocus now goes through
+`refocusInput()` in `useComboboxRoot`, the `refocusAfterChooseRef` guard a
+choice already used, so the focus cancels the pending blur close without
+opening. Choosing an option calls the same helper.
+
+Evidence: `OpenChangeFiresOncePerTransition` now renders a `Combobox.Trigger`
+and ends by clicking Open, then Close: after the blur-close delay the input has
+`aria-expanded="false"`, keeps focus, and `onOpenChange` reported `[true,
+false]`. Before the fix it fails with `aria-expanded="true"`; after it all 17
+Combobox stories pass. Native has its own trigger and is unchanged.
