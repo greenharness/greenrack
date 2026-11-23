@@ -51,7 +51,7 @@ describe('react', () => {
       'src/App.tsx',
     )
     const message = result.messages.find((m) => m.ruleId === 'greenrack/no-restricted-imports')
-    expect(message?.message).toContain('lexical-multi')
+    expect(message?.message).toContain('greenrack-lexical')
   })
 
   it('allows a TYPE import from a banned module', async () => {

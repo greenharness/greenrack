@@ -14,7 +14,7 @@ const FOREIGN_UI_MESSAGE =
   'UI primitives come from @greenharness/greenrack-ui only. If the component you need is missing, add it to greenrack instead of reaching for another library — `npx greenrack list` shows what exists.'
 
 const LEXICAL_MESSAGE =
-  'Rich text goes through @fredericrous/lexical-multi at the app layer, never raw Lexical — the wrapper carries the multi-editor state, native support, and edit-state accessibility.'
+  'Rich text goes through @fredericrous/greenrack-lexical at the app layer, never raw Lexical — the wrapper carries the multi-editor state, native support, and edit-state accessibility.'
 
 const FOREIGN_UI_PATTERN = {
   allowTypeImports: true,
