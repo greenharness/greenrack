@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/theme-tokens-by-mode
 repos: [greenrack, application-landscape, homelab, decisions]
 adrs: [greenrack ADR-0003 revision (extends, supersedes nothing)]
@@ -204,12 +204,12 @@ Outcome: no visitor-visible change (0 diffs). The maintainer deletes the generat
       cannot open without JS) compared the same way, and
       the app's fixed seven-cell script and the leak crawl. A diff sends the
       work back to Phase 1 (no tag yet).
-- **Phase 3 — greenrack PR, review, merge, release 7.5.0.** worktree-task
-  F4/F4b reviews, PR, `merge-when-green`, `tag-release` v7.5.0
-  (`packages/tokens/package.json`, `packages/ui/package.json` versions as
-  the repo's release flow sets them); check both packages on npm at their
-  new versions.
-- **Phase 4 — application-landscape PR (f107).**
+- [x] **Phase 3 — greenrack PR, review, merge, release 7.5.0.** Released as 7.7.0 (#221): 7.5.0 and 7.6.0 had already been tagged by other work. worktree-task
+      F4/F4b reviews, PR, `merge-when-green`, `tag-release` v7.5.0
+      (`packages/tokens/package.json`, `packages/ui/package.json` versions as
+      the repo's release flow sets them); check both packages on npm at their
+      new versions.
+- [x] **Phase 4 — application-landscape PR (f107).**
   - `app/root.tsx`: `ColorModeProvider tokens={landscapeTokens}`; the
     `.greenrack-landscape` wrapper goes when a grep of `app/` for
     `greenrack-landscape` finds no hits outside the removed generated CSS;
@@ -272,8 +272,19 @@ Observed on the branch's final tree (`3a415a99`, tree `7a4beff77f1f`), before th
 - Size: the theme `<style>` is 946 B gzip with no cookie (ceiling 5 KB).
   The `/` HTML is 97,848 B vs 95,207 B on base. CSP: the app sets none, so
   an inline `<style>` is allowed.
-- Not yet run, because they belong to later phases: the production
-  JS-disabled cells after deploy, and the rollback trigger.
+- Phase 4, application-landscape on greenrack 7.7.0 from npm (tree
+  `3e299180aeb1`, pointer plan's Verification): 0 diffs against
+  `origin/main` in the 8 JS-disabled cells × `/` and `/admin` and in 4 JS
+  cells with the Menu and its Dialog open (measured once settled); 0 page
+  errors; before/after screenshots byte-identical. application-landscape#351
+  (merged fd45845e), released v0.67.0 (ghcr and Forgejo).
+- Production, after homelab#1287 (merged 4cc221849): `web` and `yjs` on
+  0.67.0, Flux Ready, the pod 4/4 Running with 0 restarts (two sidecars
+  beside `web` and `yjs`); the 16 JS-disabled cells give 0 diffs against
+  the previous main. Signed out, `/admin` lands on `/`, so its cells read
+  the home page on both sides. The rollback trigger never fired.
+- decisions#347 (merged 0e0e9aa) closes f107 and files f116, the
+  DS-system-theme follow-up.
 
 ## Decision log
 
