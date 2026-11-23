@@ -1,7 +1,7 @@
 +++
 type = "task"
 mode = "afk"
-status = "open"
+status = "closed"
 blocked_by = []
 repos = ["greenrack"]
 +++
@@ -33,3 +33,27 @@ A story per affected component inside an `AppShell` with `scroll="main"`, placed
 the fold. It asserts `document.documentElement.scrollHeight === innerHeight`, red before
 the fix and green after, and the fix is released. Or each component is ruled out with
 the measurement that shows it cannot escape.
+
+## Resolution
+
+2026-11-23, greenrack#PR. Picked the positioned `AppShell.Main`: under
+`scroll="main"`, Main is `position: relative`. The per-component option cannot
+cover every case. `VisuallyHidden` has no owner it could make positioned,
+`DragDrop.Root` renders no element, and `LiveRegion visuallyHidden` (which
+`git grep 'visuallyHidden\.'` misses, because it imports the style as `hidden`)
+is in the same position. `scroll="page"` is unchanged: there the document is
+the scroller, and an element at its static position cannot lengthen it.
+
+Evidence: five test-only stories in `AppShell.stories.tsx`
+(`ScrollMainHolds*`: VisuallyHidden, Spinner's label, the TagGroup, DragDrop
+and LiveRegion live regions). Each puts its owner below a `300vh` spacer in a
+`scroll="main"` shell and asserts `offsetParent === main` and
+`documentElement.scrollHeight === innerHeight`. Before the fix all five fail.
+The first assertion finds the shell's container instead of `main`. With that
+assertion removed, the document measures 2725 px against a 900 px viewport.
+After the fix all 30 AppShell stories pass.
+
+Consumer impact: happier is the only app using `scroll="main"`. Its three
+absolutely placed elements under Main (`PetTileGrid`, `LoadingIndicatorPreview`,
+`PetSprite`) each sit inside a `position: relative` owner, so none of them
+changes containing block.
