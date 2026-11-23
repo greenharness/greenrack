@@ -142,7 +142,7 @@ census and archiving `duro-design-system`.
 
 ## Code review
 
-- greenrack: backend, lang:typescript, unix, tui (architect left out: no new contract)
+- greenrack: none — markdown only (the closing docs branch; the code was reviewed with these profiles on #224: backend, lang:typescript, unix, tui)
 - grh: backend, lang:rust (unix, tui left out: no output change)
 - adr-lint: backend, lang:rust (unix, tui left out: no output change)
 
