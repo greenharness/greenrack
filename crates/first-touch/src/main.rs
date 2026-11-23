@@ -30,7 +30,7 @@ const NAME: &str = "greenrack-first-touch";
 /// The CLI the hook starts. The floor is the first release with `hook first-touch`.
 const PACKAGE: &str = "@greenharness/greenrack-cli@^7.7.0";
 /// `package.json` text that marks a consumer, the CLI's exact test aside.
-const NEEDLES: [&str; 2] = ["@greenharness/greenrack-", "@duro-app/"];
+const NEEDLES: [&str; 1] = ["@greenharness/greenrack-"];
 /// A repository with its own session hook keeps it.
 const OWN_HOOKS: [&str; 2] = [
     ".claude/hooks/greenrack-catalog.sh",

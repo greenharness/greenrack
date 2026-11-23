@@ -221,6 +221,11 @@ install --user` writes the new ones and the template is patched from the
   `[tool]` table under 0.1. The status is a `[tool.machine.status]` subtable,
   so `parseToml` learned dotted table names and no inline table was needed.
   AGENTS.md held no text about the session context and is unchanged.
+- 2026-11-23 — main dropped the old `@duro-app/` scope from consumer detection
+  (#224) while this branch was open, so the binary's prefilter and the grh
+  doctor guard name `@greenharness/greenrack-` only. A prefilter wider than the
+  CLI's test would start `npx` for repositories the CLI then turns away. The
+  `.claude/hooks/duro-catalog.sh` own-hook check stays, as on main.
 - 2026-11-23 — the exec-form entries carry `args: []`: the binary reads only
   its first argument, `--protocol`. Phase 4's real session proves that Claude
   Code accepts an empty `args`.
