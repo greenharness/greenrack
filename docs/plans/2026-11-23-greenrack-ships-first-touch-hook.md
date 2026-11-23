@@ -2,7 +2,7 @@
 status: active
 branch: feat/greenrack-first-touch-hook
 repos: [greenrack, dotfiles, decisions]
-adrs: [decisions:ADR-0064, decisions:ADR-0073, decisions:ADR-0075]
+adrs: [decisions:ADR-0064, decisions:ADR-0073, decisions:ADR-0075, decisions:ADR-0082]
 plan-id: p-01M80J3H0J2PMKPCBGXMTM48B7
 ---
 
@@ -132,10 +132,10 @@ install|uninstall --user`; status args are `-y
 
 ## Phases
 
-- [ ] Phase 0 — amend ADR-0075 in the decisions repo: a part installs its own
+- [x] Phase 0 — amend ADR-0075 in the decisions repo: a part installs its own
       session hooks and grh runs its installer;
-      `docs/adr/0081-a-part-installs-its-own-session-hooks.md` (0080 is taken; use
-      the next free number), `docs/adr/HEADS.md`; one PR, merged before Phase 3
+      `docs/adr/0082-a-part-installs-its-own-session-hooks.md` (0080 and 0081
+      were taken), `docs/adr/HEADS.md`; one PR, merged before Phase 3
 - [ ] Phase 1 — the binary and the command: `Cargo.toml`, `Cargo.lock`,
       `rust-toolchain.toml`, `crates/first-touch/Cargo.toml`,
       `crates/first-touch/src/main.rs`, `crates/first-touch/tests/contract.rs`,
@@ -198,9 +198,39 @@ install --user` writes the new ones and the template is patched from the
   unwired meanwhile.
 - 2026-11-22 — the person chose to amend ADR-0075 first (Phase 0): it has grh
   own the SessionStart entry, which grh only prints today.
+- 2026-11-23 — Phase 0 merged as ADR-0082 (decisions#344). It restates
+  ADR-0064's `harness.installer` too: that key also listed the SessionStart
+  entry among the content grh places, and amending ADR-0075 alone would have
+  left the two records disagreeing.
+- 2026-11-23 — Phase 1 declares no cargo gates: greengate's built-in
+  `cargo-fmt`, `clippy`, `cargo-test` and `audit-rust` wake on `.rs` files and
+  `Cargo.toml`. `.adr.yaml` gains `crates/first-touch/**: [cli]`, since the
+  crate has a `[[bin]]` target. Phase 1 was written by hand, not through relais:
+  the host sat at load 30 to 80 with both slots held.
+- 2026-11-23 — the CLI's six optional dependencies are added by the release
+  (`build-platform-packages.mjs --inject`), not committed in
+  `packages/cli/package.json`: a committed entry makes every local
+  `pnpm install` ask npm for versions no release has made. `files` needed no change,
+  since `dist` already ships `native.js`.
+- 2026-11-23 — a dry run only warns on a missing npm name and checks out the
+  dispatched commit, so packaging can be rehearsed before the placeholders and
+  the tag exist. A resume publishes the archives the first run attached to the
+  GitHub release (`contents: write`), because a Rust rebuild is not
+  byte-identical to what `SHA256SUMS` named.
+- 2026-11-23 — the manifest's `harness` rises to `>=0.2`, since grh refuses a
+  `[tool]` table under 0.1. The status is a `[tool.machine.status]` subtable,
+  so `parseToml` learned dotted table names and no inline table was needed.
+  AGENTS.md held no text about the session context and is unchanged.
+- 2026-11-23 — the exec-form entries carry `args: []`: the binary reads only
+  its first argument, `--protocol`. Phase 4's real session proves that Claude
+  Code accepts an empty `args`.
 
 ## Verification
 
+- Phase 0: `aval check` in the decisions repo → no findings, and both keys
+  resolve to the new record. Observed: 82 records, no findings;
+  `aval resolve harness.extensions` and `aval resolve harness.installer` both return
+  ADR-0082 as active; implementation review approve on the delta.
 - Phase 1: the 36 behaviours of the Python tests pass against the binary, as
   Rust integration tests with a fake `npx`, on the macOS, Linux and
   `windows-latest` jobs; the event fixtures include `\` and a drive letter, which
@@ -211,17 +241,35 @@ install --user` writes the new ones and the template is patched from the
   parallel calls; a fake `npx` forking a sleeping grandchild returns within the
   bound plus 1 s on all three jobs; a forced panic exits 0 with empty stdout. A
   cold `npx` (empty `npm_config_cache`) is timed against the 10 s cap.
+  Observed on macOS, release build, interleaved: a hit 7.0 ms at the median,
+  an empty `sh -c :` 22.6 ms, so a hit costs 15.5 ms less than the empty start
+  (`cargo test --release --test contract -- --ignored`).
 - Phase 2: a `dry_run` dispatch builds the six platform packages and publishes
   nothing; each one's `os` and `cpu` match its name, and the CLI's optional
   dependencies equal the version; `npm pack` of the CLI lists the six optional
   dependencies; the resolver picks the right package under mocked platforms,
-  glibc and musl, and refuses `win32-arm64` and linux-arm64-musl.
+  glibc and musl, and refuses `win32-arm64` and linux-arm64-musl. Observed
+  locally: the resolver tests pass (5); the packaging script on six fake
+  archives wrote six packages whose `os`, `cpu` and `libc` match their names,
+  each binary mode 755, injected six optional dependencies at 7.7.0, and
+  refused a corrupted archive with exit 1; actionlint finds nothing.
 - Phase 3: with `GREENRACK_FIRST_TOUCH_BIN` naming the Phase 1 build (nothing is
   published before Phase 4), on a temporary `CLAUDE_CONFIG_DIR`, install,
   reinstall, check, entry drift, uninstall and invalid JSON behave as above,
   and other entries survive. `--check` exits 0, 1, 2 and 3 as above; under a
   simulated 7.8.0 with another binary it says `outdated` and still exits 0. On
-  `windows-latest` an install while the hook binary runs succeeds.
+  `windows-latest` an install while the hook binary runs succeeds. Observed: the
+  CLI built from this branch, with `GREENRACK_FIRST_TOUCH_BIN` naming the
+  release build, on a temporary `CLAUDE_CONFIG_DIR` holding a `Stop` entry:
+  check exit 1 with `state: absent`; install wrote the binary and both entries;
+  reinstall said `already installed`; check exit 0, `present`; the installed
+  binary run on a start outside a repository printed nothing and exited 0; a
+  timeout edited to 60 gave exit 1 with one line per entry; invalid JSON exit 2,
+  nothing changed; uninstall left only the `Stop` entry and removed the binary;
+  `hook uninstall` without `--user` exit 2. The unit suite (385, of which 15 for
+  `--user`) covers outdated, protocol 2, exit 3, the symlink and mode, the
+  pasted entry and the `.old` rename under a mocked `win32`; a run on a real
+  Windows install is not done.
 - Phase 4: the published 7.7.0 passes `hook install --user --check` after an
   install and fails it before; a `claude -p` session started in
   `~/Developer/Perso`, hooked through `--settings` from that install, gives

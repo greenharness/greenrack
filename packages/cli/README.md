@@ -165,7 +165,7 @@ the greenrack entry joins the array.
 ## Extension (Green Harness)
 
 `@greenharness/greenrack-cli` is also the `design` extension of [grh](https://github.com/fredericrous/grh),
-the Green Harness installer. `greenharness.toml` at the package root is a grh manifest v1; install
+the Green Harness installer. `greenharness.toml` at the package root is a grh manifest v2; install
 it from a repository that depends on the CLI:
 
 ```
@@ -180,20 +180,46 @@ npm pack @greenharness/greenrack-cli@^7 && tar -xzf greenharness-greenrack-cli-7
 
 What each manifest entry does:
 
-| Entry                 | What grh places                                                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[[skill]]` ×4        | the `colors`, `typography`, `ui` and `greenrack-mockup` skills, copied to `~/.claude/skills/`                                               |
-| `[[agent]]`           | `design-system-lookup`: given a plan, answers what its UI needs from the catalog as a `design-lookup` block                                 |
-| `[[mcp]]`             | the `greenrack` MCP server (`greenrack mcp`, through `npx`), registered for the user                                                        |
-| `[[session_context]]` | `greenrack context`: the catalog, then the doctor block; silent outside a greenrack consumer and where `greenrack hook install` already ran |
-| `[[doctor]]`          | `greenrack doctor`, shown by `grh status`; silent outside a greenrack consumer                                                              |
+| Entry            | What grh places                                                                                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[[skill]]` ×4   | the `colors`, `typography`, `ui` and `greenrack-mockup` skills, copied to `~/.claude/skills/`                                                |
+| `[[agent]]`      | `design-system-lookup`: given a plan, answers what its UI needs from the catalog as a `design-lookup` block                                  |
+| `[[mcp]]`        | the `greenrack` MCP server (`greenrack mcp`, through `npx`), registered for the user                                                         |
+| `[tool.machine]` | runs `greenrack hook install --user` (and `uninstall --user`) through `npx`: the first-touch hook below; `grh status` reads `--check --json` |
+| `[[doctor]]`     | `greenrack doctor`, shown by `grh status`; silent outside a greenrack consumer                                                               |
 
 The skills gate themselves: each opens by saying it applies only in a repository whose `package.json`
 depends on `@greenharness/greenrack-ui` (a `workspace:` dependency counts), and to stop anywhere else, so a
-user-level install costs other repositories nothing. The two session commands are `sh -c` guards
-that exit at once unless the git root of the cwd has a `package.json`, in the root or one or two directories below it,
-that names `@greenharness/greenrack-`. A session started in a folder with no repository, such as a parent of several,
-gets nothing.
+user-level install costs other repositories nothing. The doctor command is an `sh -c` guard
+that exits at once unless the git root of the cwd has a `package.json`, in the root or one or two directories below it,
+that names `@greenharness/greenrack-`.
+
+## The first-touch hook (`hook install --user`)
+
+```
+npx -y @greenharness/greenrack-cli@^7.7.0 hook install --user
+```
+
+installs the index for every Claude Code session on the machine, with or without grh, on macOS,
+Linux and Windows. It copies the `greenrack-first-touch` binary (a small Rust program, shipped in an
+`@greenharness/greenrack-first-touch-<platform>` package the CLI depends on) to `<claude>/hooks/`, and
+wires it in `<claude>/settings.json` on `SessionStart` and on `PreToolUse` for
+`Read|Edit|Write|MultiEdit|NotebookEdit|Bash`. `<claude>` is `$CLAUDE_CONFIG_DIR`, else `~/.claude`.
+
+The binary gives the index once per session, agent and repository, the first time a session starts
+in or touches a file of a greenrack consumer, wherever the session started: a session opened in a
+folder of several repositories gets it when it first reads one. Anywhere else it exits at once and
+starts nothing. When owed, it runs `npx greenrack-cli hook first-touch` under a 10 s limit; a failure
+is retried, three in ten minutes back off, and the next session start says so.
+
+- `--check` exits 0 installed, 1 absent or different (one line per difference), 2 for invalid JSON or
+  a platform with no binary, 3 for an unreadable `settings.json`; `--json` prints `{"state": ...}`.
+  A binary from another release is `outdated` and still installed. It also reports the last failure.
+- `hook uninstall --user` removes the two entries and the binary, nothing else.
+- Install keeps every other entry, a symlinked `settings.json` and its mode, refuses invalid JSON, and
+  replaces a hand-pasted `greenrack-cli@^7 context` entry. Restart Claude Code sessions after either.
+- `GREENRACK_FIRST_TOUCH_BIN` names a binary to install instead of the packaged one (a local build).
+  Windows on arm64 and Alpine on arm64 have no build: install exits 2 and writes nothing.
 
 `greenrack context` prints the short index `greenrack hook session-start` prints (which now delegates to
 `greenrack context --catalog-only`; `--full` prints the whole catalog) and then the `doctor --session` block, re-run only when the build files'

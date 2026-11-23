@@ -22,6 +22,7 @@ import type {Registry} from '../registry-types.js'
 import type {CommandResult} from './lookup.js'
 import {runContext} from './context.js'
 import {firstTouchOptions, runFirstTouch} from './first-touch.js'
+import {runUserInstall, runUserUninstall} from './hook-user.js'
 import {
   GITIGNORE_BLOCK,
   HOOK_CACHE_IGNORE,
@@ -40,16 +41,28 @@ export interface HookOptions {
   check?: boolean
   /** Repo root. Defaults to the process cwd. */
   cwd?: string
+  /** install / uninstall: the machine-wide first-touch hook in the Claude config folder. */
+  user?: boolean
 }
 
-const EVENTS = ['session-start', 'install', 'first-touch']
+const EVENTS = ['session-start', 'install', 'uninstall', 'first-touch']
 
 export function runHook(
   registry: Registry,
   event?: string,
   options: HookOptions = {},
 ): CommandResult {
-  if (event === 'install') return runHookInstall(options)
+  if (event === 'install') {
+    return options.user ? runUserInstall({check: options.check}) : runHookInstall(options)
+  }
+  if (event === 'uninstall') {
+    if (options.user) return runUserUninstall()
+    return {
+      text: 'greenrack hook uninstall: only --user is supported; the repo hooks are files in the repo',
+      data: {kind: 'usage-error'},
+      exitCode: 2,
+    }
+  }
   // Run by the greenrack-first-touch binary, which passes the root and event.
   if (event === 'first-touch') return runFirstTouch(registry, firstTouchOptions())
   if (event !== 'session-start') {

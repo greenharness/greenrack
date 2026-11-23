@@ -49,6 +49,7 @@ async function main(): Promise<void> {
         'source-only': {type: 'boolean', default: false},
         'no-color': {type: 'boolean', default: false},
         check: {type: 'boolean', default: false},
+        user: {type: 'boolean', default: false},
         force: {type: 'boolean', default: false},
         session: {type: 'boolean', default: false},
         'catalog-only': {type: 'boolean', default: false},
@@ -103,8 +104,9 @@ async function main(): Promise<void> {
   }
   if (first === 'hook') {
     if (rest.length > 1) usageError('greenrack hook takes exactly one event')
-    const hookResult = runHook(registry, rest[0], {check: values.check})
-    if (rest[0] === 'install') pointToExtension()
+    const hookResult = runHook(registry, rest[0], {check: values.check, user: values.user})
+    // The grh pointer is for the repo install; grh itself runs the --user one.
+    if (rest[0] === 'install' && !values.user) pointToExtension()
     emit(hookResult, values.json)
   }
   if (first === 'skill') {

@@ -1,11 +1,11 @@
 # The greenrack design system as the `design` Green Harness extension (ADR-0048).
-# grh manifest v1: docs/extension-manifest.md in the grh repository.
+# grh manifest v2 (`[tool]`): docs/extension-manifest.md in the grh repository.
 # `version` is written from the git tag by the release, beside package.json's.
 
 [extension]
 name = "design"
 version = "1.0.0"
-harness = ">=0.1"
+harness = ">=0.2"
 
 [[skill]]
 path = "skills/colors"
@@ -27,12 +27,22 @@ name = "greenrack"
 command = "npx"
 args = ["-y", "-p", "@greenharness/greenrack-cli@^7", "-p", "@modelcontextprotocol/sdk", "greenrack", "mcp"]
 
-# Quiet outside a greenrack consumer (on @greenharness/greenrack-*); quiet too when a hook install (greenrack's,
-# or the old duro one) already wired the catalog hook, so a session never gets
-# the catalog twice. The test looks at the git root of the cwd, never at folders
-# below it: a session started in a parent folder with no repository gets nothing.
-[[session_context]]
-command = "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; cd \"$r\" || exit 0; [ -n \"$(find . -maxdepth 3 -name package.json -not -path \"*/node_modules/*\" -exec grep -l -e \"@greenharness/greenrack-\" {} + 2>/dev/null)\" ] || exit 0; [ -e .claude/hooks/greenrack-catalog.sh ] && exit 0; [ -e .claude/hooks/duro-catalog.sh ] && exit 0; exec npx -y @greenharness/greenrack-cli@^7 context'"
+# The first-touch hook (decisions:ADR-0082): greenrack installs it, grh runs
+# greenrack's installer. It replaces `[[session_context]]`: the hook gives the
+# index on the first touch of a consumer, wherever the session started, and
+# two deliverers would print it twice. `npx` is adopted from PATH. Status is
+# read as JSON, so an npx that fails (exit 1, no JSON) reads unknown, never
+# absent.
+[tool]
+bin = "npx"
+
+[tool.machine]
+install = ["{bin}", "-y", "@greenharness/greenrack-cli@^7.7.0", "hook", "install", "--user"]
+uninstall = ["{bin}", "-y", "@greenharness/greenrack-cli@^7.7.0", "hook", "uninstall", "--user"]
+
+[tool.machine.status]
+args = ["-y", "@greenharness/greenrack-cli@^7.7.0", "hook", "install", "--user", "--check", "--json"]
+json = ["state"]
 
 [[doctor]]
 command = "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; cd \"$r\" || exit 0; [ -n \"$(find . -maxdepth 3 -name package.json -not -path \"*/node_modules/*\" -exec grep -l -e \"@greenharness/greenrack-\" {} + 2>/dev/null)\" ] || exit 0; exec npx -y @greenharness/greenrack-cli@^7 doctor'"

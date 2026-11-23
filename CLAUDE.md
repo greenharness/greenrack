@@ -25,7 +25,7 @@
 > **Green Harness:** the same content also ships as the `design` extension of `grh` (ADR-0048):
 > `packages/cli/greenharness.toml` declares the four skills (self-gating: they apply only where
 > `package.json` depends on `@greenharness/greenrack-ui`), the `design-system-lookup` agent, the `greenrack` MCP
-> server, and `greenrack context` / `greenrack doctor` as session context and doctor checks. Install it with
+> server, and the first-touch hook (`greenrack hook install --user`, run by grh) and `greenrack doctor` as a doctor check. Install it with
 > `grh install --extension node_modules/@greenharness/greenrack-cli`; `greenrack hook install` and `greenrack skill install`
 > keep working beside it and print a pointer to it on stderr. See `packages/cli/README.md`.
 
