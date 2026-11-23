@@ -84,9 +84,7 @@ function Trigger({
   // labels the trigger (a labelable <button>) — no manual aria-label needed; and
   // surface the field's description/error + invalid state, mirroring <Input>.
   const fieldCtx = useFieldContext()
-  const describedBy = fieldCtx
-    ? `${fieldCtx.descriptionId} ${fieldCtx.invalid ? fieldCtx.errorId : ''}`.trim()
-    : undefined
+  const describedBy = fieldCtx?.describedBy
 
   // Sync local ref to context triggerRef
   useEffect(() => {

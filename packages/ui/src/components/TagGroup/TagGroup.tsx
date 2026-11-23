@@ -136,11 +136,7 @@ function Root({
             isInvalid && styles.containerError,
             disabled && styles.containerDisabled,
           ]}
-          aria-describedby={
-            fieldCtx
-              ? `${fieldCtx.descriptionId} ${fieldCtx.invalid ? fieldCtx.errorId : ''}`.trim()
-              : undefined
-          }
+          aria-describedby={fieldCtx?.describedBy}
           aria-invalid={isInvalid || undefined}
         >
           {children}
