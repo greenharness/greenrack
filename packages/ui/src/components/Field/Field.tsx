@@ -94,10 +94,10 @@ function rowLabelOf(
 
 function ownError(fieldContext: FieldContextValue, errorCount: number): ReactNode {
   if (fieldContext.nativeError === undefined || errorCount > 0) return null
-  if (fieldContext.inRow) {
+  if (fieldContext.row) {
     // In a row the message lives in the row's line, in the Field's own slot.
-    return fieldContext.rowSlot ? (
-      <RowError slot={fieldContext.rowSlot} label={fieldContext.rowLabel}>
+    return fieldContext.row.slot ? (
+      <RowError slot={fieldContext.row.slot} label={fieldContext.row.label}>
         {fieldContext.errorMessage ?? fieldContext.nativeError}
       </RowError>
     ) : null
@@ -125,7 +125,7 @@ interface RootProps {
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
-  /** @deprecated `'hanging'` is deprecated: a row of Fields is a `Field.Row`, which shows its errors in one line under the whole row and covers nothing. Removed in the next major.
+  /** `'hanging'` is deprecated: a row of Fields is a `Field.Row`, which shows its errors in one line under the whole row and covers nothing; `'hanging'` is removed in the next major.
    *  Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align="end"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down. */
   errorPlacement?: ErrorPlacement
   /** The name that leads this Field's message in a `Field.Row`'s line, for a Field whose label is not plain text (an icon, JSX). Defaults to the label's text. */
@@ -190,7 +190,7 @@ function ControlledRoot({
     invalid,
     errorCount > 0 || nativeError !== undefined,
   )
-  const {rootRef, inRow, slot} = useRowSlot(
+  const {rootRef, inRow, slot, fallbackLabel} = useRowSlot(
     `${id}-error`,
     invalid && (errorCount > 0 || nativeError !== undefined),
   )
@@ -211,9 +211,14 @@ function ControlledRoot({
       disabled: effectiveDisabled,
       labelPosition: effectiveLabelPosition,
       errorPlacement,
-      inRow,
-      rowSlot: slot,
-      rowLabel: rowLabelOf(errorLabel, labelText, effectiveNecessityIndicator, required),
+      row: inRow
+        ? {
+            slot,
+            label:
+              rowLabelOf(errorLabel, labelText, effectiveNecessityIndicator, required) ??
+              fallbackLabel,
+          }
+        : undefined,
       necessityIndicator: effectiveNecessityIndicator,
       field: {
         value: field.value,
@@ -241,6 +246,7 @@ function ControlledRoot({
       errorPlacement,
       inRow,
       slot,
+      fallbackLabel,
       errorLabel,
       effectiveNecessityIndicator,
       field.value,
@@ -304,7 +310,7 @@ function StaticRoot({
     invalid,
     errorCount > 0 || nativeError !== undefined,
   )
-  const {rootRef, inRow, slot} = useRowSlot(
+  const {rootRef, inRow, slot, fallbackLabel} = useRowSlot(
     `${id}-error`,
     invalid && (errorCount > 0 || nativeError !== undefined),
   )
@@ -320,9 +326,9 @@ function StaticRoot({
       disabled,
       labelPosition,
       errorPlacement,
-      inRow,
-      rowSlot: slot,
-      rowLabel: rowLabelOf(errorLabel, labelText, undefined, required),
+      row: inRow
+        ? {slot, label: rowLabelOf(errorLabel, labelText, undefined, required) ?? fallbackLabel}
+        : undefined,
       nativeError,
       setNativeError,
       registerError,
@@ -341,6 +347,7 @@ function StaticRoot({
       errorPlacement,
       inRow,
       slot,
+      fallbackLabel,
       errorLabel,
       nativeError,
       setNativeError,
@@ -500,10 +507,11 @@ function Error({children}: ErrorProps) {
   const registerError = ctx?.registerError
   useLayoutEffect(() => registerError?.(), [registerError])
   const content = [children, ctx?.errorMessage, ctx?.nativeError].find(rendersSomething)
-  if (ctx?.inRow) {
-    // In a row the message lives in the row's line, in this Field's slot.
-    return ctx.rowSlot ? (
-      <RowError slot={ctx.rowSlot} label={ctx.rowLabel}>
+  if (ctx?.row) {
+    // In a row the message lives in the row's line, in this Field's slot; with
+    // no message there is nothing to name.
+    return ctx.row.slot && rendersSomething(content) ? (
+      <RowError slot={ctx.row.slot} label={ctx.row.label}>
         {content}
       </RowError>
     ) : null

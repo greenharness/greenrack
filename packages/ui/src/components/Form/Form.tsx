@@ -64,19 +64,21 @@ export function Form<T extends FieldValues>({
     }
 
     // Set new errors
-    let firstNew: string | undefined
+    let first: string | undefined
     if (validationErrors) {
       for (const [key, message] of Object.entries(validationErrors)) {
         if (message) {
           methods.setError(key as Path<T>, {type: 'server', message: message as string})
-          if (!prevKeys.includes(key)) firstNew ??= key
+          first ??= key
         }
       }
     }
     // A submit the server then refused moves focus to the first field it names,
-    // as a submit the schema refuses does; errors present on first render do not
-    // take focus.
-    if (firstNew && submittedRef.current) methods.setFocus(firstNew as Path<T>)
+    // as a submit the schema refuses does, each time it is refused. Once per
+    // submit: errors present on first render, or set later without a submit, do
+    // not take focus.
+    if (first && submittedRef.current) methods.setFocus(first as Path<T>)
+    submittedRef.current = false
 
     prevErrorKeysRef.current = nextKeys
   }, [validationErrors, methods])
@@ -86,6 +88,7 @@ export function Form<T extends FieldValues>({
   const onInvalid = useCallback(
     (errors: FieldErrors<T>) => {
       const firstField = Object.keys(errors)[0]
+      submittedRef.current = false
       if (firstField) {
         methods.setFocus(firstField as Path<T>)
       }

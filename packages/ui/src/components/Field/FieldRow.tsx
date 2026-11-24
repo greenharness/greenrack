@@ -1,5 +1,6 @@
 import {
   type ReactNode,
+  type RefObject,
   createContext,
   useCallback,
   useContext,
@@ -10,8 +11,9 @@ import {
 } from 'react'
 import {createPortal} from 'react-dom'
 import {html} from 'react-strict-dom'
-import type {SpacingToken} from '@greenharness/greenrack-tokens/keys'
 import {Cluster} from '../Cluster/Cluster'
+import type {RowSlot} from './FieldContext'
+import type {RowErrorProps, RowProps, RowSlotState} from './FieldRowTypes'
 import {styles} from './styles.css'
 
 // A row of Fields shows its errors in one line under the whole row, in the
@@ -31,11 +33,6 @@ const RowContext = createContext<RowContextValue | null>(null)
 // The Field a slot belongs to, to keep the line in the Fields' page order.
 const owners = new WeakMap<Element, HTMLElement>()
 
-export interface RowProps {
-  gap?: SpacingToken
-  children: ReactNode
-}
-
 /** A row of Fields (and a button): the controls wrap, and every Field's error
  *  shows in one line under the whole row, each message led by its field's
  *  label. */
@@ -45,9 +42,9 @@ export function Row({gap = 'sm', children}: RowProps) {
   const onSlot = useCallback((delta: number) => setShown((count) => count + delta), [])
   // Stable once the line is mounted, so a message coming or going re-renders
   // the row's own line and no Field.
-  const value = useMemo(() => ({line, onSlot}), [line, onSlot])
+  const rowContext = useMemo(() => ({line, onSlot}), [line, onSlot])
   return (
-    <RowContext.Provider value={value}>
+    <RowContext.Provider value={rowContext}>
       <html.div style={styles.row}>
         <Cluster gap={gap} align="end">
           {children}
@@ -70,17 +67,30 @@ export function RowBoundary({children}: {children: ReactNode}) {
 }
 
 /** The slot a Field's error takes in its row's line while `active`: the span
- *  that carries the Field's `errorId`, or null outside a row (or before the
- *  line is mounted). `rootRef` goes on the Field's outermost element. */
-export function useRowSlot(errorId: string, active: boolean) {
+ *  that carries the Field's `errorId`. A Field that only inherits the row through
+ *  a portal (the popup of a Popover opened from the row) is not in the row, and
+ *  keeps its error where it is. `rootRef` goes on the Field's outermost element. */
+export function useRowSlot(
+  errorId: string,
+  active: boolean,
+): RowSlotState<RefObject<HTMLDivElement | null>> {
   const row = useContext(RowContext)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const [slot, setSlot] = useState<RowSlot | null>(null)
+  // Unknown until the Field is in the page; a layout effect settles it before paint.
+  const [inside, setInside] = useState(true)
+  const [fallbackLabel, setFallbackLabel] = useState<string | undefined>()
   const line = row?.line ?? null
   const onSlot = row?.onSlot
   useLayoutEffect(() => {
     const root = rootRef.current
-    if (!active || !line || !root || !onSlot) return
+    if (!line || !root) return
+    setInside(line.parentElement?.contains(root) ?? false)
+  }, [line])
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!active || !inside || !line || !root || !onSlot) return
+    setFallbackLabel(root.querySelector('[aria-label]')?.getAttribute('aria-label') ?? undefined)
     const span = document.createElement('span')
     span.id = errorId
     owners.set(span, root)
@@ -93,31 +103,29 @@ export function useRowSlot(errorId: string, active: boolean) {
     })
     line.insertBefore(span, after ?? null)
     onSlot(1)
-    setSlot(span)
+    setSlot(span as unknown as RowSlot)
     return () => {
       span.remove()
       onSlot(-1)
       setSlot(null)
     }
-  }, [active, line, onSlot, errorId])
-  return {rootRef, inRow: row !== null, slot}
+  }, [active, inside, line, onSlot, errorId])
+  return {rootRef, inRow: row !== null && inside, slot, fallbackLabel}
+}
+
+/** A message ends in punctuation, so two read one after the other, in the line
+ *  and aloud, as two sentences. */
+function sentence(text: ReactNode): ReactNode {
+  return typeof text === 'string' && !/[.!?]$/.test(text.trim()) ? `${text}.` : text
 }
 
 /** The message in its Field's slot, led by the field's label. */
-export function RowError({
-  slot,
-  label,
-  children,
-}: {
-  slot: object
-  label?: string
-  children: ReactNode
-}) {
+export function RowError({slot, label, children}: RowErrorProps) {
   return createPortal(
     <>
       {label ? `${label}: ` : null}
-      {children}{' '}
+      {sentence(children)}{' '}
     </>,
-    slot as HTMLElement,
+    slot as unknown as HTMLElement,
   )
 }

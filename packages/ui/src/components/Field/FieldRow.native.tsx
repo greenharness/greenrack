@@ -1,14 +1,9 @@
-import type {ReactNode} from 'react'
-import type {SpacingToken} from '@greenharness/greenrack-tokens/keys'
+import type {RefObject} from 'react'
 import {Cluster} from '../Cluster/Cluster'
+import type {RowErrorProps, RowProps, RowSlotState} from './FieldRowTypes'
 
 // On React Native a row is a plain wrapping Cluster: it provides no row line,
 // so each Field keeps its own error below its control.
-
-export interface RowProps {
-  gap?: SpacingToken
-  children: ReactNode
-}
 
 export function Row({gap = 'sm', children}: RowProps) {
   return (
@@ -18,14 +13,17 @@ export function Row({gap = 'sm', children}: RowProps) {
   )
 }
 
-export function RowBoundary({children}: {children: ReactNode}) {
+export function RowBoundary({children}: Pick<RowProps, 'children'>) {
   return <>{children}</>
 }
 
-export function useRowSlot(_errorId: string, _active: boolean) {
-  return {rootRef: undefined, inRow: false, slot: null}
+export function useRowSlot(
+  _errorId: string,
+  _active: boolean,
+): RowSlotState<RefObject<null> | undefined> {
+  return {rootRef: undefined, inRow: false, slot: null, fallbackLabel: undefined}
 }
 
-export function RowError(_props: {slot: unknown; label?: string; children: ReactNode}) {
+export function RowError(_props: RowErrorProps) {
   return null
 }

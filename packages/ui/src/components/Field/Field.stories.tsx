@@ -18,6 +18,7 @@ import {Checkbox} from '../Checkbox/Checkbox'
 import {Stack} from '../Stack/Stack'
 import {Inline} from '../Inline/Inline'
 import {Fieldset} from '../Fieldset/Fieldset'
+import {Popover} from '../Popover/Popover'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
 import {typeScale} from '@greenharness/greenrack-tokens/tokens/typography.css'
@@ -791,7 +792,11 @@ function RowDemo({
 
 /** The row's line: a region mounted from the start, empty until an error. */
 function rowLine(canvas: ReturnType<typeof within>) {
-  return canvas.getByRole('alert')
+  const line = canvas
+    .getAllByRole('alert')
+    .find((alert: HTMLElement) => alert.ariaAtomic === 'false')
+  if (!line) throw new Error('no row line')
+  return line
 }
 
 /** `Field.Row`: each error shows in one line under the whole row, led by its
@@ -805,13 +810,13 @@ export const RowErrorsOneLine: Story = {
     const [dateInput] = canvas.getAllByRole('textbox')
     const before = dateInput.getBoundingClientRect().top
     await userEvent.click(canvas.getByRole('button', {name: 'Toggle date'}))
-    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Date: Enter a date'))
+    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Date: Enter a date.'))
     // The message is the element the input describes, once.
     const id = dateInput.getAttribute('aria-describedby')
     await expect(id).toBeTruthy()
     await expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1)
     await expect(document.getElementById(id as string)?.textContent?.trim()).toBe(
-      'Date: Enter a date',
+      'Date: Enter a date.',
     )
     await expect(dateInput).toBeInvalid()
     // Nothing moved; the line is under the row and clear of what follows.
@@ -838,12 +843,12 @@ export const RowSecondErrorJoinsLine: Story = {
   render: () => <RowDemo />,
   play: async ({canvas, userEvent}) => {
     await userEvent.click(canvas.getByRole('button', {name: 'Toggle time'}))
-    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Time: Enter a time'))
+    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Time: Enter a time.'))
     const timeSpan = rowLine(canvas).firstElementChild
     await userEvent.click(canvas.getByRole('button', {name: 'Toggle date'}))
     await waitFor(() =>
       expect(rowLine(canvas).textContent?.replace(/\s+/g, ' ').trim()).toBe(
-        'Date: Enter a date Time: Enter a time',
+        'Date: Enter a date. Time: Enter a time.',
       ),
     )
     // The first message is the same node, in place; the line announces only changes.
@@ -950,5 +955,54 @@ export const ErrorInFlowOverlapsNothing: Story = {
     )
     await expect(next.getBoundingClientRect().top).toBeGreaterThan(nextTop)
     await expect(input).toHaveAccessibleDescription('Enter a date')
+  },
+}
+
+/** A Field named only by its control's `aria-label` (no `Field.Label`) still
+ *  leads its message with that name in the row's line. */
+export const RowFieldNamedByAriaLabel: Story = {
+  render: () => (
+    <html.div style={rowStyles.frame}>
+      <Field.Row>
+        <Field.Root invalid>
+          <Input aria-label="Date" placeholder="2026-11-24" />
+          <Field.Error>Enter a date</Field.Error>
+        </Field.Root>
+        <Button>Mark posted</Button>
+      </Field.Row>
+    </html.div>
+  ),
+  play: async ({canvas}) => {
+    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Date: Enter a date.'))
+  },
+}
+
+/** A Field in the popup of a Popover opened from the row reads the row through
+ *  the portal but is not in it: its error stays in the popup, and the row's line
+ *  stays empty. */
+export const RowPopoverFieldKeepsOwnError: Story = {
+  render: () => (
+    <html.div style={rowStyles.frame}>
+      <Field.Row>
+        <Popover.Root>
+          <Popover.Trigger>Add note</Popover.Trigger>
+          <Popover.Popup label="Add note">
+            <Field.Root invalid>
+              <Field.Label>Note</Field.Label>
+              <Input placeholder="A note" />
+              <Field.Error>Enter a note</Field.Error>
+            </Field.Root>
+          </Popover.Popup>
+        </Popover.Root>
+        <Button>Mark posted</Button>
+      </Field.Row>
+    </html.div>
+  ),
+  play: async ({canvas, userEvent}) => {
+    await userEvent.click(canvas.getByRole('button', {name: 'Add note'}))
+    const popup = within(await within(document.body).findByRole('dialog'))
+    const message = await popup.findByText('Enter a note')
+    await expect(message).toHaveAttribute('role', 'alert')
+    await expect(rowLine(canvas)).toBeEmptyDOMElement()
   },
 }

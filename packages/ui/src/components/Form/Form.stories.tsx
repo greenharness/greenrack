@@ -515,5 +515,9 @@ export const ServerValidationErrors: Story = {
     // The server refused the submit: focus goes to the field it names.
     await waitFor(() => expect(usernameInput).toHaveFocus())
     await expect(usernameInput).toHaveAccessibleDescription('This username is already taken')
+    // Refused again: focus returns to that field each time, not only the first.
+    await userEvent.click(passwordInput)
+    await userEvent.click(button)
+    await waitFor(() => expect(usernameInput).toHaveFocus())
   },
 }

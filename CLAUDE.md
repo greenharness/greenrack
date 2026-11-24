@@ -179,7 +179,7 @@ These components **must** be wrapped in their `.Root`:
 
 | Component     | Sub-components                          | Standalone behavior                                                             |
 | ------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
-| `Field`       | `Root`, `Label`, `Description`, `Error` | Static labels/errors; inside `Form` auto-binds to react-hook-form               |
+| `Field`       | `Root`, `Label`, `Description`, `Error`, `Row` | Static labels/errors; inside `Form` auto-binds to react-hook-form               |
 | `Fieldset`    | `Root`, `Legend`                        | Groups form controls with gap                                                   |
 | `ToggleGroup` | (wraps `Toggle` children)               | Toggle works alone; group adds multi/single select                              |
 | `InputGroup`  | `Root`, `Addon`                         | Input works alone; group adds prefix/suffix addons                              |
@@ -321,7 +321,7 @@ const MySchema = Schema.Struct({
         <Field.Error />
       </Field.Root>
 
-      <Button type="submit" disabled={!formState.isValid}>
+      <Button type="submit" disabled={formState.isSubmitting}>
         Submit
       </Button>
     </Fieldset.Root>
