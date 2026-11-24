@@ -147,6 +147,9 @@ export const styles = css.create({
 
   // --- Body ---
   body: {
+    // Positioned: the containing block of visually hidden text and live regions
+    // inside it, which would otherwise escape it and lengthen an outer scroll.
+    position: 'relative',
     flex: 1,
     overflowY: 'auto',
     // Minimal inset prevents child borders from touching panel structural borders

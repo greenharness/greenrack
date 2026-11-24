@@ -24,6 +24,9 @@ export const styles = css.create({
     height: 'auto',
   },
   primary: {
+    // Positioned: the containing block of visually hidden text and live regions
+    // inside it, which would otherwise escape it and lengthen an outer scroll.
+    position: 'relative',
     flexShrink: 0,
     minWidth: 0,
     overflow: 'auto',
@@ -58,6 +61,9 @@ export const styles = css.create({
   },
   primarySize: (px: number) => ({width: px}),
   secondary: {
+    // Positioned: the containing block of visually hidden text and live regions
+    // inside it, which would otherwise escape it and lengthen an outer scroll.
+    position: 'relative',
     flexGrow: 1,
     flexBasis: 0,
     minWidth: 0,
