@@ -1,5 +1,5 @@
 ---
-status: done
+status: active
 plan-id: p-01M86XM5GSWZ57AM4PV3WBBQVC
 branch: fix/field-errors-everywhere
 repos: [greenrack, social-planner, decisions]
@@ -116,7 +116,7 @@ Close f121 and f112 (`docs/programmes/follow-ups/map.md` in decisions). After th
 
 ## Verification
 
-All five phases observed 2026-11-24.
+Phases 1 to 4 observed 2026-11-24; Phase 5 is closed in decisions, but its production four-row check is not done (below).
 
 - **Audit (Phase 1):** 144 stories driven in Chromium at 1280 and 390 (Dialog, Select, Video, ThemeProvider, ToggleGroup, CheckboxGroup, Textarea and most Combobox/RadioGroup stories cannot show a Field error). Findings B1 to B11 above.
 - **Storybook tests (Chromium, vitest):** full suite 695 of 695 on the first implementation; after the review fixes `Field`, `Form`, `Popover`, `Input` and `Textarea` 91 of 91 (`Field` alone 33 of 33). ToggleGroup and VirtualList failed once under a host load average of 300 and passed on rerun, unrelated to this change.
@@ -124,12 +124,13 @@ All five phases observed 2026-11-24.
 - **Final tree (`ab699325`, after the review fixes):** `Field` and `Form` stories 45 of 45 in Chromium, including `RowPopoverFieldKeepsOwnError`, `RowFieldNamedByAriaLabel` and `ServerValidationErrorsClearedFirst` (focus on Username after the errors are cleared and then set). The real-browser measurements above were taken on the earlier tree `a2efcdec`; the later changes are containment before a span is made, the accessible-name lookup, JSX punctuation and the focus flag, each covered by a story, and are not re-measured in the real browser.
 - **Pre-push rehearsal (unit project):** first run on `17664fa2`: 912 tests passed, but the suite `combobox-native.test.ts` failed to load (`No "css" export is defined on the "react-strict-dom" mock`: `Field` now reaches `Cluster`, whose styles call `css.create`). Fixed by mocking `Cluster` in that test (commit `5d3a0ff6`); a unit run on the fixed tree no longer lists that suite among its failures. Its 54 failures in `packages/cli/test` are the CLI bin end to end tests, which need the built `dist` that a plain worktree run lacks; the snapshot rehearsal builds first. The rehearsal on the final tree is recorded in the pull request.
 - **Found only by the browser:** a second refused submit in `form--server-validation-errors` left focus on the button (the first fix focused only new errors). Fixed in `dccc613a` (focus each refusal, once per submit); the story now asserts it.
-- **Not done, carried:** VoiceOver and NVDA announce check; the five-person hallway test of (a); a sibling-re-render count test, a React Native render test (no RN harness in this repo) and a 200 % text pass; a development warning for a Field in a row that nothing names.
+- **Not done, carried (f122):** VoiceOver and NVDA announce check; the five-person hallway test of (a); a sibling-re-render count test, a React Native render test (no RN harness in this repo) and a 200 % text pass of the Storybook row stories (the app-level 32 px root-font pass was done in Phase 4); a development warning for a Field in a row that nothing names.
 - **Deliberate:** B6 (hanging message unselectable) and B10 (an open Combobox listbox covers its error line). The hanging stories stay on `Inline`, one field and a button, and fit at 390.
 
 - **Release (Phase 3):** tag `v7.10.0` at `0c4a8f09` (the squash merge of #239); the Release run concluded `success`; all seven `@greenharness/greenrack-*` packages answer `7.10.0` on npm and `latest` is `7.10.0` (the registry answered 404 for `ui` for about ten minutes after the workflow logged it published, then 200); the published `ui` tarball holds the row's `aria-atomic` live region.
-- **Adoption (Phase 4):** social-planner#90 (`9dc8d90`), released as `v0.7.0` (CI, image, release and chart-update runs `success`); homelab#1297 bumped the HelmRelease: chart 0.7.0 `deployed`, `Ready=True`, both pods on image `0.7.0`, the deployment rolled out, `/health` `{"status":"ok"}` in the pod and 200 through mTLS, and the running bundle holds the row's code and no `HangingRow`. The four rows were checked in a real browser on the production build of the pushed tree at 1280, a 32 px root font and 390 (overlap 0 px, one alert per row, `aria-describedby` resolving, focus on the first field in error); the production site is behind Authelia, so it was not driven in a browser. At 390 the app shell leaves the content column about 150 px wide: filed as f123.
-- **Close (Phase 5):** f121 and f112 closed in decisions (#365); f122 (these leftovers) and f123 filed.
+- **Adoption (Phase 4):** social-planner#90 (`9dc8d90`), released as `v0.7.0` (CI, image, release and chart-update runs `success`); homelab#1297 bumped the HelmRelease: chart 0.7.0 `deployed`, `Ready=True`, both pods on image `0.7.0`, the deployment rolled out, `/health` `{"status":"ok"}` in the pod and 200 through mTLS, and the running bundle holds the row's code and no `HangingRow`. The four rows were checked in a real browser on the production build of the pushed tree at 1280, a 32 px root font and 390 (overlap 0 px, one alert per row, `aria-describedby` resolving, focus on the first field in error; inputs and the button on one line had equal bottoms (0 px); every message was led by its field's name; nothing lifted); the production site is behind Authelia, so it was not driven in a browser. At 390 the app shell leaves the content column about 150 px wide: filed as f123.
+- **Close (Phase 5):** f121 and f112 closed in decisions (#365); f122 (the carried list above, plus the lows of the lang:typescript review) and f123 (the narrow content column) filed.
+- **Open, the person's step:** the plan's Phase 5 check of the four rows on production at 1280 and 390 was not run: `https://social-planner.daddyshome.fr` is behind Authelia and an agent has no login. What was read instead: the pods, the image tag, `/health` and the bundle (above). To close: open production, submit "Add period" with everything empty and a half date in "Move", and confirm one line under each row with no overlap; an overlap above 0 px, or two alerts in a row, reverts social-planner#90 and reopens f121. This plan stays `active` until then.
 
 ## Deviations from the plan
 
