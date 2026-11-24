@@ -1,6 +1,7 @@
 import {type ReactNode, useState, useCallback} from 'react'
 import {html} from 'react-strict-dom'
 import {styles} from './styles.css'
+import {useFieldContext} from '../Field/FieldContext'
 
 interface CheckboxProps {
   name?: string
@@ -19,11 +20,16 @@ export function Checkbox({
   value,
   checked: controlledChecked,
   defaultChecked = false,
-  disabled = false,
+  disabled: disabledProp,
   'aria-label': ariaLabel,
   onChange,
   children,
 }: CheckboxProps) {
+  // Native has no `for`: with no children, the enclosing Field.Label's text
+  // names the checkbox.
+  const ctx = useFieldContext()
+  const disabled = disabledProp ?? ctx?.disabled ?? false
+  const label = !children ? (ariaLabel ?? ctx?.labelText) : undefined
   const isControlled = controlledChecked !== undefined
   const [internalChecked, setInternalChecked] = useState(defaultChecked)
   const isChecked = isControlled ? controlledChecked : internalChecked
@@ -49,7 +55,7 @@ export function Checkbox({
       disabled={disabled}
       role="checkbox"
       aria-checked={isChecked}
-      aria-label={!children ? ariaLabel : undefined}
+      aria-label={label}
       style={[styles.root, styles.nativeFlex, styles.nativeButton, disabled && styles.rootDisabled]}
     >
       <html.div

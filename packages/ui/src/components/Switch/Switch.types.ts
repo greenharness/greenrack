@@ -7,7 +7,7 @@ export interface SwitchProps {
   defaultChecked?: boolean
   /** Callback fired when the checked state changes. */
   onCheckedChange?: (checked: boolean) => void
-  /** Prevents user interaction. */
+  /** Prevents user interaction. Default: the enclosing Field's `disabled`, else false. */
   disabled?: boolean
   /** Form field name for the hidden input. */
   name?: string

@@ -1037,7 +1037,7 @@
       "importPath": "@greenharness/greenrack-ui",
       "kind": "component",
       "meta": {
-        "description": "Checkbox input with optional visible label. Supports controlled and uncontrolled modes.",
+        "description": "Checkbox input with optional visible label. Supports controlled and uncontrolled modes. Inside a Field.Root it reads the Field: Field.Label names it (its `for` reaches the input, so clicking the label toggles it), Field.Description and Field.Error describe it, and the Field's invalid and disabled reach it. Give it no children there: a child label and Field.Label would both name it. On React Native, Field.Label's text is its accessibility label when it has no aria-label and no children.",
         "example": "<Checkbox name=\"terms\" onChange={(e) => console.log(e.target.checked)}>\n  I agree to the terms and conditions\n</Checkbox>",
         "relatedTo": [
           {
@@ -1085,7 +1085,7 @@
           "type": "boolean"
         },
         {
-          "default": "false",
+          "description": "Prevents interaction. Default: the enclosing Field's `disabled`, else false.",
           "name": "disabled",
           "required": false,
           "type": "boolean"
@@ -6868,7 +6868,7 @@
       "importPath": "@greenharness/greenrack-ui",
       "kind": "component",
       "meta": {
-        "description": "Single-thumb range slider for choosing a number between min and max. The thumb is role=\"slider\" with aria-valuemin, aria-valuemax, aria-valuenow and aria-valuetext (formatValue). On the web the arrow keys move one step, PageUp and PageDown ten steps, Home and End to the ends, and a pointer drag moves the thumb; on React Native a touch and drag move it, and the track is one adjustable element whose increment and decrement actions step the value. children is a visible label that names the slider; without it, give aria-label. showValue shows the current value beside the label.",
+        "description": "Single-thumb range slider for choosing a number between min and max. The thumb is role=\"slider\" with aria-valuemin, aria-valuemax, aria-valuenow and aria-valuetext (formatValue). On the web the arrow keys move one step, PageUp and PageDown ten steps, Home and End to the ends, and a pointer drag moves the thumb; on React Native a touch and drag move it, and the track is one adjustable element whose increment and decrement actions step the value. children is a visible label that names the slider; without it, give aria-label. showValue shows the current value beside the label. Inside a Field.Root with no children and no aria-label, Field.Label names it (aria-labelledby: the thumb is not labelable, so clicking the label does not focus it); Field.Description and Field.Error describe it, and the Field's invalid and disabled reach it. On React Native, Field.Label's text names it after aria-label and string children.",
         "example": "<Slider\n  min={0}\n  max={100}\n  step={5}\n  defaultValue={40}\n  showValue\n  formatValue={(value) => `${value}%`}\n  onValueChange={(value) => console.log(value)}\n>\n  Volume\n</Slider>",
         "relatedTo": [
           {
@@ -6935,8 +6935,7 @@
           "type": "number"
         },
         {
-          "default": "false",
-          "description": "Prevents user interaction.",
+          "description": "Prevents user interaction. Default: the enclosing Field's `disabled`, else false.",
           "name": "disabled",
           "required": false,
           "type": "boolean"
@@ -7417,7 +7416,7 @@
       "importPath": "@greenharness/greenrack-ui",
       "kind": "component",
       "meta": {
-        "description": "Toggle switch for on/off settings. Renders a hidden checkbox for form submission + a styled switch button.",
+        "description": "Toggle switch for on/off settings. Renders a hidden checkbox for form submission + a styled switch button. Inside a Field.Root it reads the Field: Field.Label names it (clicking the label toggles it), Field.Description and Field.Error describe it, and the Field's invalid and disabled reach it. Give it no children there: a child label and Field.Label would both name it. On React Native, Field.Label's text is its accessibility label when it has no aria-label and no children.",
         "example": "<Switch\n  name=\"notifications\"\n  defaultChecked={true}\n  onCheckedChange={(checked) => console.log(checked)}\n>\n  Enable notifications\n</Switch>",
         "relatedTo": [
           {
@@ -7463,8 +7462,7 @@
           "type": "(checked: boolean) => void"
         },
         {
-          "default": "false",
-          "description": "Prevents user interaction.",
+          "description": "Prevents user interaction. Default: the enclosing Field's `disabled`, else false.",
           "name": "disabled",
           "required": false,
           "type": "boolean"

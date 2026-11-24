@@ -5,6 +5,7 @@ import {useControllableValue} from '../../hooks/useControllableValue'
 import {styles} from './styles.css'
 import {fractionOf, snapToStep, valueAtFraction} from './sliderMath'
 import type {SliderProps} from './Slider.types'
+import {useFieldContext} from '../Field/FieldContext'
 
 export type {SliderProps} from './Slider.types'
 
@@ -20,12 +21,16 @@ export function Slider({
   min = 0,
   max = 100,
   step = 1,
-  disabled = false,
+  disabled: disabledProp,
   children,
   'aria-label': ariaLabel,
   showValue = false,
   formatValue,
 }: SliderProps) {
+  // Native has no `for`: the enclosing Field.Label's text names the slider
+  // after its own aria-label and string children.
+  const ctx = useFieldContext()
+  const disabled = disabledProp ?? ctx?.disabled ?? false
   const range = {min, max, step}
   const [value, setValue] = useControllableValue(
     controlledValue,
@@ -78,7 +83,9 @@ export function Slider({
       <View
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel={ariaLabel ?? (typeof children === 'string' ? children : undefined)}
+        accessibilityLabel={
+          ariaLabel ?? (typeof children === 'string' ? children : undefined) ?? ctx?.labelText
+        }
         accessibilityValue={{min, max, now: current, text}}
         accessibilityState={{disabled}}
         accessibilityActions={[{name: 'increment'}, {name: 'decrement'}]}
