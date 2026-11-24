@@ -121,6 +121,7 @@ Phase 1 and 2 observed 2026-11-24 (Phases 3 to 5 pending: release, adoption, clo
 - **Audit (Phase 1):** 144 stories driven in Chromium at 1280 and 390 (Dialog, Select, Video, ThemeProvider, ToggleGroup, CheckboxGroup, Textarea and most Combobox/RadioGroup stories cannot show a Field error). Findings B1 to B11 above.
 - **Storybook tests (Chromium, vitest):** full suite 695 of 695 on the first implementation; after the review fixes `Field`, `Form`, `Popover`, `Input` and `Textarea` 91 of 91 (`Field` alone 33 of 33). ToggleGroup and VirtualList failed once under a host load average of 300 and passed on rerun, unrelated to this change.
 - **Real browser (browser-check, tree `a2efcdec`):** every `Field.Row` story, at 1280 and 390: `scrollWidth` equals `innerWidth` (390); the row's error line starts 4 px under the controls and overlaps the next row by 0 px; one `role=alert` with two spans for two errors; every `aria-describedby` id resolves to exactly one element holding "Date: Enter a date."; the 360 px frame wraps a 3-line message (54 px) and covers nothing; the login form (`form--default`, `recipes--login-form`) submits empty with the button enabled, two messages, focus on Username.
+- **Final tree (`ab699325`, after the review fixes):** `Field` and `Form` stories 45 of 45 in Chromium, including `RowPopoverFieldKeepsOwnError`, `RowFieldNamedByAriaLabel` and `ServerValidationErrorsClearedFirst` (focus on Username after the errors are cleared and then set). The real-browser measurements above were taken on the earlier tree `a2efcdec`; the later changes are containment before a span is made, the accessible-name lookup, JSX punctuation and the focus flag, each covered by a story, and are not re-measured in the real browser.
 - **Found only by the browser:** a second refused submit in `form--server-validation-errors` left focus on the button (the first fix focused only new errors). Fixed in `dccc613a` (focus each refusal, once per submit); the story now asserts it.
 - **Not done, carried:** VoiceOver and NVDA announce check; the five-person hallway test of (a); a sibling-re-render count test, a React Native render test (no RN harness in this repo) and a 200 % text pass; a development warning for a Field in a row that nothing names.
 - **Deliberate:** B6 (hanging message unselectable) and B10 (an open Combobox listbox covers its error line). The hanging stories stay on `Inline`, one field and a button, and fit at 390.
@@ -131,5 +132,14 @@ Phase 1 and 2 observed 2026-11-24 (Phases 3 to 5 pending: release, adoption, clo
 - No story `viewport` parameter exists here, so 390 is tested by a phone-wide frame (`sizes.panelSm`) with an overflow assertion, and checked in a real browser at 390.
 - The name prefix falls back to the control's `aria-label` by reading the DOM, because the Field cannot see its control's props.
 - The Delta plan-review of B7 to B11 was folded into the implementation review.
+
+## Implementation review
+
+Round 1 (tree `a2efcdec`) and Delta (tree `ab699325`), all on opus. Fixed: the placeholder name, the unfinished B4 text in CLAUDE.md, the `aria-label` fallback, a portal Field joining the row, the repeated server refusal, the empty-error row message, the run-on messages, the context shape and shared types, the first-`aria-label` lookup.
+
+- implementation-review: approve-with-changes; blocking points were the plan's Verification record and the placeholder name, both fixed; one medium (record the final tree) done above; one low (a 50 ms `setTimeout` stands for server latency in `ServerValidationErrorsClearedFirst`): deliberate, the story needs a later render.
+- react: approve; both delta findings fixed.
+- lang:typescript: approve-with-changes, three lows, deliberate: the `submittedRef` comment is loose about a valid submit with no errors; `sentence` can double a stop after an opaque component message; `fallbackLabel` is not cleared in the cleanup. Carried to a follow-up.
+- ui-design: approve-with-changes: the brief lacked `aval traits` and the exemption list (a process gap; the styles use tokens only, `width: '100%'` is a relative unit); a comment in `FieldRowTypes.ts` names only `aria-label`. Native alignment and English separators are deliberate, stated in `Field.meta`.
 
 <!-- panel: repos=greenrack,social-planner,decisions adds=screen,contract reviewers=ux-research,game-ux,tui,typescript,backend,ui-design,po,unix,platform,react,architect,po body-sha=90dd7e9ee28f -->
