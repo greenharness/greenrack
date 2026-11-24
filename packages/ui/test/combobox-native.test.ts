@@ -174,6 +174,42 @@ describe('Combobox.native Input accessibility', () => {
   })
 })
 
+describe('Combobox.native in a disabled or required Field', () => {
+  it('opens no sheet inside a disabled Field.Root and reports itself disabled', () => {
+    const onOpenChange = vi.fn()
+    renderRoot({onOpenChange})
+    fieldContext._cur = {labelText: 'Fruit', disabled: true}
+    const press = renderInput({placeholder: 'Pick'})
+    expect(press.props.disabled).toBe(true)
+    expect(press.props.accessibilityState).toEqual({expanded: false, disabled: true})
+    press.props.onPress()
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    fieldContext._cur = {labelText: 'Fruit'}
+    const enabled = renderInput({placeholder: 'Pick'})
+    expect(enabled.props.disabled).toBe(false)
+    expect(enabled.props.accessibilityState).toEqual({expanded: false, disabled: false})
+  })
+
+  it('carries a required Field in its label, once', () => {
+    renderRoot()
+    fieldContext._cur = {labelText: 'Fruit', required: true, necessityIndicator: 'icon'}
+    expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Fruit (required)')
+    expect(
+      renderInput({placeholder: 'Pick', 'aria-label': 'Favourite'}).props.accessibilityLabel,
+    ).toBe('Favourite (required)')
+
+    fieldContext._cur = {labelText: 'Fruit (required)', required: true, necessityIndicator: 'label'}
+    expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Fruit (required)')
+
+    fieldContext._cur = {required: true}
+    expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Pick (required)')
+
+    fieldContext._cur = null
+    expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Pick')
+  })
+})
+
 describe('Field.Label registers its text', () => {
   function renderLabel(children: unknown, fieldContextOverrides: Record<string, unknown>) {
     const unregister = vi.fn()

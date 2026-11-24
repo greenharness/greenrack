@@ -24,10 +24,11 @@ boundary.
 - [Visually hidden text stays inside inner scrollers](f08-hidden-text-escapes-inner-scrollers.md): `ScrollArea.Viewport`, both `SplitPane` panes and the `Dialog`, `Drawer`, `Panel` and `DetailPanel` bodies are positioned; `VirtualList` and `Aside` already were (greenrack PR). Filed f13.
 - [Checkbox, Switch and Slider read their Field](f09-checkbox-switch-slider-read-the-field.md): each takes the Field's control id, description, error, invalid and disabled as `Input` does; the Slider thumb names itself by `aria-labelledby` (not labelable); native takes `labelText` (greenrack PR). Filed f14.
 - [Input and Textarea take Field's required](f10-input-textarea-read-field-required.md): each takes `required ?? ctx?.required` beside its `disabled` fallback; an explicit `required={false}` wins (greenrack PR).
+- [A native Combobox follows its Field's disabled and required](f11-combobox-native-reads-field-state.md): a disabled Field opens no sheet and reports disabled; React Native has no required state, so " (required)" rides in the accessibility label unless Field.Label already carries it (greenrack PR).
 
 ## Handoff
 
-2026-11-24, boundary 3 (f10 closed: `Input` and `Textarea` take their `Field.Root`'s `required` when their own is unset; `required={false}` still wins. Patch changesets `checkbox-switch-slider-read-field` and `input-textarea-field-required`, unreleased). Next: f11, f12, f13, f14.
+2026-11-25, boundary 3 (f11 closed: the native `Combobox.Input` reads its Field's `disabled` (no sheet, disabled state) and `required` (" (required)" in its accessibility label). Patch changesets `checkbox-switch-slider-read-field`, `input-textarea-field-required` and `combobox-native-field-state`, unreleased). Next: f12, f13, f14.
 
 ## Not yet specified
 
