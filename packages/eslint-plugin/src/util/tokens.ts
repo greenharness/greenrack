@@ -447,7 +447,7 @@ export const SIZE_TOKENS_BY_PX: Record<number, string[]> = {
   5: ['checkMarkW'],
   9: ['checkMarkH'],
   36: ['switchTrackW', 'iconXl', 'toolbarH'],
-  20: ['switchTrackH', 'colorSwatch'],
+  20: ['switchTrackH', 'colorSwatch', 'fieldErrorReserve'],
   16: ['switchThumb', 'spinnerSm', 'glyphMd', 'iconSm', 'handle'],
   32: ['iconButton', 'edgeFade'],
   24: ['spinnerMd', 'iconLg', 'chip'],

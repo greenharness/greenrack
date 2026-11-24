@@ -115,4 +115,8 @@ export const sizes = css.defineVars({
   heroMaxH: '720px',
   // A QR code another device scans from across a desk (Happier's add-phone pairing code).
   qrCode: '260px',
+  // The room a Field's error line takes under a row when it hangs out of the
+  // row's flow (Field errorPlacement="hanging"): one fontSizeXs line at
+  // lineHeight1 (16px) plus spacing.xs (4px).
+  fieldErrorReserve: '20px',
 })

@@ -16,6 +16,7 @@ import {CheckboxGroup} from '../CheckboxGroup/CheckboxGroup'
 import {RadioGroup} from '../RadioGroup/RadioGroup'
 import {Checkbox} from '../Checkbox/Checkbox'
 import {Stack} from '../Stack/Stack'
+import {Inline} from '../Inline/Inline'
 import {Fieldset} from '../Fieldset/Fieldset'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
@@ -616,5 +617,136 @@ export const NativeValidationInForm: Story = {
     await userEvent.click(canvas.getByRole('button', {name: 'Clear errors'}))
     await waitFor(() => expect(canvas.getByRole('alert').textContent).toBe(input.validationMessage))
     await expect(canvas.getAllByRole('alert')).toHaveLength(1)
+  },
+}
+
+// --- A row of Fields and a button, aligned on the inputs ---
+
+const rowStyles = css.create({
+  // The room one hanging error line takes under the row.
+  reserve: {paddingBottom: sizes.fieldErrorReserve},
+  frame: {width: sizes.pageXs},
+})
+
+function bottomSpread(canvas: {
+  getAllByRole: (role: string) => HTMLElement[]
+  getByRole: (role: string, options: {name: string}) => HTMLElement
+}) {
+  const bottoms = [
+    ...canvas.getAllByRole('textbox'),
+    canvas.getByRole('button', {name: 'Mark posted'}),
+  ].map((element) => element.getBoundingClientRect().bottom)
+  return Math.max(...bottoms) - Math.min(...bottoms)
+}
+
+function InlineRow({
+  errorPlacement,
+  message = 'Required',
+}: {
+  errorPlacement: 'below' | 'hanging'
+  message?: string
+}) {
+  const [invalid, setInvalid] = useState(false)
+  return (
+    <html.div style={rowStyles.frame}>
+      <html.div style={errorPlacement === 'hanging' && rowStyles.reserve}>
+        <Inline gap="sm" align="end">
+          <Field.Root invalid={invalid} errorPlacement={errorPlacement}>
+            <Field.Label>Date</Field.Label>
+            <Input placeholder="2026-11-24" />
+            {invalid && <Field.Error>{message}</Field.Error>}
+          </Field.Root>
+          <Field.Root errorPlacement={errorPlacement}>
+            <Field.Label>Time</Field.Label>
+            <Input placeholder="09:30" />
+          </Field.Root>
+          <Field.Root errorPlacement={errorPlacement}>
+            <Field.Label>Note</Field.Label>
+            <Input placeholder="Optional" />
+          </Field.Root>
+          <Button>Mark posted</Button>
+        </Inline>
+      </html.div>
+      <html.p>Next row</html.p>
+      <Button variant="secondary" onClick={() => setInvalid((value) => !value)}>
+        Toggle error
+      </Button>
+    </html.div>
+  )
+}
+
+/** `errorPlacement="hanging"`: the error line sits under the control, out of the
+ *  Field's flow, so the inputs and the button stay on one line with or without it. */
+export const InlineRowWithError: Story = {
+  render: () => <InlineRow errorPlacement="hanging" />,
+  play: async ({canvas, userEvent}) => {
+    await expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5)
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
+    const alert = await canvas.findByRole('alert')
+    await expect(alert).toBeVisible()
+    const input = canvas.getAllByRole('textbox')[0]
+    await expect(input.getAttribute('aria-describedby')).toContain(alert.id)
+    await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
+    // Under its input, and clear of the next row.
+    const box = alert.getBoundingClientRect()
+    await expect(box.top).toBeGreaterThanOrEqual(input.getBoundingClientRect().bottom)
+    await expect(box.bottom).toBeLessThanOrEqual(
+      canvas.getByText('Next row').getBoundingClientRect().top + 0.5,
+    )
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
+    await waitFor(() => expect(canvas.queryByRole('alert')).not.toBeInTheDocument())
+    await expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5)
+  },
+}
+
+/** The default `errorPlacement="below"`: the error line is in the Field's flow,
+ *  so the Field grows and its input lifts above the others. The contrast that
+ *  shows the test above can fail. */
+export const InlineRowWithErrorBelow: Story = {
+  render: () => <InlineRow errorPlacement="below" />,
+  play: async ({canvas, userEvent}) => {
+    await expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5)
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
+    await canvas.findByRole('alert')
+    await waitFor(() => expect(bottomSpread(canvas)).toBeGreaterThan(10))
+  },
+}
+
+/** A message longer than one line in a narrow Field wraps and reaches past the
+ *  reserve under the row. The row stays aligned. */
+export const InlineRowLongMessage: Story = {
+  render: () => (
+    <InlineRow
+      errorPlacement="hanging"
+      message="Enter the date the post went out, as year-month-day."
+    />
+  ),
+  play: async ({canvas, userEvent}) => {
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
+    await canvas.findByRole('alert')
+    await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
+  },
+}
+
+/** With the label at the side the error hangs under the control, not the label. */
+export const HangingErrorSideLabel: Story = {
+  render: () => (
+    <html.div style={rowStyles.frame}>
+      <Field.Root invalid labelPosition="side" errorPlacement="hanging">
+        <Field.Label>Date</Field.Label>
+        <Input placeholder="2026-11-24" />
+        <Field.Error>Required</Field.Error>
+      </Field.Root>
+    </html.div>
+  ),
+  play: async ({canvas}) => {
+    const alert = await canvas.findByRole('alert')
+    const input = canvas.getByRole('textbox')
+    await expect(
+      Math.abs(alert.getBoundingClientRect().left - input.getBoundingClientRect().left),
+    ).toBeLessThanOrEqual(0.5)
+    await expect(alert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      input.getBoundingClientRect().bottom,
+    )
   },
 }

@@ -46,7 +46,7 @@ export {Prose} from './components/Prose/Prose'
 export {Toolbar, type ToolbarProps} from './components/Toolbar/Toolbar'
 
 // Form field wrappers (RN-safe — used by Input/Textarea/Checkbox)
-export {Field} from './components/Field/Field'
+export {Field, type ErrorPlacement} from './components/Field/Field'
 export {InputGroup} from './components/InputGroup/InputGroup'
 
 // Status and feedback (5.12: Icon draws with react-native-svg on native)
