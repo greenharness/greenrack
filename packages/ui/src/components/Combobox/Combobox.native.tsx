@@ -27,6 +27,7 @@ import {Chevron} from '../SideNav/Chevron'
 import {focusForAccessibility} from '../../shared/accessibilityFocus.native'
 import {focusInput} from '../../shared/focusInput.native'
 import {textOf} from '../../shared/textOf'
+import {useFieldContext} from '../Field/FieldContext'
 
 /** The picker sheet's detents (plan N0, Decision 5); a Combobox opens at large. */
 const SNAP_POINTS = ['medium', 'large'] as const
@@ -174,6 +175,10 @@ function Input({
 }) {
   const {value, labels, open, setOpen, setPlaceholder, triggerRef} = useCombobox()
   const display = value ? (labels[value] ?? value) : null
+  // aria-label, else the enclosing Field.Label's text: either names the field,
+  // and the shown value rides in its accessibility value.
+  const fieldLabel = useFieldContext()?.labelText
+  const name = ariaLabel ?? fieldLabel
 
   useEffect(() => {
     setPlaceholder(placeholder)
@@ -184,8 +189,8 @@ function Input({
       ref={triggerRef as RefObject<never>}
       onPress={() => setOpen(true)}
       accessibilityRole="combobox"
-      accessibilityLabel={ariaLabel ?? display ?? placeholder}
-      accessibilityValue={ariaLabel && display ? {text: display} : undefined}
+      accessibilityLabel={name ?? display ?? placeholder}
+      accessibilityValue={name && display ? {text: display} : undefined}
       accessibilityState={{expanded: open}}
     >
       <html.div style={[styles.inputWrapper, nativeStyles.field]}>

@@ -19,10 +19,11 @@ boundary.
 - [The Combobox trigger labelled Close closes the list](f02-combobox-close-trigger-reopens.md): the trigger refocuses the input through the guard a choice already uses, so the focus does not reopen the list (greenrack#230).
 - [The Field's aria-describedby names only mounted parts](f04-field-describedby-names-an-absent-description.md): Field.Description registers with its Root, and one `describedBy` on the context feeds all seven controls; the error id dangled too and is fixed with it (greenrack#231).
 - [The Combobox reopens on ArrowDown after Escape and reads its Field](f05-combobox-escape-then-arrowdown-and-field-props.md): a closed-state listener opens the list on ArrowDown; Root puts Field `disabled` and `required` on the context for the input, trigger and hidden value (greenrack#234). Filed f10 and f11.
+- [A native Combobox inside Field.Root is named by its Field.Label](f06-combobox-native-reads-field-label.md): Field.Label registers its text (with its necessity text) on the Field as `labelText`, and the native `Combobox.Input` takes it after `aria-label` (greenrack PR). Filed f12.
 
 ## Handoff
 
-2026-11-24, boundary 3 (f05 closed: the web Combobox reopens on ArrowDown after Escape and takes its Field's disabled and required, patch changeset `combobox-arrowdown-field-state`, released with the next greenrack-ui version; merged as greenrack#234, which filed f10 and f11). Next: f06, f07, f08, f09, f10, f11.
+2026-11-24, boundary 3 (f06 closed: a native Combobox inside `Field.Root` is named by its `Field.Label`; `Field.Label` registers its text on the Field as `labelText`, patch changeset `combobox-native-field-label`, released with the next greenrack-ui version; filed f12, the same gap in `Select.native`). Rebased cleanly onto f112's `errorPlacement` (greenrack#235), which edits the same Field files. Next: f07, f08, f09, f10, f11, f12.
 
 ## Not yet specified
 

@@ -15,6 +15,7 @@ import type {ErrorPlacement, FieldContextValue} from './FieldContext'
 import {useFormContext} from '../Form/FormContext'
 import type {LabelPosition} from '../Form/FormContext'
 import {styles} from './styles.css'
+import {textOf} from '../../shared/textOf'
 
 // Native error state shared by both roots, with a count of mounted Field.Error
 // parts: Root shows the native message itself only while the count is zero.
@@ -26,6 +27,18 @@ function useNativeErrorState() {
     return () => setErrorCount((count) => count - 1)
   }, [])
   return {nativeError, setNativeError, errorCount, registerError}
+}
+
+// The mounted Field.Label's text, for a control that cannot point at the
+// label element (React Native has no `for` / labelledby on iOS): it names
+// itself with this string instead.
+function useLabelTextState() {
+  const [labelText, setLabelText] = useState<string | undefined>()
+  const registerLabel = useCallback((text: string) => {
+    setLabelText(text)
+    return () => setLabelText((current) => (current === text ? undefined : current))
+  }, [])
+  return {labelText, registerLabel}
 }
 
 // A count of mounted Field.Description parts, so the control names the
@@ -136,6 +149,7 @@ function ControlledRoot({
   const {field, fieldState} = useController({control, name})
   const {nativeError, setNativeError, errorCount, registerError} = useNativeErrorState()
   const {hasDescription, registerDescription} = useDescriptionState()
+  const {labelText, registerLabel} = useLabelTextState()
   const invalid = invalidProp || !!fieldState.error || nativeError !== undefined
   const describedBy = describedByIds(
     id,
@@ -173,6 +187,8 @@ function ControlledRoot({
       setNativeError,
       registerError,
       registerDescription,
+      labelText,
+      registerLabel,
       describedBy,
     }),
     [
@@ -194,6 +210,8 @@ function ControlledRoot({
       setNativeError,
       registerError,
       registerDescription,
+      labelText,
+      registerLabel,
       describedBy,
     ],
   )
@@ -232,6 +250,7 @@ function StaticRoot({
   const id = useId()
   const {nativeError, setNativeError, errorCount, registerError} = useNativeErrorState()
   const {hasDescription, registerDescription} = useDescriptionState()
+  const {labelText, registerLabel} = useLabelTextState()
   const invalid = invalidProp || nativeError !== undefined
   const describedBy = describedByIds(
     id,
@@ -255,6 +274,8 @@ function StaticRoot({
       setNativeError,
       registerError,
       registerDescription,
+      labelText,
+      registerLabel,
       describedBy,
     }),
     [
@@ -269,6 +290,8 @@ function StaticRoot({
       setNativeError,
       registerError,
       registerDescription,
+      labelText,
+      registerLabel,
       describedBy,
     ],
   )
@@ -343,6 +366,15 @@ function Label({children}: LabelProps) {
   const ctx = useFieldContext()
   const isSide = ctx?.labelPosition === 'side'
   const indicator = ctx?.necessityIndicator
+  // The suffix a screen reader reads on the web: the " (required)" text is in
+  // the label, the " *" icon is aria-hidden.
+  const suffix = indicator === 'label' ? (ctx?.required ? ' (required)' : ' (optional)') : ''
+  const text = textOf(children).trim()
+  const registerLabel = ctx?.registerLabel
+  useLayoutEffect(() => {
+    if (!text || !registerLabel) return
+    return registerLabel(text + suffix)
+  }, [text, suffix, registerLabel])
   const content = (
     <>
       {children}

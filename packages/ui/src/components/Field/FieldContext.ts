@@ -35,6 +35,12 @@ interface FieldContextValue {
   registerError?: () => () => void
   /** A mounted Field.Description registers here; the returned function unregisters it. */
   registerDescription?: () => () => void
+  /** The mounted Field.Label's text (its necessity suffix included), for a
+   *  control that names itself by a string: a native one, where `for` and
+   *  `aria-labelledby` do not reach the label. Undefined with no label text. */
+  labelText?: string
+  /** A mounted Field.Label registers its text here; the returned function unregisters it. */
+  registerLabel?: (text: string) => () => void
   /** What the control's `aria-describedby` names: the description id while a
    *  Field.Description is mounted, the error id while an error line is
    *  showing. Undefined when neither is, so no IDREF dangles. */
