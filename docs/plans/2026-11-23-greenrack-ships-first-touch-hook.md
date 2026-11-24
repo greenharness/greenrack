@@ -11,7 +11,7 @@ plan-id: p-01M80J3H0J2PMKPCBGXMTM48B7
 ## Review panel
 
 👉 **Decide:** none — you chose Rust, Windows and amending ADR-0075 first; approve if the hook crate lives in greenrack.
-📍 greenrack, dotfiles, decisions · Phases 0–3 built, your npm steps done · next: Phase 4, release 7.7.0. Panel: architect, backend, rust, typescript, platform, po, tui, unix (all opus); codex not run.
+📍 greenrack, dotfiles, decisions · Phases 0–3 built, your npm steps done · next: Phase 4, release 7.11.0. Panel: architect, backend, rust, typescript, platform, po, tui, unix (all opus); codex not run.
 **Changed by review:** grh reads status as JSON and a newer binary says `outdated`; the binary kills its process tree and exits 0 on a panic; the release checks the six npm names first and publishes the CLI last.
 **Verdicts:** sh design: 6 seats, then a backend delta, approve. Rust rewrite: 4 seats approve-with-changes, then all 4 approve; 8 carried; words 1083 → 2071 (×1.91, mostly the rewrite you asked for); remove 0, merge 0.
 📄 Full reviews: [2026-11-23-greenrack-ships-first-touch-hook.reviews.md](2026-11-23-greenrack-ships-first-touch-hook.reviews.md)
@@ -99,7 +99,7 @@ installed` on a no-op, and keep lines under 80 columns.
   `done` and exits. Otherwise it claims the marker (`mkdir`, or reclaims one
   abandoned over 30 s by renaming it to a unique name, then `mkdir`, so parallel
   reclaimers run once) and runs
-  `npx -y @greenharness/greenrack-cli@^7.7.0 hook first-touch` (`npx.cmd` on
+  `npx -y @greenharness/greenrack-cli@^7.11.0 hook first-touch` (`npx.cmd` on
   Windows; fixed arguments, the event on stdin) under 10 s. A timeout kills the
   process tree: a process group and `killpg` (`libc`) on Unix, a Job Object
   (`windows-sys`) on Windows. Output is read on a thread under a deadline and
@@ -124,9 +124,9 @@ unavailable (<reason>); run: greenrack hook install --user --check`.
   trimmed at 1 MB that `--check` and `[[doctor]]` report from (last failure,
   back-offs).
 - `greenharness.toml` declares `[tool] bin = "npx"` and `[tool.machine]`:
-  install and uninstall run `{bin} -y @greenharness/greenrack-cli@^7.7.0 hook
+  install and uninstall run `{bin} -y @greenharness/greenrack-cli@^7.11.0 hook
 install|uninstall --user`; status args are `-y
-@greenharness/greenrack-cli@^7.7.0 hook install --user --check` (grh runs
+@greenharness/greenrack-cli@^7.11.0 hook install --user --check` (grh runs
   `{bin} <args>`) with `--json` appended, read as `json = ["state"]`.
   `[[session_context]]` goes, since the hook delivers it; `[[doctor]]` stays.
 
@@ -160,9 +160,11 @@ install|uninstall --user`; status args are `-y
       `packages/cli/test/hook-user.test.ts`, `packages/cli/test/extension.test.ts`
       (its `parseToml` learns dotted and inline tables, `GRH_V1_KEYS` gains `tool`),
       `packages/cli/README.md`, `CLAUDE.md`, `AGENTS.md`; one commit
-- [ ] Phase 4 — release v7.7.0 through the `tag-release` skill; the release
+- [ ] Phase 4 — release v7.11.0 through the `tag-release` skill; the release
       writes the version into `packages/cli/package.json`,
-      `packages/cli/greenharness.toml` and the other workspace manifests
+      `packages/cli/greenharness.toml` and the other workspace manifests;
+      first read npm's latest: if 7.11.0 is taken, raise `FIRST_TOUCH_MIN_CLI`
+      and the two pins the release check names, then tag that version
 - [ ] Phase 5 — this laptop leaves the Python copy: `dot_claude/settings.json.tmpl`,
       `.chezmoiignore`, and the deletion of the folder `dot_claude/tools/greenrack-entry/`
       (the script and its test); one PR from a `chezmoi-wt-*` worktree. The two
@@ -255,6 +257,8 @@ install --user` writes the new ones and the template is patched from the
   its first argument, `--protocol`. Phase 4's real session proves that Claude
   Code accepts an empty `args`.
 
+- 2026-11-24 — the release is 7.11.0, not 7.7.0: tags v7.7.0 to v7.10.0 shipped from main while this branch was built, and none of them has `hook first-touch` or `hook install --user`. The binary, the manifest, the README and both `--user` commands now pin `@^7.11.0`, so a cached older CLI cannot satisfy the floor. The release `dry_run` dispatch (run 45496105370, tag v7.7.0, before this change) passed all eight jobs: six builds, the name preflight, and the publish job, which packed each package, printed `dry run, not published` and touched no release.
+
 ## Verification
 
 - Phase 0: `aval check` in the decisions repo → no findings, and both keys
@@ -306,11 +310,11 @@ install --user` writes the new ones and the template is patched from the
   `--user`) covers outdated, protocol 2, exit 3, the symlink and mode, the
   pasted entry and the `.old` rename under a mocked `win32`; a run on a real
   Windows install is not done.
-- Phase 4: the published 7.7.0 passes `hook install --user --check` after an
+- Phase 4: the published 7.11.0 passes `hook install --user --check` after an
   install and fails it before; a `claude -p` session started in
   `~/Developer/Perso`, hooked through `--settings` from that install, gives
   nothing at start, one index on the first read in a consumer, none on the
-  second, none for a file in `amont`. With 7.7.0 published, `grh install
+  second, none for a file in `amont`. With 7.11.0 published, `grh install
 --extension <unpacked package> --yes` with `XDG_STATE_HOME` and
   `CLAUDE_CONFIG_DIR` in a temporary folder places both entries, `grh status`
   shows the part installed, `grh uninstall` removes them, and the real
@@ -324,11 +328,11 @@ install --user` writes the new ones and the template is patched from the
 
 ## Implementation review
 
-- implementation-review (opus): approve-with-changes three rounds; 3 blocking fixed (discards, dependency ownership, flag arguments); 135k, 88k, 121k.
-- Profiles (opus), final tree: backend, lang:rust, unix, tui, platform, architect approve; lang:typescript approve-with-changes, two lows deliberate.
+- implementation-review (opus): approve-with-changes three rounds, then approve on the 7.11.0 floor and approve-with-changes on its release check; 3 blocking fixed; 135k, 88k, 121k, 83k, 80k.
+- Profiles (opus), final tree: all seven approve after two deltas; backend and architect asked for one floor owner plus a release check, done in `check-pin-major.mjs`.
 - deliberate: `f`/`result` in the install tests are the file's convention (73 and 47 uses); renaming one test splits it.
-- deliberate: unchecked `--status` `reason`/`root` cannot crash `--check`; `+` joins; unit-test folders left on failure; release assets only this workflow writes.
-- Carried: a real Windows run, the dry-run dispatch on the zig pins, and a cold `npx` over the cap after a release.
+- deliberate: unchecked `--status` `reason`/`root` cannot crash `--check`; `+` joins; unit-test folders left on failure; release assets only this workflow writes. Floor check: a malformed or rc tag (release.yaml refuses non-semver first), CI-only error wording, short names, the script's name.
+- Carried: a real Windows run, and a cold `npx` over the cap after a release; the dry run passed (run 45496105370).
 
 ## Outcome
 
