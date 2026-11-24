@@ -61,7 +61,7 @@ export const meta: ComponentMeta = {
 </Field.Root>
 
 // A row of Fields and a button, aligned on the inputs whatever error lines show
-<html.div style={styles.rowReserve /* paddingBottom: sizes.fieldErrorReserve */}>
+<html.div style={styles.rowReserve /* paddingBottom: calc(lineHeight1 + spacing.xs) */}>
   <Inline gap="sm" align="end">
     <Field.Root invalid={dateInvalid} errorPlacement="hanging">
       <Field.Label>Date</Field.Label>

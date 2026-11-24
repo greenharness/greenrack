@@ -36,7 +36,8 @@ export const styles = css.create({
   },
   // The error line out of the Field's flow, under the control: the Field keeps
   // the height of its label and control. The line height is pinned so the
-  // reserve a row leaves (sizes.fieldErrorReserve) is exact.
+  // reserve a row leaves is exact: calc(lineHeight1 + spacing.xs), whose
+  // default-size equal is sizes.fieldErrorReserve.
   errorHanging: {
     position: 'absolute',
     top: '100%',

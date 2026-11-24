@@ -84,7 +84,7 @@ interface RootProps {
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
-  /** Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align="end"` with a button) stays aligned on its inputs; leave one error line of room under the row (`sizes.fieldErrorReserve`). Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down. */
+  /** Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align="end"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down. */
   errorPlacement?: ErrorPlacement
   children: ReactNode
 }
