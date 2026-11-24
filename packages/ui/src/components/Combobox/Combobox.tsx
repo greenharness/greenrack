@@ -1,4 +1,4 @@
-import {type ReactNode, useCallback, useRef, useId, useEffect, useState} from 'react'
+import {type ReactNode, useCallback, useMemo, useRef, useId, useEffect, useState} from 'react'
 import {html} from 'react-strict-dom'
 import {styles} from './styles.css'
 import {styles as selectStyles} from '../Select/styles.css'
@@ -6,7 +6,7 @@ import {ComboboxContext, useCombobox} from './ComboboxContext'
 import {useComboboxRoot} from './useComboboxRoot'
 import {matchesQuery} from './comboboxState'
 import {Listbox, getAnchorProps} from '../Listbox/Listbox'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldContext, useNativeValidation} from '../Field/FieldContext'
 
 // --- Root ---
 interface RootProps {
@@ -42,11 +42,19 @@ function Root({
     onOpenChange,
     initialLabels,
   })
+  // Field state is read once here, so the input, the trigger and the hidden
+  // value agree.
+  const fieldCtx = useFieldContext()
+  const disabled = Boolean(fieldCtx?.disabled)
+  const required = Boolean(fieldCtx?.required)
+  const rootCtx = useMemo(() => ({...ctx, disabled, required}), [ctx, disabled, required])
 
   return (
-    <ComboboxContext.Provider value={ctx}>
+    <ComboboxContext.Provider value={rootCtx}>
       <html.div ref={rootRef} style={styles.root}>
-        {name && <html.input type="hidden" name={name} value={ctx.value ?? ''} />}
+        {name && (
+          <html.input type="hidden" name={name} value={ctx.value ?? ''} disabled={disabled} />
+        )}
         {children}
       </html.div>
     </ComboboxContext.Provider>
@@ -74,8 +82,11 @@ function Input({
     listboxId,
     highlightedId,
     inputRef,
+    disabled,
+    required,
   } = useCombobox()
   const fieldCtx = useFieldContext()
+  const {onInvalid, afterChange} = useNativeValidation()
   const describedBy = fieldCtx?.describedBy
   const pointerFocusRef = useRef(false)
   const localRef = useRef<HTMLInputElement>(null)
@@ -87,11 +98,19 @@ function Input({
   })
 
   return (
-    <html.div style={[styles.inputWrapper, focused && styles.inputWrapperFocused]}>
+    <html.div
+      style={[
+        styles.inputWrapper,
+        focused && styles.inputWrapperFocused,
+        disabled && styles.inputWrapperDisabled,
+      ]}
+    >
       <html.input
         ref={localRef}
         id={fieldCtx?.controlId}
         type="text"
+        disabled={disabled}
+        required={required}
         role={'combobox' as 'listbox'}
         value={inputValue}
         placeholder={placeholder}
@@ -125,7 +144,10 @@ function Input({
         onChange={(e: any) => {
           setInputValue(e.target.value)
           if (!open) openPopup()
+          afterChange?.(e)
         }}
+        // react-strict-dom omits onInvalid from its types; the DOM input has it.
+        {...(onInvalid ? ({onInvalid} as Record<string, unknown>) : {})}
       />
       {children}
     </html.div>
@@ -134,12 +156,13 @@ function Input({
 
 // --- Trigger ---
 function Trigger({children}: {children?: ReactNode}) {
-  const {open, openPopup, close, refocusInput} = useCombobox()
+  const {open, openPopup, close, refocusInput, disabled} = useCombobox()
 
   return (
     <html.button
       type="button"
       tabIndex={-1}
+      disabled={disabled}
       aria-label={open ? 'Close' : 'Open'}
       onClick={() => {
         if (open) {

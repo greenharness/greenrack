@@ -30,6 +30,12 @@ export const styles = css.create({
   inputWrapperFocused: {
     borderColor: colors.accent,
   },
+  // A disabled Field: Select's disabled trigger look, and no hover accent.
+  inputWrapperDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+    borderColor: colors.border,
+  },
   input: {
     flex: 1,
     paddingTop: spacing.sm,
