@@ -1,7 +1,7 @@
 +++
 type = "task"
 mode = "afk"
-status = "open"
+status = "closed"
 blocked_by = []
 repos = ["greenrack"]
 +++
@@ -20,3 +20,16 @@ repos = ["greenrack"]
 ## Answer looks like
 
 A greenrack PR where an `Input` and a `Textarea` inside a `Field.Root required` are required (a story each, `toBeRequired()`), and an explicit `required={false}` still wins, merged on green.
+
+## Resolution
+
+2026-11-24, greenrack PR. `Input` and `Textarea` take `required ?? ctx?.required`, next to the
+`disabled ?? ctx?.disabled` they already had, so a `Field.Root required` makes its control
+required and the browser refuses an empty submit. An explicit `required` on the control wins,
+`required={false}` included. Neither destructures `required` with a default, so f09's lesson (a
+`= false` default hides the fallback) does not apply. Patch changeset
+`input-textarea-field-required`.
+
+Evidence: a `RequiredInField` story each (a `Field.Root required` with the control, and a second
+one whose control sets `required={false}`) asserts `toBeRequired()` and `not.toBeRequired()`.
+Both fail on `origin/main` and pass with the change; the 19 stories of Input and Textarea pass.

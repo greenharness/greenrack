@@ -115,6 +115,7 @@ export function Input({
   const effectiveOnBlur = onBlur ?? fieldCtx?.onBlur
   const effectiveRef = ref ?? fieldCtx?.ref
   const effectiveDisabled = disabled ?? ctx?.disabled
+  const effectiveRequired = required ?? ctx?.required
   const invalid = Boolean(ctx?.invalid) || variant === 'error'
   const ghost = variant === 'ghost'
   const effectiveVariant = ghost ? 'ghost' : ctx?.invalid ? 'error' : variant
@@ -143,7 +144,7 @@ export function Input({
       type={type}
       name={effectiveName}
       placeholder={placeholder}
-      required={required}
+      required={effectiveRequired}
       minLength={minLength}
       autoComplete={autoComplete}
       autoCapitalize={autoCapitalize}

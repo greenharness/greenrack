@@ -76,6 +76,27 @@ export const Error: Story = {
   },
 }
 
+/** Inside a `Field.Root required` the input is required, so the browser refuses
+ *  an empty submit; its own `required={false}` still wins. */
+export const RequiredInField: Story = {
+  render: (args) => (
+    <Stack gap="md">
+      <Field.Root required>
+        <Field.Label>Email</Field.Label>
+        <Input {...args} placeholder="Required by its Field" />
+      </Field.Root>
+      <Field.Root required>
+        <Field.Label>Nickname</Field.Label>
+        <Input {...args} required={false} placeholder="Opted out" />
+      </Field.Root>
+    </Stack>
+  ),
+  play: async ({canvas}) => {
+    await expect(canvas.getByPlaceholderText('Required by its Field')).toBeRequired()
+    await expect(canvas.getByPlaceholderText('Opted out')).not.toBeRequired()
+  },
+}
+
 export const Password: Story = {
   args: {type: 'password', placeholder: 'Enter password'},
   play: async ({canvas, userEvent}) => {

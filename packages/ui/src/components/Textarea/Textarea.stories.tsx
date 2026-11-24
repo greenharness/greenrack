@@ -75,6 +75,27 @@ export const Error: Story = {
   },
 }
 
+/** Inside a `Field.Root required` the textarea is required, so the browser
+ *  refuses an empty submit; its own `required={false}` still wins. */
+export const RequiredInField: Story = {
+  render: (args) => (
+    <html.div style={stackStyles.stack}>
+      <Field.Root required>
+        <Field.Label>Notes</Field.Label>
+        <Textarea {...args} placeholder="Required by its Field" />
+      </Field.Root>
+      <Field.Root required>
+        <Field.Label>Comments</Field.Label>
+        <Textarea {...args} required={false} placeholder="Opted out" />
+      </Field.Root>
+    </html.div>
+  ),
+  play: async ({canvas}) => {
+    await expect(canvas.getByPlaceholderText('Required by its Field')).toBeRequired()
+    await expect(canvas.getByPlaceholderText('Opted out')).not.toBeRequired()
+  },
+}
+
 export const Disabled: Story = {
   args: {placeholder: 'Disabled', disabled: true},
   play: async ({canvas}) => {
