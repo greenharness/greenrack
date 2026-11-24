@@ -44,5 +44,14 @@ A `Checkbox` or `Switch` with children inside a Field is named by both labels (i
 wrapping label and `Field.Label`'s `for`); the metas say to give it no children there. In
 happier, duro-app, application-landscape and social-planner, the seven files that hold both a
 `Field.Root` and one of these controls have the control outside the Field, so no name
-changes. Not done here: none of the three reads `ctx.field`, so inside a `Form` a
+changes.
+
+The preview review found that the Storybook Controls did not drive these stories. Two causes. The
+stories never wrote a click back to their `checked` / `value` arg; they now do (`useArgs`). And
+`Switch` itself was out of step: a label click ticked its hidden input but left the track and
+`aria-checked` behind, and a track click wrote `input.checked` past React. Its hidden input, and
+Checkbox's, now always shows the control's state. `Switch/In Field` and `Switch/Controlled
+Ignored` fail on the old Switch.
+
+Not done here: none of the three reads `ctx.field`, so inside a `Form` a
 `Field.Root name` does not bind them. Filed as f14.
