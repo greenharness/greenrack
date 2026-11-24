@@ -77,8 +77,13 @@ export function Form<T extends FieldValues>({
     // as a submit the schema refuses does, each time it is refused. Once per
     // submit: errors present on first render, or set later without a submit, do
     // not take focus.
-    if (first && submittedRef.current) methods.setFocus(first as Path<T>)
-    submittedRef.current = false
+    // The flag stays set through a render that clears the errors (an app that
+    // clears them when a submit starts), and until the next errors or an invalid
+    // submit.
+    if (first) {
+      if (submittedRef.current) methods.setFocus(first as Path<T>)
+      submittedRef.current = false
+    }
 
     prevErrorKeysRef.current = nextKeys
   }, [validationErrors, methods])

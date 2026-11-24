@@ -19,6 +19,7 @@ export function RowBoundary({children}: Pick<RowProps, 'children'>) {
 
 export function useRowSlot(
   _errorId: string,
+  _controlId: string,
   _active: boolean,
 ): RowSlotState<RefObject<null> | undefined> {
   return {rootRef: undefined, inRow: false, slot: null, fallbackLabel: undefined}

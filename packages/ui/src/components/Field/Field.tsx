@@ -192,6 +192,7 @@ function ControlledRoot({
   )
   const {rootRef, inRow, slot, fallbackLabel} = useRowSlot(
     `${id}-error`,
+    `${id}-control`,
     invalid && (errorCount > 0 || nativeError !== undefined),
   )
 
@@ -312,6 +313,7 @@ function StaticRoot({
   )
   const {rootRef, inRow, slot, fallbackLabel} = useRowSlot(
     `${id}-error`,
+    `${id}-control`,
     invalid && (errorCount > 0 || nativeError !== undefined),
   )
   const ctx = useMemo(

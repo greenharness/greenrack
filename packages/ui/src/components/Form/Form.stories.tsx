@@ -521,3 +521,66 @@ export const ServerValidationErrors: Story = {
     await waitFor(() => expect(usernameInput).toHaveFocus())
   },
 }
+
+export const ServerValidationErrorsClearedFirst: Story = {
+  name: 'Server validation errors, cleared when the submit starts',
+  render: () => {
+    function ServerErrorDemo() {
+      const [serverErrors, setServerErrors] = useState<
+        Partial<Record<'username' | 'password', string>>
+      >({})
+
+      return (
+        <html.div style={wrapStyles.wrap}>
+          <Form
+            schema={LoginSchema}
+            defaultValues={{username: '', password: ''}}
+            onSubmit={() => {
+              // The app clears the errors when a submit starts, and sets the
+              // server's when it answers.
+              setServerErrors({})
+              setTimeout(() => setServerErrors({username: 'This username is already taken'}), 50)
+            }}
+            validationErrors={serverErrors}
+          >
+            <Fieldset.Root gap="md">
+              <Field.Root name="username">
+                <Field.Label>Username</Field.Label>
+                <Input placeholder="Enter username" />
+                <Field.Error />
+              </Field.Root>
+
+              <Field.Root name="password">
+                <Field.Label>Password</Field.Label>
+                <Input type="password" placeholder="Enter password" />
+                <Field.Error />
+              </Field.Root>
+
+              <Button type="submit">Register</Button>
+            </Fieldset.Root>
+          </Form>
+        </html.div>
+      )
+    }
+
+    return <ServerErrorDemo />
+  },
+  play: async ({canvas}) => {
+    const usernameInput = canvas.getByPlaceholderText('Enter username')
+    const passwordInput = canvas.getByPlaceholderText('Enter password')
+
+    // Fill valid values and submit
+    await userEvent.type(usernameInput, 'johndoe')
+    await userEvent.type(passwordInput, 'supersecret1')
+
+    const button = canvas.getByRole('button', {name: 'Register'})
+    await userEvent.click(button)
+
+    // Server error appears
+    const alert = await canvas.findByRole('alert')
+    await expect(alert).toHaveTextContent('This username is already taken')
+    // The server refused the submit: focus goes to the field it names.
+    await waitFor(() => expect(usernameInput).toHaveFocus())
+    await expect(usernameInput).toHaveAccessibleDescription('This username is already taken')
+  },
+}

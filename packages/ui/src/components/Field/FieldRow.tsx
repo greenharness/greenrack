@@ -11,6 +11,7 @@ import {
 } from 'react'
 import {createPortal} from 'react-dom'
 import {html} from 'react-strict-dom'
+import {textOf} from '../../shared/textOf'
 import {Cluster} from '../Cluster/Cluster'
 import type {RowSlot} from './FieldContext'
 import type {RowErrorProps, RowProps, RowSlotState} from './FieldRowTypes'
@@ -72,6 +73,7 @@ export function RowBoundary({children}: {children: ReactNode}) {
  *  keeps its error where it is. `rootRef` goes on the Field's outermost element. */
 export function useRowSlot(
   errorId: string,
+  controlId: string,
   active: boolean,
 ): RowSlotState<RefObject<HTMLDivElement | null>> {
   const row = useContext(RowContext)
@@ -89,8 +91,10 @@ export function useRowSlot(
   }, [line])
   useLayoutEffect(() => {
     const root = rootRef.current
-    if (!active || !inside || !line || !root || !onSlot) return
-    setFallbackLabel(root.querySelector('[aria-label]')?.getAttribute('aria-label') ?? undefined)
+    if (!active || !line || !root || !onSlot) return
+    // Not yet known to be in the row, or only in it through a portal: leave the line alone.
+    if (!line.parentElement?.contains(root)) return
+    setFallbackLabel(accessibleName(controlId))
     const span = document.createElement('span')
     span.id = errorId
     owners.set(span, root)
@@ -109,14 +113,28 @@ export function useRowSlot(
       onSlot(-1)
       setSlot(null)
     }
-  }, [active, inside, line, onSlot, errorId])
+  }, [active, line, onSlot, errorId, controlId])
   return {rootRef, inRow: row !== null && inside, slot, fallbackLabel}
+}
+
+/** The control's own name, for a Field with no label text to lead its message:
+ *  its `aria-label`, else the text of what its `aria-labelledby` names. */
+function accessibleName(controlId: string): string | undefined {
+  const control = document.getElementById(controlId)
+  const label = control?.getAttribute('aria-label')
+  if (label) return label
+  const ids = control?.getAttribute('aria-labelledby')?.split(/\s+/) ?? []
+  const text = ids
+    .map((id) => document.getElementById(id)?.textContent?.trim())
+    .filter(Boolean)
+    .join(' ')
+  return text || undefined
 }
 
 /** A message ends in punctuation, so two read one after the other, in the line
  *  and aloud, as two sentences. */
 function sentence(text: ReactNode): ReactNode {
-  return typeof text === 'string' && !/[.!?]$/.test(text.trim()) ? `${text}.` : text
+  return /[.!?]$/.test(textOf(text).trim()) ? text : <>{text}.</>
 }
 
 /** The message in its Field's slot, led by the field's label. */
