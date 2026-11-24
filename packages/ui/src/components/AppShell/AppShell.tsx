@@ -21,6 +21,7 @@ import {TextLink} from '../TextLink/TextLink'
 import {useContainerBelow} from '../../hooks/useContainerBelow'
 import type {OnNavigate} from '../../shared/navigate'
 import {InLandmarkContext} from '../../shared/InLandmarkContext'
+import {mergeRefs} from '../../shared/mergeRefs'
 import {styles} from './styles.css'
 
 /* AppShell — an application's frame: a navigation rail beside the main
@@ -330,14 +331,7 @@ interface MainProps {
 
 function Main({children, id, ref}: MainProps) {
   const {mainId, mainRef, collapseBelow, scroll} = useAppShell()
-  const setRef = useCallback(
-    (node: HTMLElement | null) => {
-      mainRef.current = node
-      if (typeof ref === 'function') ref(node)
-      else if (ref) ref.current = node
-    },
-    [mainRef, ref],
-  )
+  const setRef = useMemo(() => mergeRefs(mainRef, ref), [mainRef, ref])
   return (
     <html.main
       ref={setRef}

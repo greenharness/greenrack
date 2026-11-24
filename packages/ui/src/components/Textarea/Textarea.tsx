@@ -1,6 +1,7 @@
-import {useCallback, useRef} from 'react'
+import {useMemo, useRef} from 'react'
 import {html} from 'react-strict-dom'
 import {isNative} from '../../platform'
+import {mergeRefs} from '../../shared/mergeRefs'
 import {useFieldContext, useNativeValidation} from '../Field/FieldContext'
 import type {ListboxAnchorProps} from '../Listbox/Listbox'
 import {useAutoGrowFallback} from './useAutoGrowFallback'
@@ -113,14 +114,7 @@ export function Textarea({
 
   // Without CSS field-sizing, measure the content after each render.
   const innerRef = useRef<HTMLTextAreaElement | null>(null)
-  const setRef = useCallback(
-    (el: HTMLTextAreaElement | null) => {
-      innerRef.current = el
-      if (typeof effectiveRef === 'function') effectiveRef(el)
-      else if (effectiveRef) (effectiveRef as {current: unknown}).current = el
-    },
-    [effectiveRef],
-  )
+  const setRef = useMemo(() => mergeRefs(innerRef, effectiveRef), [effectiveRef])
   useAutoGrowFallback(innerRef, autoGrow ? 'content' : 'fixed')
   const dropOver = useFileDrop(innerRef, onFiles)
   const onPaste = onFiles

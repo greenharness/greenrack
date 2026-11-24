@@ -4,6 +4,7 @@ import {useCallback, useId, useRef, useState} from 'react'
 import {css, html} from 'react-strict-dom'
 import {Textarea} from './Textarea'
 import {Listbox} from '../Listbox/Listbox'
+import {Button} from '../Button/Button'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
 
@@ -270,5 +271,62 @@ export const PasteAndDropFiles: Story = {
     await expect(drop.defaultPrevented).toBe(true)
     await expect(args.onFiles).toHaveBeenCalledTimes(2)
     await waitFor(() => expect(getComputedStyle(field).boxShadow).toBe(ringBefore))
+  },
+}
+
+/** What a caller's callback ref saw: `setup` per attach, `cleanup` per detach. */
+const refLog: string[] = []
+
+function RefCleanupHarness() {
+  useState(() => {
+    refLog.length = 0
+    return null
+  })
+  const [value, setValue] = useState('first')
+  const [shown, setShown] = useState(true)
+  // React 19: a callback ref that returns a cleanup is never called with null.
+  const callerRef = useCallback((el: HTMLTextAreaElement | null) => {
+    if (el === null) {
+      refLog.push('null')
+      return
+    }
+    refLog.push('setup')
+    return () => {
+      refLog.push('cleanup')
+    }
+  }, [])
+  return (
+    <html.div style={stackStyles.stack}>
+      {shown ? (
+        <Textarea
+          placeholder="Ref cleanup"
+          ref={callerRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      ) : null}
+      <Button onClick={() => setValue('second')}>Change value</Button>
+      <Button onClick={() => setShown(false)}>Unmount</Button>
+    </html.div>
+  )
+}
+
+/**
+ * A caller's callback ref that returns a cleanup (React 19) gets it run when
+ * the field goes away, and only then: a value update re-attaches nothing.
+ */
+export const RefCleanup: Story = {
+  render: () => <RefCleanupHarness />,
+  play: async ({canvas, userEvent}) => {
+    const field = canvas.getByPlaceholderText('Ref cleanup')
+    await expect(refLog).toEqual(['setup'])
+
+    await userEvent.click(canvas.getByRole('button', {name: 'Change value'}))
+    await expect(field).toHaveValue('second')
+    await expect(refLog).toEqual(['setup'])
+
+    await userEvent.click(canvas.getByRole('button', {name: 'Unmount'}))
+    await waitFor(() => expect(canvas.queryByPlaceholderText('Ref cleanup')).toBeNull())
+    await expect(refLog).toEqual(['setup', 'cleanup'])
   },
 }
