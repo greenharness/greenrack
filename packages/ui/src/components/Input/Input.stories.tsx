@@ -58,11 +58,21 @@ export const KeyboardEvents: Story = {
   },
 }
 
+/** The error variant is shown the way it is used: in a Field that says what is
+ *  wrong, so the red control has a message and `aria-describedby` names it. */
 export const Error: Story = {
   args: {variant: 'error', placeholder: 'Invalid input'},
+  render: (args) => (
+    <Field.Root invalid>
+      <Field.Label>Name</Field.Label>
+      <Input {...args} />
+      <Field.Error>Enter a name</Field.Error>
+    </Field.Root>
+  ),
   play: async ({canvas}) => {
     const input = canvas.getByPlaceholderText('Invalid input')
     await expect(input).toHaveAttribute('aria-invalid', 'true')
+    await expect(input).toHaveAccessibleDescription('Enter a name')
   },
 }
 
@@ -93,7 +103,10 @@ export const AllVariants: Story = {
   render: () => (
     <html.div style={stackStyles.stack}>
       <Input placeholder="Default input" />
-      <Input variant="error" placeholder="Error input" />
+      <Field.Root invalid>
+        <Input variant="error" placeholder="Error input" aria-label="Error input" />
+        <Field.Error>Enter a value</Field.Error>
+      </Field.Root>
       <Input type="password" placeholder="Password input" />
       <Input placeholder="Disabled" disabled />
     </html.div>

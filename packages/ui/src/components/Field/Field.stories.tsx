@@ -627,8 +627,11 @@ const rowStyles = css.create({
   // The room one hanging error line takes under the row.
   // One error line, scaling with the text: the web form of sizes.fieldErrorReserve.
   reserve: {paddingBottom: `calc(${typeScale.lineHeight1} + ${spacing.xs})`},
-  frame: {width: sizes.pageXs},
+  // As wide as the page lets it, never past the viewport.
+  frame: {width: '100%', maxWidth: sizes.pageXs},
   narrow: {width: sizes.fieldMinWSm},
+  // A phone: the row wraps in it, and nothing may scroll sideways.
+  phone: {width: sizes.panelSm},
 })
 
 function bottomSpread(canvas: ReturnType<typeof within>) {
@@ -637,6 +640,21 @@ function bottomSpread(canvas: ReturnType<typeof within>) {
     canvas.getByRole('button', {name: 'Mark posted'}),
   ].map((element) => element.getBoundingClientRect().bottom)
   return Math.max(...bottoms) - Math.min(...bottoms)
+}
+
+/** The Date input and the button sit on one line (a Field.Row wraps when the
+ *  page is narrow), and then they are aligned on their bottoms. */
+function expectAlignedWhenOnOneLine(canvas: ReturnType<typeof within>) {
+  const input = canvas.getAllByRole('textbox')[0].getBoundingClientRect()
+  const button = canvas.getByRole('button', {name: 'Mark posted'}).getBoundingClientRect()
+  if (button.top < input.bottom)
+    expect(Math.abs(button.bottom - input.bottom)).toBeLessThanOrEqual(0.5)
+}
+
+/** No story or row scrolls the page sideways. */
+function expectNoHorizontalOverflow() {
+  const root = document.documentElement
+  expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)
 }
 
 function InlineRow({
@@ -656,14 +674,6 @@ function InlineRow({
             <Input placeholder="2026-11-24" />
             {invalid && <Field.Error>{message}</Field.Error>}
           </Field.Root>
-          <Field.Root errorPlacement={errorPlacement}>
-            <Field.Label>Time</Field.Label>
-            <Input placeholder="09:30" />
-          </Field.Root>
-          <Field.Root errorPlacement={errorPlacement}>
-            <Field.Label>Note</Field.Label>
-            <Input placeholder="Optional" />
-          </Field.Root>
           <Button>Mark posted</Button>
         </Inline>
       </html.div>
@@ -676,7 +686,8 @@ function InlineRow({
 }
 
 /** `errorPlacement="hanging"`: the error line sits under the control, out of the
- *  Field's flow, so the inputs and the button stay on one line with or without it. */
+ *  Field's flow, so the inputs and the button stay on one line with or without it.
+ *  For one short line; a row whose messages can wrap is a `Field.Row`. */
 export const InlineRowWithError: Story = {
   render: () => <InlineRow errorPlacement="hanging" />,
   play: async ({canvas, userEvent}) => {
@@ -693,6 +704,7 @@ export const InlineRowWithError: Story = {
     await expect(box.bottom).toBeLessThanOrEqual(
       canvas.getByText('Next row').getBoundingClientRect().top + 0.5,
     )
+    expectNoHorizontalOverflow()
     await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
     await waitFor(() => expect(canvas.queryByRole('alert')).not.toBeInTheDocument())
     await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
@@ -712,23 +724,8 @@ export const InlineRowWithErrorBelow: Story = {
   },
 }
 
-/** A message longer than one line in a narrow Field wraps and reaches past the
- *  reserve under the row. The row stays aligned. */
-export const InlineRowLongMessage: Story = {
-  render: () => (
-    <InlineRow
-      errorPlacement="hanging"
-      message="Enter the date the post went out, as year-month-day."
-    />
-  ),
-  play: async ({canvas, userEvent}) => {
-    await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
-    await canvas.findByRole('alert')
-    await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
-  },
-}
-
-/** With the label at the side the error hangs under the control, not the label. */
+/** With the label at the side the error hangs under the control, not the label,
+ *  and the Field fits the viewport. */
 export const HangingErrorSideLabel: Story = {
   render: () => (
     <html.div style={rowStyles.frame}>
@@ -748,43 +745,210 @@ export const HangingErrorSideLabel: Story = {
     await expect(alert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       input.getBoundingClientRect().bottom,
     )
+    expectNoHorizontalOverflow()
+    await expect(input.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
   },
 }
 
-/** The browser's own message, shown by Field.Root itself (no Field.Error), in a
- *  narrow Field: it hangs under the control, the row stays aligned, and the
- *  message wraps inside the Field's width. The Field is 80px wide on purpose: the
- *  message wraps past the one-line room and covers "Next row", the limit
- *  Field.meta documents; this is not the intended layout. */
-export const HangingNativeMessage: Story = {
+// --- Field.Row: a row's errors in one line under the whole row ---
+
+function RowDemo({
+  dateMessage = 'Enter a date',
+  timeMessage = 'Enter a time',
+  frame = rowStyles.frame,
+}: {
+  dateMessage?: string
+  timeMessage?: string
+  frame?: typeof rowStyles.frame | typeof rowStyles.phone
+}) {
+  const [date, setDate] = useState(false)
+  const [time, setTime] = useState(false)
+  return (
+    <html.div style={frame}>
+      <Field.Row>
+        <Field.Root invalid={date}>
+          <Field.Label>Date</Field.Label>
+          <Input placeholder="2026-11-24" />
+          <Field.Error>{dateMessage}</Field.Error>
+        </Field.Root>
+        <Field.Root invalid={time}>
+          <Field.Label>Time</Field.Label>
+          <Input placeholder="09:30" />
+          <Field.Error>{timeMessage}</Field.Error>
+        </Field.Root>
+        <Button>Mark posted</Button>
+      </Field.Row>
+      <html.p>Next row</html.p>
+      <Button variant="secondary" onClick={() => setDate((value) => !value)}>
+        Toggle date
+      </Button>
+      <Button variant="secondary" onClick={() => setTime((value) => !value)}>
+        Toggle time
+      </Button>
+    </html.div>
+  )
+}
+
+/** The row's line: a region mounted from the start, empty until an error. */
+function rowLine(canvas: ReturnType<typeof within>) {
+  return canvas.getByRole('alert')
+}
+
+/** `Field.Row`: each error shows in one line under the whole row, led by its
+ *  field's name, in the row's own flow. The inputs and the button never move,
+ *  nothing is covered, and the control's `aria-describedby` names its message. */
+export const RowErrorsOneLine: Story = {
+  render: () => <RowDemo />,
+  play: async ({canvas, userEvent}) => {
+    await expect(rowLine(canvas)).toBeEmptyDOMElement()
+    expectAlignedWhenOnOneLine(canvas)
+    const [dateInput] = canvas.getAllByRole('textbox')
+    const before = dateInput.getBoundingClientRect().top
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle date'}))
+    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Date: Enter a date'))
+    // The message is the element the input describes, once.
+    const id = dateInput.getAttribute('aria-describedby')
+    await expect(id).toBeTruthy()
+    await expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1)
+    await expect(document.getElementById(id as string)?.textContent?.trim()).toBe(
+      'Date: Enter a date',
+    )
+    await expect(dateInput).toBeInvalid()
+    // Nothing moved; the line is under the row and clear of what follows.
+    await expect(dateInput.getBoundingClientRect().top).toBe(before)
+    expectAlignedWhenOnOneLine(canvas)
+    const line = rowLine(canvas).getBoundingClientRect()
+    await expect(line.top).toBeGreaterThanOrEqual(
+      canvas.getByRole('button', {name: 'Mark posted'}).getBoundingClientRect().bottom,
+    )
+    await expect(line.bottom).toBeLessThanOrEqual(
+      canvas.getByText('Next row').getBoundingClientRect().top + 0.5,
+    )
+    expectNoHorizontalOverflow()
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle date'}))
+    await waitFor(() => expect(rowLine(canvas)).toBeEmptyDOMElement())
+    await expect(dateInput.getAttribute('aria-describedby')).toBeNull()
+  },
+}
+
+/** A second error joins the line without rewriting the first message (which a
+ *  live region would read again), in the order the Fields sit, whichever erred
+ *  first. */
+export const RowSecondErrorJoinsLine: Story = {
+  render: () => <RowDemo />,
+  play: async ({canvas, userEvent}) => {
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle time'}))
+    await waitFor(() => expect(rowLine(canvas).textContent?.trim()).toBe('Time: Enter a time'))
+    const timeSpan = rowLine(canvas).firstElementChild
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle date'}))
+    await waitFor(() =>
+      expect(rowLine(canvas).textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'Date: Enter a date Time: Enter a time',
+      ),
+    )
+    // The first message is the same node, in place; the line announces only changes.
+    await expect(rowLine(canvas).lastElementChild).toBe(timeSpan)
+    await expect(rowLine(canvas).getAttribute('aria-atomic')).toBe('false')
+  },
+}
+
+/** A long message wraps inside the row's width, below the row, and covers nothing:
+ *  the case `hanging` could not hold. At 390 the controls wrap and the page does
+ *  not scroll sideways. */
+export const RowLongMessage: Story = {
+  render: () => (
+    <RowDemo
+      frame={rowStyles.phone}
+      dateMessage="Enter the date the post went out, as year-month-day, for example 2026-11-24, and the time it went out, as hours and minutes on the 24-hour clock."
+    />
+  ),
+  play: async ({canvas, userEvent}) => {
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle date'}))
+    await waitFor(() => expect(rowLine(canvas).textContent).toContain('Date: Enter the date'))
+    const line = rowLine(canvas).getBoundingClientRect()
+    await expect(line.height).toBeGreaterThan(24)
+    await expect(line.bottom).toBeLessThanOrEqual(
+      canvas.getByText('Next row').getBoundingClientRect().top + 0.5,
+    )
+    // In a phone-wide frame the controls wrap, the line stays inside the frame, and
+    // the frame does not scroll sideways.
+    const frame = canvas.getByText('Next row').parentElement as HTMLElement
+    await expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth)
+    await expect(line.right).toBeLessThanOrEqual(frame.getBoundingClientRect().right + 0.5)
+    expectNoHorizontalOverflow()
+  },
+}
+
+/** The browser's own message, shown by the Field itself (no `Field.Error`), in a
+ *  narrow Field: in the row's line, in full, covering nothing. */
+export const RowNativeMessage: Story = {
   render: () => (
     <html.form>
-      <html.div style={rowStyles.reserve}>
-        <Inline gap="sm" align="end">
-          <html.div style={rowStyles.narrow}>
-            <Field.Root errorPlacement="hanging">
-              <Field.Label>Date</Field.Label>
-              <Input required placeholder="2026-11-24" />
-            </Field.Root>
-          </html.div>
-          <Button type="submit">Mark posted</Button>
-        </Inline>
-      </html.div>
+      <Field.Row>
+        <html.div style={rowStyles.narrow}>
+          <Field.Root>
+            <Field.Label>Date</Field.Label>
+            <Input required placeholder="2026-11-24" />
+          </Field.Root>
+        </html.div>
+        <Button type="submit">Mark posted</Button>
+      </Field.Row>
       <html.p>Next row</html.p>
     </html.form>
   ),
   play: async ({canvas, userEvent}) => {
     const input = canvas.getByRole('textbox') as HTMLInputElement
-    await expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5)
     await userEvent.click(canvas.getByRole('button', {name: 'Mark posted'}))
+    await waitFor(() =>
+      expect(rowLine(canvas).textContent?.trim()).toBe(`Date: ${input.validationMessage}`),
+    )
+    await expect(input.getAttribute('aria-describedby')).toBe(rowLine(canvas).firstElementChild?.id)
+    await expect(rowLine(canvas).getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      canvas.getByText('Next row').getBoundingClientRect().top + 0.5,
+    )
+    await expect(canvas.getByRole('textbox')).toHaveFocus()
+    expectNoHorizontalOverflow()
+  },
+}
+
+/** The default placement, for contrast with a row: the error line is in the
+ *  Field's flow. It overlaps nothing, the control above it stays where it was,
+ *  and what follows moves down by the line. */
+export const ErrorInFlowOverlapsNothing: Story = {
+  render: () => {
+    function Demo() {
+      const [invalid, setInvalid] = useState(false)
+      return (
+        <html.div style={rowStyles.frame}>
+          <Field.Root invalid={invalid}>
+            <Field.Label>Date</Field.Label>
+            <Input placeholder="2026-11-24" />
+            {invalid && <Field.Error>Enter a date</Field.Error>}
+          </Field.Root>
+          <html.p>Next row</html.p>
+          <Button variant="secondary" onClick={() => setInvalid((value) => !value)}>
+            Toggle error
+          </Button>
+        </html.div>
+      )
+    }
+    return <Demo />
+  },
+  play: async ({canvas, userEvent}) => {
+    const input = canvas.getByRole('textbox')
+    const next = canvas.getByText('Next row')
+    const inputTop = input.getBoundingClientRect().top
+    const nextTop = next.getBoundingClientRect().top
+    await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
     const alert = await canvas.findByRole('alert')
-    await expect(alert.textContent).toBe(input.validationMessage)
+    await expect(input.getBoundingClientRect().top).toBe(inputTop)
     await expect(alert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       input.getBoundingClientRect().bottom,
     )
-    await expect(alert.getBoundingClientRect().width).toBeLessThanOrEqual(
-      input.getBoundingClientRect().width + 0.5,
+    await expect(alert.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      next.getBoundingClientRect().top + 0.5,
     )
-    await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
+    await expect(next.getBoundingClientRect().top).toBeGreaterThan(nextTop)
+    await expect(input).toHaveAccessibleDescription('Enter a date')
   },
 }

@@ -36,7 +36,7 @@ const MySchema = Schema.Struct({
         <Input type="email" />
         <Field.Error />
       </Field.Root>
-      <Button type="submit" disabled={!formState.isValid}>Submit</Button>
+      <Button type="submit" disabled={formState.isSubmitting}>Submit</Button>
     </Fieldset.Root>
   )}
 </Form>`,

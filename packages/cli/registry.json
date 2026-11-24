@@ -3073,14 +3073,15 @@
           "optional": [
             "Label",
             "Description",
-            "Error"
+            "Error",
+            "Row"
           ],
           "required": [
             "Root"
           ]
         },
-        "description": "Compound form field with label, description, and error display. Inside Form, auto-binds to react-hook-form via name prop. Works standalone with manual invalid prop. A native validation message from an Input or Textarea (required, type, pattern) is shown by Field.Error; explicit Error children and form errors take precedence. Field.Root shows the native message itself when it has no Field.Error. `errorPlacement` (`below` by default) puts the error line in the Field's flow, so the Field grows by one line when it shows. `hanging` takes it out of the flow, under the control (`position: absolute` under the Field, or under the content column when `labelPosition=\"side\"`): the Field keeps the height of its label and control, and an `Inline align=\"end\"` row stays aligned on its inputs and its button. The line hangs below the row, so leave room under the row: on the web `paddingBottom: calc(${typeScale.lineHeight1} + ${spacing.xs})` (one error line, which grows with the text size), and `sizes.fieldErrorReserve` (20px, the same at the default text size) where there is no calc, as on native. It is the line only: the gap to the next row still comes from the gap of the container. A message that wraps onto a second line (a narrow Field) reaches past that room and overlaps what follows. A `Field.Description` stays in the flow. The prop is on the Field only; a `Form` does not pass it down as it does `labelPosition`.",
-        "example": "// Inside Form (auto-binds validation)\n<Field.Root name=\"email\">\n  <Field.Label>Email</Field.Label>\n  <Input type=\"email\" placeholder=\"you@example.com\" />\n  <Field.Description>We'll never share your email.</Field.Description>\n  <Field.Error />\n</Field.Root>\n\n// A group of controls — the label names the group (aria-labelledby).\n// A direct ToggleGroup / CheckboxGroup / RadioGroup child is detected;\n// pass `group` when the group is nested (e.g. inside a Stack).\n<Field.Root>\n  <Field.Label>Type</Field.Label>\n  <ToggleGroup value={[type]} onValueChange={setType}>\n    <Toggle value=\"app\">Application</Toggle>\n    <Toggle value=\"platform\">Platform</Toggle>\n  </ToggleGroup>\n</Field.Root>\n\n// A row of Fields and a button, aligned on the inputs whatever error lines show\n<html.div style={styles.rowReserve /* paddingBottom: calc(lineHeight1 + spacing.xs) */}>\n  <Inline gap=\"sm\" align=\"end\">\n    <Field.Root invalid={dateInvalid} errorPlacement=\"hanging\">\n      <Field.Label>Date</Field.Label>\n      <Input />\n      <Field.Error>Enter a date</Field.Error>\n    </Field.Root>\n    <Button>Mark posted</Button>\n  </Inline>\n</html.div>\n\n// Standalone (manual error)\n<Field.Root invalid>\n  <Field.Label>Email</Field.Label>\n  <Input variant=\"error\" />\n  <Field.Error>This email is already taken.</Field.Error>\n</Field.Root>",
+        "description": "Compound form field with label, description, and error display. Inside Form, auto-binds to react-hook-form via name prop. Works standalone with manual invalid prop. A native validation message from an Input or Textarea (required, type, pattern) is shown by Field.Error; explicit Error children and form errors take precedence. Field.Root shows the native message itself when it has no Field.Error. Alone, the error line is in the Field's flow, so the Field grows by one line when it shows and what follows moves down (it overlaps nothing). `Field.Row` is a row of Fields (and a button) that wraps on a narrow page and shows every Field's error in one line under the whole row, each led by its field's name: the inputs and the button never move, a long message wraps instead of covering what follows, and a second error joins the line without re-announcing the first (the line is one live region, `aria-atomic=\"false\"`). `errorLabel` on Field.Root names a Field whose label is not plain text. `errorPlacement=\"hanging\"` takes the error out of the flow, under the control (`position: absolute`), for one short line: leave room under the row (`paddingBottom: calc(${typeScale.lineHeight1} + ${spacing.xs})`, `sizes.fieldErrorReserve` where there is no calc); a message that wraps reaches over what follows, so a row that can show a long message, or more than one error, is a `Field.Row`. On React Native `Field.Row` is a wrapping row and each Field keeps its error below. A `Field.Description` stays in the flow.",
+        "example": "// Inside Form (auto-binds validation)\n<Field.Root name=\"email\">\n  <Field.Label>Email</Field.Label>\n  <Input type=\"email\" placeholder=\"you@example.com\" />\n  <Field.Description>We'll never share your email.</Field.Description>\n  <Field.Error />\n</Field.Root>\n\n// A group of controls — the label names the group (aria-labelledby).\n// A direct ToggleGroup / CheckboxGroup / RadioGroup child is detected;\n// pass `group` when the group is nested (e.g. inside a Stack).\n<Field.Root>\n  <Field.Label>Type</Field.Label>\n  <ToggleGroup value={[type]} onValueChange={setType}>\n    <Toggle value=\"app\">Application</Toggle>\n    <Toggle value=\"platform\">Platform</Toggle>\n  </ToggleGroup>\n</Field.Root>\n\n// A row of Fields and a button: errors show in one line under the whole row,\n// the inputs and the button never move\n<Field.Row>\n  <Field.Root invalid={dateInvalid}>\n    <Field.Label>Date</Field.Label>\n    <Input />\n    <Field.Error>Enter a date</Field.Error>\n  </Field.Root>\n  <Field.Root>\n    <Field.Label>Time</Field.Label>\n    <Input />\n  </Field.Root>\n  <Button>Mark posted</Button>\n</Field.Row>\n\n// Standalone (manual error)\n<Field.Root invalid>\n  <Field.Label>Email</Field.Label>\n  <Input variant=\"error\" />\n  <Field.Error>This email is already taken.</Field.Error>\n</Field.Root>",
         "relatedTo": [
           {
             "component": "Form",
@@ -3120,7 +3121,7 @@
         ],
         "whenNotToUse": [
           "Bare input without label — use Input directly (rare)",
-          "A row of Fields with an `Inline align=\"end\"` button where one shows an error: that is `errorPlacement=\"hanging\"`, not a different layout"
+          "A row of Fields and a button where an error must not move the inputs: that is `Field.Row`, not an `Inline` of Fields with `errorPlacement=\"hanging\"` (hanging is for one short line)"
         ],
         "whenToUse": [
           "Any form input that needs a label and/or error message",
@@ -3203,7 +3204,7 @@
               ]
             },
             {
-              "description": "Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align=\"end\"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down.",
+              "deprecated": "`'hanging'` is deprecated: a row of Fields is a `Field.Row`, which shows its errors in one line under the whole row and covers nothing. Removed in the next major. Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align=\"end\"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down.",
               "name": "errorPlacement",
               "required": false,
               "type": "ErrorPlacement",
@@ -3213,12 +3214,45 @@
               ]
             },
             {
+              "description": "The name that leads this Field's message in a `Field.Row`'s line, for a Field whose label is not plain text (an icon, JSX). Defaults to the label's text.",
+              "name": "errorLabel",
+              "required": false,
+              "type": "string"
+            },
+            {
               "name": "children",
               "required": true,
               "type": "ReactNode"
             }
           ],
           "sourcePath": "packages/ui/src/components/Field/Field.tsx"
+        },
+        "Row": {
+          "name": "Row",
+          "props": [
+            {
+              "default": "'sm'",
+              "name": "gap",
+              "required": false,
+              "type": "SpacingToken",
+              "union": [
+                "xs",
+                "sm",
+                "ms",
+                "md",
+                "lg",
+                "xl",
+                "xxl",
+                "xxxl"
+              ]
+            },
+            {
+              "name": "children",
+              "required": true,
+              "type": "ReactNode"
+            }
+          ],
+          "sourcePath": "packages/ui/src/components/Field/FieldRow.tsx"
         }
       },
       "props": null,
@@ -3408,7 +3442,7 @@
       "kind": "component",
       "meta": {
         "description": "Form wrapper with Effect Schema validation and react-hook-form integration. Provides FormContext to child Field components. On React Native, @greenharness/greenrack-ui/form resolves to a native Form (a view, not a <form>): a Button type=\"submit\" inside it runs the validated submit, since there is no DOM submit event.",
-        "example": "import {Schema} from 'effect'\n\nconst MySchema = Schema.Struct({\n  email: Schema.String.pipe(\n    Schema.pattern(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, {message: () => 'Invalid email'}),\n  ),\n})\n\n<Form schema={MySchema} defaultValues={{email: ''}} onSubmit={handleSubmit}>\n  {({formState}) => (\n    <Fieldset.Root gap=\"md\">\n      <Field.Root name=\"email\">\n        <Field.Label>Email</Field.Label>\n        <Input type=\"email\" />\n        <Field.Error />\n      </Field.Root>\n      <Button type=\"submit\" disabled={!formState.isValid}>Submit</Button>\n    </Fieldset.Root>\n  )}\n</Form>",
+        "example": "import {Schema} from 'effect'\n\nconst MySchema = Schema.Struct({\n  email: Schema.String.pipe(\n    Schema.pattern(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, {message: () => 'Invalid email'}),\n  ),\n})\n\n<Form schema={MySchema} defaultValues={{email: ''}} onSubmit={handleSubmit}>\n  {({formState}) => (\n    <Fieldset.Root gap=\"md\">\n      <Field.Root name=\"email\">\n        <Field.Label>Email</Field.Label>\n        <Input type=\"email\" />\n        <Field.Error />\n      </Field.Root>\n      <Button type=\"submit\" disabled={formState.isSubmitting}>Submit</Button>\n    </Fieldset.Root>\n  )}\n</Form>",
         "relatedTo": [
           {
             "component": "Field",
@@ -10633,7 +10667,7 @@
       "peerDeps": [
         "effect"
       ],
-      "source": "import {Schema} from 'effect'\nimport {css, html} from 'react-strict-dom'\nimport {Field, Input, Fieldset, Button, Stack, Heading} from '@greenharness/greenrack-ui'\nimport {Form} from '@greenharness/greenrack-ui/form'\n\nimport {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'\n\nconst LoginSchema = Schema.Struct({\n  username: Schema.String.pipe(\n    Schema.minLength(3, {message: () => 'Username must be at least 3 characters'}),\n  ),\n  password: Schema.String.pipe(\n    Schema.minLength(8, {message: () => 'Password must be at least 8 characters'}),\n  ),\n})\n\nconst styles = css.create({\n  wrap: {maxWidth: sizes.dialogSm},\n})\n\nexport function LoginFormRecipe() {\n  return (\n    <html.div style={styles.wrap}>\n      <Stack gap=\"lg\">\n        <Heading level={2}>Log in</Heading>\n        <Form\n          schema={LoginSchema}\n          defaultValues={{username: '', password: ''}}\n          onSubmit={(data) => console.log('login', data)}\n        >\n          {({formState}) => (\n            <Fieldset.Root gap=\"md\">\n              <Field.Root name=\"username\">\n                <Field.Label>Username</Field.Label>\n                <Input placeholder=\"Enter username\" />\n                <Field.Error />\n              </Field.Root>\n\n              <Field.Root name=\"password\">\n                <Field.Label>Password</Field.Label>\n                <Input type=\"password\" placeholder=\"Enter password\" />\n                <Field.Error />\n              </Field.Root>\n\n              <Button type=\"submit\" disabled={!formState.isValid}>\n                Log in\n              </Button>\n            </Fieldset.Root>\n          )}\n        </Form>\n      </Stack>\n    </html.div>\n  )\n}\n",
+      "source": "import {Schema} from 'effect'\nimport {css, html} from 'react-strict-dom'\nimport {Field, Input, Fieldset, Button, Stack, Heading} from '@greenharness/greenrack-ui'\nimport {Form} from '@greenharness/greenrack-ui/form'\n\nimport {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'\n\nconst LoginSchema = Schema.Struct({\n  username: Schema.String.pipe(\n    Schema.minLength(3, {message: () => 'Username must be at least 3 characters'}),\n  ),\n  password: Schema.String.pipe(\n    Schema.minLength(8, {message: () => 'Password must be at least 8 characters'}),\n  ),\n})\n\nconst styles = css.create({\n  wrap: {maxWidth: sizes.dialogSm},\n})\n\nexport function LoginFormRecipe() {\n  return (\n    <html.div style={styles.wrap}>\n      <Stack gap=\"lg\">\n        <Heading level={2}>Log in</Heading>\n        <Form\n          schema={LoginSchema}\n          defaultValues={{username: '', password: ''}}\n          onSubmit={(data) => console.log('login', data)}\n        >\n          {({formState}) => (\n            <Fieldset.Root gap=\"md\">\n              <Field.Root name=\"username\">\n                <Field.Label>Username</Field.Label>\n                <Input placeholder=\"Enter username\" />\n                <Field.Error />\n              </Field.Root>\n\n              <Field.Root name=\"password\">\n                <Field.Label>Password</Field.Label>\n                <Input type=\"password\" placeholder=\"Enter password\" />\n                <Field.Error />\n              </Field.Root>\n\n              <Button type=\"submit\" disabled={formState.isSubmitting}>\n                Log in\n              </Button>\n            </Fieldset.Root>\n          )}\n        </Form>\n      </Stack>\n    </html.div>\n  )\n}\n",
       "sourcePath": "docs/ai/recipes/login-form.recipe.tsx",
       "title": "Login Form",
       "usesComponents": [
@@ -10693,7 +10727,7 @@
       "peerDeps": [
         "effect"
       ],
-      "source": "import {Schema} from 'effect'\nimport {css, html} from 'react-strict-dom'\nimport {PageShell, Tabs, Field, Input, Fieldset, Button, Stack, Inline, Heading, Text, Card, Switch} from '@greenharness/greenrack-ui'\nimport {Form} from '@greenharness/greenrack-ui/form'\n\nconst ProfileSchema = Schema.Struct({\n  displayName: Schema.String.pipe(Schema.minLength(1, {message: () => 'Display name is required'})),\n  email: Schema.String.pipe(\n    Schema.pattern(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, {message: () => 'Enter a valid email'}),\n  ),\n})\n\nexport function SettingsPageRecipe() {\n  return (\n    <PageShell maxWidth=\"md\" padding=\"md\" header={<Heading level={1}>Settings</Heading>}>\n      <Tabs.Root defaultValue=\"profile\">\n        <Tabs.List>\n          <Tabs.Tab value=\"profile\">Profile</Tabs.Tab>\n          <Tabs.Tab value=\"notifications\">Notifications</Tabs.Tab>\n          <Tabs.Tab value=\"security\">Security</Tabs.Tab>\n        </Tabs.List>\n\n        <Tabs.Panel value=\"profile\">\n          <Stack gap=\"lg\">\n            <Card>\n              <Stack gap=\"lg\">\n                <Heading level={3}>Profile Information</Heading>\n                <Form\n                  schema={ProfileSchema}\n                  defaultValues={{displayName: '', email: ''}}\n                  onSubmit={(data) => console.log('save profile', data)}\n                >\n                  {({formState}) => (\n                    <Fieldset.Root gap=\"md\">\n                      <Field.Root name=\"displayName\">\n                        <Field.Label>Display name</Field.Label>\n                        <Input placeholder=\"Your name\" />\n                        <Field.Error />\n                      </Field.Root>\n\n                      <Field.Root name=\"email\">\n                        <Field.Label>Email</Field.Label>\n                        <Input type=\"email\" placeholder=\"you@example.com\" />\n                        <Field.Error />\n                      </Field.Root>\n\n                      <Inline gap=\"sm\" justify=\"end\">\n                        <Button variant=\"secondary\">Cancel</Button>\n                        <Button type=\"submit\" disabled={!formState.isValid}>\n                          Save changes\n                        </Button>\n                      </Inline>\n                    </Fieldset.Root>\n                  )}\n                </Form>\n              </Stack>\n            </Card>\n          </Stack>\n        </Tabs.Panel>\n\n        <Tabs.Panel value=\"notifications\">\n          <Card>\n            <Stack gap=\"md\">\n              <Heading level={3}>Notification Preferences</Heading>\n              <Switch defaultChecked>Email notifications</Switch>\n              <Switch>Push notifications</Switch>\n              <Switch defaultChecked>Weekly digest</Switch>\n            </Stack>\n          </Card>\n        </Tabs.Panel>\n\n        <Tabs.Panel value=\"security\">\n          <Card>\n            <Stack gap=\"md\">\n              <Heading level={3}>Security</Heading>\n              <Text color=\"muted\">Security settings will appear here.</Text>\n            </Stack>\n          </Card>\n        </Tabs.Panel>\n      </Tabs.Root>\n    </PageShell>\n  )\n}\n",
+      "source": "import {Schema} from 'effect'\nimport {PageShell, Tabs, Field, Input, Fieldset, Button, Stack, Inline, Heading, Text, Card, Switch} from '@greenharness/greenrack-ui'\nimport {Form} from '@greenharness/greenrack-ui/form'\n\nconst ProfileSchema = Schema.Struct({\n  displayName: Schema.String.pipe(Schema.minLength(1, {message: () => 'Display name is required'})),\n  email: Schema.String.pipe(\n    Schema.pattern(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, {message: () => 'Enter a valid email'}),\n  ),\n})\n\nexport function SettingsPageRecipe() {\n  return (\n    <PageShell maxWidth=\"md\" padding=\"md\" header={<Heading level={1}>Settings</Heading>}>\n      <Tabs.Root defaultValue=\"profile\">\n        <Tabs.List>\n          <Tabs.Tab value=\"profile\">Profile</Tabs.Tab>\n          <Tabs.Tab value=\"notifications\">Notifications</Tabs.Tab>\n          <Tabs.Tab value=\"security\">Security</Tabs.Tab>\n        </Tabs.List>\n\n        <Tabs.Panel value=\"profile\">\n          <Stack gap=\"lg\">\n            <Card>\n              <Stack gap=\"lg\">\n                <Heading level={3}>Profile Information</Heading>\n                <Form\n                  schema={ProfileSchema}\n                  defaultValues={{displayName: '', email: ''}}\n                  onSubmit={(data) => console.log('save profile', data)}\n                >\n                  {({formState}) => (\n                    <Fieldset.Root gap=\"md\">\n                      <Field.Root name=\"displayName\">\n                        <Field.Label>Display name</Field.Label>\n                        <Input placeholder=\"Your name\" />\n                        <Field.Error />\n                      </Field.Root>\n\n                      <Field.Root name=\"email\">\n                        <Field.Label>Email</Field.Label>\n                        <Input type=\"email\" placeholder=\"you@example.com\" />\n                        <Field.Error />\n                      </Field.Root>\n\n                      <Inline gap=\"sm\" justify=\"end\">\n                        <Button variant=\"secondary\">Cancel</Button>\n                        <Button type=\"submit\" disabled={formState.isSubmitting}>\n                          Save changes\n                        </Button>\n                      </Inline>\n                    </Fieldset.Root>\n                  )}\n                </Form>\n              </Stack>\n            </Card>\n          </Stack>\n        </Tabs.Panel>\n\n        <Tabs.Panel value=\"notifications\">\n          <Card>\n            <Stack gap=\"md\">\n              <Heading level={3}>Notification Preferences</Heading>\n              <Switch defaultChecked>Email notifications</Switch>\n              <Switch>Push notifications</Switch>\n              <Switch defaultChecked>Weekly digest</Switch>\n            </Stack>\n          </Card>\n        </Tabs.Panel>\n\n        <Tabs.Panel value=\"security\">\n          <Card>\n            <Stack gap=\"md\">\n              <Heading level={3}>Security</Heading>\n              <Text color=\"muted\">Security settings will appear here.</Text>\n            </Stack>\n          </Card>\n        </Tabs.Panel>\n      </Tabs.Root>\n    </PageShell>\n  )\n}\n",
       "sourcePath": "docs/ai/recipes/settings-page.recipe.tsx",
       "title": "Settings Page",
       "usesComponents": [
