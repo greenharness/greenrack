@@ -53,8 +53,9 @@ export function Checkbox({
         id={ctx?.controlId}
         name={name}
         value={value}
-        checked={isControlled ? controlledChecked : undefined}
-        defaultChecked={!isControlled ? defaultChecked : undefined}
+        // Always the shown state (controlled or internal), so the input never
+        // switches between uncontrolled and controlled.
+        checked={isChecked}
         disabled={disabled}
         aria-label={!children ? ariaLabel : undefined}
         aria-describedby={ctx?.describedBy}

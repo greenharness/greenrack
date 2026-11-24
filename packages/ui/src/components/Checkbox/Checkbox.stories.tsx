@@ -1,13 +1,32 @@
 import type {Meta, StoryObj} from '@storybook/react'
 import {expect, fn} from 'storybook/test'
+import {useArgs} from 'storybook/preview-api'
 import {css, html} from 'react-strict-dom'
 import {Checkbox} from './Checkbox'
 import {Field} from '../Field/Field'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 
+type CheckboxArgs = React.ComponentProps<typeof Checkbox>
+
+/** Once Controls set `checked`, a click writes the new value back to the arg,
+ *  so the panel and the checkbox stay in step. */
+function useBoundArgs(args: CheckboxArgs): CheckboxArgs {
+  const [{checked}, updateArgs] = useArgs<CheckboxArgs>()
+  return {
+    ...args,
+    onChange: (event) => {
+      args.onChange?.(event)
+      if (checked !== undefined) updateArgs({checked: event.target.checked})
+    },
+  }
+}
+
 const meta: Meta<typeof Checkbox> = {
   title: 'Components/Checkbox',
   component: Checkbox,
+  render: function Render(args) {
+    return <Checkbox {...useBoundArgs(args)} />
+  },
   args: {
     onChange: fn(),
   },
@@ -94,20 +113,23 @@ export const AllVariants: Story = {
 /** Inside a Field.Root with no children: Field.Label names the checkbox, and
  *  the Field's description and error describe it. */
 export const InField: Story = {
-  render: (args) => (
-    <html.div style={stackStyles.stack}>
-      <Field.Root invalid>
-        <Field.Label>Accept the terms</Field.Label>
-        <Checkbox onChange={args.onChange} />
-        <Field.Description>You can withdraw at any time.</Field.Description>
-        <Field.Error>Accept the terms to continue.</Field.Error>
-      </Field.Root>
-      <Field.Root disabled>
-        <Field.Label>Locked</Field.Label>
-        <Checkbox />
-      </Field.Root>
-    </html.div>
-  ),
+  render: function Render(args) {
+    const bound = useBoundArgs(args)
+    return (
+      <html.div style={stackStyles.stack}>
+        <Field.Root invalid>
+          <Field.Label>Accept the terms</Field.Label>
+          <Checkbox {...bound} />
+          <Field.Description>You can withdraw at any time.</Field.Description>
+          <Field.Error>Accept the terms to continue.</Field.Error>
+        </Field.Root>
+        <Field.Root disabled>
+          <Field.Label>Locked</Field.Label>
+          <Checkbox />
+        </Field.Root>
+      </html.div>
+    )
+  },
   play: async ({canvas, userEvent, args}) => {
     const checkbox = canvas.getByRole('checkbox', {name: 'Accept the terms'})
     await expect(checkbox).toHaveAccessibleDescription(
@@ -120,5 +142,18 @@ export const InField: Story = {
     await expect(args.onChange).toHaveBeenCalledTimes(1)
 
     await expect(canvas.getByRole('checkbox', {name: 'Locked'})).toBeDisabled()
+  },
+}
+
+/** Controlled by a parent that ignores the change: a click calls onChange,
+ *  and the checkbox stays unchecked until the parent says otherwise. */
+export const ControlledIgnored: Story = {
+  args: {children: 'Remember me'},
+  render: (args) => <Checkbox {...args} checked={false} />,
+  play: async ({canvas, userEvent, args}) => {
+    const checkbox = canvas.getByRole('checkbox', {name: 'Remember me'})
+    await userEvent.click(checkbox)
+    await expect(args.onChange).toHaveBeenCalledTimes(1)
+    await expect(checkbox).not.toBeChecked()
   },
 }

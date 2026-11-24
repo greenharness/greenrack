@@ -1,15 +1,33 @@
 import type {Meta, StoryObj} from '@storybook/react'
 import {expect, fn, fireEvent} from 'storybook/test'
-import {Slider} from './Slider'
+import {useArgs} from 'storybook/preview-api'
+import {Slider, type SliderProps} from './Slider'
 import {Field} from '../Field/Field'
+
+/** Once Controls set `value`, a change writes the new value back to the arg,
+ *  so the panel and the slider stay in step. */
+function useBoundArgs(args: SliderProps): SliderProps {
+  const [{value}, updateArgs] = useArgs<SliderProps>()
+  return {
+    ...args,
+    onValueChange: (next) => {
+      args.onValueChange?.(next)
+      if (value !== undefined) updateArgs({value: next})
+    },
+  }
+}
 
 const meta: Meta<typeof Slider> = {
   title: 'Components/Slider',
   component: Slider,
+  render: function Render(args) {
+    return <Slider {...useBoundArgs(args)} />
+  },
   args: {
     onValueChange: fn(),
   },
   argTypes: {
+    value: {control: 'number'},
     disabled: {control: 'boolean'},
     showValue: {control: 'boolean'},
   },
@@ -101,20 +119,24 @@ export const Disabled: Story = {
  *  names itself from Field.Label by aria-labelledby; the Field's description
  *  and error describe it. */
 export const InField: Story = {
-  render: (args) => (
-    <>
-      <Field.Root invalid>
-        <Field.Label>Volume</Field.Label>
-        <Slider defaultValue={90} onValueChange={args.onValueChange} />
-        <Field.Description>Applies to every speaker.</Field.Description>
-        <Field.Error>Keep the volume under 80.</Field.Error>
-      </Field.Root>
-      <Field.Root disabled>
-        <Field.Label>Locked</Field.Label>
-        <Slider defaultValue={30} />
-      </Field.Root>
-    </>
-  ),
+  args: {defaultValue: 90},
+  render: function Render(args) {
+    const bound = useBoundArgs(args)
+    return (
+      <>
+        <Field.Root invalid>
+          <Field.Label>Volume</Field.Label>
+          <Slider {...bound} />
+          <Field.Description>Applies to every speaker.</Field.Description>
+          <Field.Error>Keep the volume under 80.</Field.Error>
+        </Field.Root>
+        <Field.Root disabled>
+          <Field.Label>Locked</Field.Label>
+          <Slider defaultValue={30} />
+        </Field.Root>
+      </>
+    )
+  },
   play: async ({canvas, userEvent, args}) => {
     const slider = canvas.getByRole('slider', {name: 'Volume'})
     await expect(slider).toHaveAccessibleDescription(
