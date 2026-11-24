@@ -52,14 +52,16 @@ This PR (greenrack, Phases 1 and 2), observed in Chromium through `browser-check
 - `InlineRowLongMessage`, a 3-line message in the row. Expected: row aligned, and the overlap documented. Observed: spread 0 px; the alert (height 48) reaches 32 px past the 20 px reserve into "Next row".
 - `InlineRowWithError` with the web reserve `calc(lineHeight1 + spacing.xs)`, tree `04390bfa`, root font 16 px and 32 px (200%), 1280 and 390. Expected: spread at most 0.5 px; the reserve grows with the text. Observed: spread 0 px in all four; at 200% the next row starts 36 px under the input (the reserve), and "Required" wrapped to two lines (alert 64 px high), so its second line overlaps by 32 px: the documented limit, not the one-line case.
 - `HangingNativeMessage` (the `ownError` path, 80 px Field), same tree, 1280 and 390. Expected: aligned row, message wrapped inside the Field's width. Observed: spread 0 px; the alert is 80 px wide (the input's width) and 32 px high, so it reaches 16 px past the reserve into "Next row": the documented limit. Text "Please fill out this field.".
-- Unit suite: 51 files, 914 tests pass on the tree before the review fixes; after them a CLI test ("registry and CLAUDE.md are current") timed out under a host load of 147 and passes alone, and `build-registry.mjs --check` and `tsc` (web and native) pass.
+- Unit suite on tree `6ac5ae6c`: 51 files, 913 of 914 tests pass; `popover.test.ts` "registry and CLAUDE.md are current" timed out at 60 s under host load 64 and passes alone, 4 of 4 (36 s). `build-registry.mjs --check` and `tsc` (web and native) pass; the Field stories pass in Chromium (28).
 
 Owed to the social-planner PR (Phase 3), not this one: ReadyToPost Mark posted (date cleared, submitted), PeriodsGates add-period and add-gate, CalendarList, at 1280 and 390, native error under its input, bottoms equal, no overlap with the next row.
 
 ## Implementation review
 
-- Round 1 (5 reviewers) and a delta: the blocking and high findings were fixed (Verification record, the native-message story, the web reserve as `calc(lineHeight1 + spacing.xs)`, which scales with the text).
-- Deliberate: `sizes.fieldErrorReserve` stays a px token (the size scale and its drift check are px-only), for native, where there is no `calc`; there it stays at 20 px when the text grows.
+- implementation-review: round 1 approve-with-changes (blocking Verification record, high format, native-message story: all fixed); delta 1 and 2 approve-with-changes (unit-run record, docs): fixed; final low on the unit-run line fixed here. About 5 reviews, 40-100 s each.
+- backend, lang:typescript: round 1 approve-with-changes (native-message path untested; default and helper; test typing), all fixed; delta approve. react: approve (low: `pointerEvents`, fixed).
+- ui-design (interface-review): round 1 HIGH (px reserve overruns at 200% text) fixed by the web reserve `calc(lineHeight1 + spacing.xs)`; final delta approve.
+- Deliberate: `sizes.fieldErrorReserve` stays a px token (the size scale and its drift check are px-only), for native, where there is no `calc`; there it stays at 20 px when the text grows. A message past one line overlaps the next row (documented in `Field.meta.ts`).
 
 ## Non-goals
 
