@@ -247,7 +247,7 @@ describe.each(SHELLS)('the session hook prefers the local CLI, under %s', (shell
   it('kills a hung local CLI at GREENRACK_HOOK_TIMEOUT', () => {
     const r = repo('fails', shell)
     localCli(r.dir, HOOK_MIN_CLI)
-    writeFileSync(join(r.dir, 'node_modules/.bin/greenrack'), '#!/bin/sh\nsleep 30\n')
+    writeFileSync(join(r.dir, 'node_modules/.bin/greenrack'), '#!/bin/sh\nexec sleep 30\n')
     const started = Date.now()
     const out = spawnSync(shell, [HOOK_SCRIPT_PATH], {
       cwd: r.dir,
