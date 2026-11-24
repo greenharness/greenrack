@@ -1,10 +1,10 @@
 import {
   type ReactNode,
   type Ref,
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -15,6 +15,7 @@ import {styles} from './styles.css'
 import {MenuContext, useMenu} from './MenuContext'
 import {useMenuRoot} from './useMenuRoot'
 import {devWarnOnce} from '../../shared/devWarnOnce'
+import {mergeRefs} from '../../shared/mergeRefs'
 import {isPlainClick, type LinkClickEvent, type OnNavigate} from '../../shared/navigate'
 import type {ControlSize} from '../../shared/types'
 import {usePortalMount} from '../ThemeProvider/ThemeProvider'
@@ -76,13 +77,8 @@ function Trigger({
   const grouped = useGroupedControl<HTMLButtonElement>()
   const groupedRef = grouped.ref
 
-  const setRef = useCallback(
-    (el: HTMLButtonElement | null) => {
-      triggerRef.current = el
-      groupedRef.current = el
-      if (typeof ref === 'function') ref(el)
-      else if (ref) ref.current = el
-    },
+  const setRef = useMemo(
+    () => mergeRefs(triggerRef, groupedRef, ref),
     [ref, triggerRef, groupedRef],
   )
 
