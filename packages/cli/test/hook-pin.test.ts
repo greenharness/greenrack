@@ -157,6 +157,113 @@ describe.each(SHELLS)('the session hook cache, under %s', (shell) => {
   })
 })
 
+/**
+ * Installs a stub `node_modules/.bin/greenrack` that prints `catalog` for
+ * session-start and `doctor` for doctor, and its package.json at `version`
+ * (none when `version` is null). Writes each call's arguments to calls.log.
+ */
+function localCli(dir: string, version: string | null, catalog = 'LOCAL CATALOG') {
+  const bin = join(dir, 'node_modules/.bin')
+  mkdirSync(bin, {recursive: true})
+  writeFileSync(
+    join(bin, 'greenrack'),
+    `#!/bin/sh\necho "$*" >>"${join(dir, 'calls.log')}"\ncase "$*" in *session-start*) echo '${catalog}' ;; *doctor*) echo 'LOCAL DOCTOR' ;; esac\n`,
+  )
+  chmodSync(join(bin, 'greenrack'), 0o755)
+  const pkg = join(dir, 'node_modules/@greenharness/greenrack-cli')
+  mkdirSync(pkg, {recursive: true})
+  if (version !== null) {
+    writeFileSync(
+      join(pkg, 'package.json'),
+      `{\n  "name": "@greenharness/greenrack-cli",\n  "version": "${version}",\n  "type": "module"\n}\n`,
+    )
+  }
+}
+
+const [MAJOR, MINOR, PATCH] = HOOK_MIN_CLI.split('.').map(Number)
+const doctorKey = (dir: string) => readFileSync(join(dir, `${HOOK_CACHE_PATH}.doctor.key`), 'utf8')
+
+describe.each(SHELLS)('the session hook prefers the local CLI, under %s', (shell) => {
+  it('runs node_modules/.bin/greenrack in ^floor, not npx, for the catalog and the doctor', () => {
+    const r = repo('fails', shell)
+    const version = `${MAJOR}.${MINOR + 5}.0`
+    localCli(r.dir, version)
+    const out = r.run()
+    expect(out.stdout.split('\n')[0]).toBe('LOCAL CATALOG')
+    expect(out.stdout).toContain('LOCAL DOCTOR')
+    expect(out.stderr).toBe('')
+    expect(readFileSync(r.cache, 'utf8').split('\n')[0]).toBe(`${HOOK_PIN_LINE} local ${version}`)
+    expect(doctorKey(r.dir).startsWith(`${HOOK_MIN_CLI} local ${version} `)).toBe(true)
+    expect(readFileSync(join(r.dir, 'calls.log'), 'utf8')).toBe(
+      'hook session-start\ndoctor --session\n',
+    )
+  })
+
+  it('takes the floor itself', () => {
+    const r = repo('fails', shell)
+    localCli(r.dir, HOOK_MIN_CLI)
+    expect(r.run().stdout.split('\n')[0]).toBe('LOCAL CATALOG')
+  })
+
+  it.each([
+    ['below the floor', `${MAJOR - 1}.9.9`],
+    ['a major above', `${MAJOR + 1}.0.0`],
+    ['a prerelease', `${MAJOR}.${MINOR + 1}.0-next.1`],
+    ['unreadable', 'latest'],
+  ])('falls back to npx when the local version is %s', (_name, version) => {
+    const r = repo({catalog: 'NPX CATALOG'}, shell)
+    localCli(r.dir, version)
+    const out = r.run()
+    expect(out.stdout.split('\n')[0]).toBe('NPX CATALOG')
+    expect(readFileSync(r.cache, 'utf8').split('\n')[0]).toBe(HOOK_PIN_LINE)
+    expect(doctorKey(r.dir).startsWith(`${HOOK_MIN_CLI} `)).toBe(true)
+    expect(doctorKey(r.dir)).not.toContain('local')
+    expect(existsSync(join(r.dir, 'calls.log'))).toBe(false)
+  })
+
+  it('falls back to npx when .bin/greenrack has no package.json beside it', () => {
+    const r = repo({catalog: 'NPX CATALOG'}, shell)
+    localCli(r.dir, null)
+    expect(r.run().stdout.split('\n')[0]).toBe('NPX CATALOG')
+    expect(existsSync(join(r.dir, 'calls.log'))).toBe(false)
+  })
+
+  it('refetches the catalog and reruns the doctor when the local CLI is upgraded', () => {
+    const r = repo('fails', shell)
+    localCli(r.dir, `${MAJOR}.${MINOR}.${PATCH}`, 'CATALOG A')
+    r.run()
+    // Unchanged: served from the cache, nothing run.
+    expect(r.run().stdout.split('\n')[0]).toBe('CATALOG A')
+    expect(readFileSync(join(r.dir, 'calls.log'), 'utf8').split('\n')).toHaveLength(3)
+    const next = `${MAJOR}.${MINOR}.${PATCH + 1}`
+    localCli(r.dir, next, 'CATALOG B')
+    const out = r.run()
+    expect(out.stdout.split('\n')[0]).toBe('CATALOG B')
+    expect(readFileSync(r.cache, 'utf8').split('\n')[0]).toBe(`${HOOK_PIN_LINE} local ${next}`)
+    expect(doctorKey(r.dir)).toContain(`local ${next} `)
+    expect(readFileSync(join(r.dir, 'calls.log'), 'utf8').split('\n')).toHaveLength(5)
+  })
+
+  it('kills a hung local CLI at GREENRACK_HOOK_TIMEOUT', () => {
+    const r = repo('fails', shell)
+    localCli(r.dir, HOOK_MIN_CLI)
+    writeFileSync(join(r.dir, 'node_modules/.bin/greenrack'), '#!/bin/sh\nsleep 30\n')
+    const started = Date.now()
+    const out = spawnSync(shell, [HOOK_SCRIPT_PATH], {
+      cwd: r.dir,
+      env: {
+        ...process.env,
+        PATH: `${join(r.dir, 'bin')}:${process.env['PATH']}`,
+        GREENRACK_HOOK_TIMEOUT: '1',
+      },
+      encoding: 'utf8',
+    })
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(out.status).toBe(0)
+    expect(existsSync(r.cache)).toBe(false)
+  })
+})
+
 describe('the session hook template', () => {
   it('stages both fetches through per-process names', () => {
     expect(HOOK_SCRIPT).toContain('"$cache.tmp.$$"')
