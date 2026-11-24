@@ -13,7 +13,7 @@ export interface SliderProps {
   max?: number
   /** The distance between values, counted from `min`. Default: 1 */
   step?: number
-  /** Prevents user interaction. */
+  /** Prevents user interaction. Default: the enclosing Field's `disabled`, else false. */
   disabled?: boolean
   /** A visible label; it names the slider. */
   children?: ReactNode

@@ -2,12 +2,14 @@ import {type ReactNode, useState, useCallback} from 'react'
 import {html} from 'react-strict-dom'
 import {styles} from './styles.css'
 import {visuallyHidden} from '../../styles/visually-hidden.css'
+import {useFieldContext} from '../Field/FieldContext'
 
 interface CheckboxProps {
   name?: string
   value?: string
   checked?: boolean
   defaultChecked?: boolean
+  /** Prevents interaction. Default: the enclosing Field's `disabled`, else false. */
   disabled?: boolean
   /** Accessible label when no visible label (children) is provided. */
   'aria-label'?: string
@@ -20,11 +22,15 @@ export function Checkbox({
   value,
   checked: controlledChecked,
   defaultChecked = false,
-  disabled = false,
+  disabled: disabledProp,
   'aria-label': ariaLabel,
   onChange,
   children,
 }: CheckboxProps) {
+  // Inside a Field.Root the input takes the Field's control id (so Field.Label
+  // names it), its description and error, and its invalid and disabled state.
+  const ctx = useFieldContext()
+  const disabled = disabledProp ?? ctx?.disabled ?? false
   const isControlled = controlledChecked !== undefined
   const [internalChecked, setInternalChecked] = useState(defaultChecked)
   const isChecked = isControlled ? controlledChecked : internalChecked
@@ -44,12 +50,15 @@ export function Checkbox({
     <html.label style={[styles.root, disabled && styles.rootDisabled]}>
       <html.input
         type="checkbox"
+        id={ctx?.controlId}
         name={name}
         value={value}
         checked={isControlled ? controlledChecked : undefined}
         defaultChecked={!isControlled ? defaultChecked : undefined}
         disabled={disabled}
         aria-label={!children ? ariaLabel : undefined}
+        aria-describedby={ctx?.describedBy}
+        aria-invalid={ctx?.invalid || undefined}
         onChange={handleChange}
         style={[visuallyHidden.base, styles.input]}
       />

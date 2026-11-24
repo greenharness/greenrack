@@ -2,6 +2,7 @@ import type {Meta, StoryObj} from '@storybook/react'
 import {expect, fn} from 'storybook/test'
 import {css, html} from 'react-strict-dom'
 import {Checkbox} from './Checkbox'
+import {Field} from '../Field/Field'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 
 const meta: Meta<typeof Checkbox> = {
@@ -87,5 +88,37 @@ export const AllVariants: Story = {
   play: async ({canvas}) => {
     const checkboxes = canvas.getAllByRole('checkbox')
     await expect(checkboxes.length).toBe(4)
+  },
+}
+
+/** Inside a Field.Root with no children: Field.Label names the checkbox, and
+ *  the Field's description and error describe it. */
+export const InField: Story = {
+  render: (args) => (
+    <html.div style={stackStyles.stack}>
+      <Field.Root invalid>
+        <Field.Label>Accept the terms</Field.Label>
+        <Checkbox onChange={args.onChange} />
+        <Field.Description>You can withdraw at any time.</Field.Description>
+        <Field.Error>Accept the terms to continue.</Field.Error>
+      </Field.Root>
+      <Field.Root disabled>
+        <Field.Label>Locked</Field.Label>
+        <Checkbox />
+      </Field.Root>
+    </html.div>
+  ),
+  play: async ({canvas, userEvent, args}) => {
+    const checkbox = canvas.getByRole('checkbox', {name: 'Accept the terms'})
+    await expect(checkbox).toHaveAccessibleDescription(
+      'You can withdraw at any time. Accept the terms to continue.',
+    )
+    await expect(checkbox).toHaveAttribute('aria-invalid', 'true')
+    // Clicking the Field.Label toggles it: its `for` reaches the input.
+    await userEvent.click(canvas.getByText('Accept the terms'))
+    await expect(checkbox).toBeChecked()
+    await expect(args.onChange).toHaveBeenCalledTimes(1)
+
+    await expect(canvas.getByRole('checkbox', {name: 'Locked'})).toBeDisabled()
   },
 }

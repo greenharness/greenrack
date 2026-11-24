@@ -5,6 +5,7 @@ import {useControllableValue} from '../../hooks/useControllableValue'
 import {styles} from './styles.css'
 import {fractionOf, snapToStep, valueAfterKey, valueAtFraction} from './sliderMath'
 import type {SliderProps} from './Slider.types'
+import {useFieldContext} from '../Field/FieldContext'
 
 export type {SliderProps} from './Slider.types'
 
@@ -15,12 +16,17 @@ export function Slider({
   min = 0,
   max = 100,
   step = 1,
-  disabled = false,
+  disabled: disabledProp,
   children,
   'aria-label': ariaLabel,
   showValue = false,
   formatValue,
 }: SliderProps) {
+  const ctx = useFieldContext()
+  const disabled = disabledProp ?? ctx?.disabled ?? false
+  // A div with role="slider" is not labelable: Field.Label's `for` cannot name
+  // it, so the thumb points aria-labelledby at a mounted Field.Label instead.
+  const fieldLabelId = ctx?.labelText !== undefined ? ctx.labelId : undefined
   const range = {min, max, step}
   const [value, setValue] = useControllableValue(
     controlledValue,
@@ -92,9 +98,12 @@ export function Slider({
         <html.div style={[styles.fill, styles.fillWidth(percent)]} />
         <html.div
           role="slider"
+          id={ctx?.controlId}
           tabIndex={disabled ? -1 : 0}
           aria-label={children ? undefined : ariaLabel}
-          aria-labelledby={children ? labelId : undefined}
+          aria-labelledby={children ? labelId : ariaLabel ? undefined : fieldLabelId}
+          aria-describedby={ctx?.describedBy}
+          aria-invalid={ctx?.invalid || undefined}
           aria-valuemin={min}
           aria-valuemax={max}
           aria-valuenow={current}

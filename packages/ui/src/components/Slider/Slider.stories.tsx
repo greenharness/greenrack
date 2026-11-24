@@ -1,6 +1,7 @@
 import type {Meta, StoryObj} from '@storybook/react'
 import {expect, fn, fireEvent} from 'storybook/test'
 import {Slider} from './Slider'
+import {Field} from '../Field/Field'
 
 const meta: Meta<typeof Slider> = {
   title: 'Components/Slider',
@@ -93,5 +94,40 @@ export const Disabled: Story = {
     slider.focus()
     await userEvent.keyboard('{ArrowRight}')
     await expect(args.onValueChange).not.toHaveBeenCalled()
+  },
+}
+
+/** Inside a Field.Root with no children: the thumb is not labelable, so it
+ *  names itself from Field.Label by aria-labelledby; the Field's description
+ *  and error describe it. */
+export const InField: Story = {
+  render: (args) => (
+    <>
+      <Field.Root invalid>
+        <Field.Label>Volume</Field.Label>
+        <Slider defaultValue={90} onValueChange={args.onValueChange} />
+        <Field.Description>Applies to every speaker.</Field.Description>
+        <Field.Error>Keep the volume under 80.</Field.Error>
+      </Field.Root>
+      <Field.Root disabled>
+        <Field.Label>Locked</Field.Label>
+        <Slider defaultValue={30} />
+      </Field.Root>
+    </>
+  ),
+  play: async ({canvas, userEvent, args}) => {
+    const slider = canvas.getByRole('slider', {name: 'Volume'})
+    await expect(slider).toHaveAccessibleDescription(
+      'Applies to every speaker. Keep the volume under 80.',
+    )
+    await expect(slider).toHaveAttribute('aria-invalid', 'true')
+    slider.focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect(args.onValueChange).toHaveBeenLastCalledWith(89)
+
+    await expect(canvas.getByRole('slider', {name: 'Locked'})).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
   },
 }
