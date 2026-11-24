@@ -94,6 +94,7 @@ export function Textarea({
   const effectiveOnBlur = onBlur ?? fieldCtx?.onBlur
   const effectiveRef = ref ?? fieldCtx?.ref
   const effectiveDisabled = disabled ?? ctx?.disabled
+  const effectiveRequired = required ?? ctx?.required
   const effectiveVariant = ctx?.invalid ? 'error' : variant
 
   const extraProps: Record<string, unknown> = {}
@@ -133,7 +134,7 @@ export function Textarea({
       id={ctx?.controlId}
       name={effectiveName}
       placeholder={placeholder}
-      required={required}
+      required={effectiveRequired}
       rows={rows}
       value={effectiveValue}
       defaultValue={defaultValue}
