@@ -44,6 +44,8 @@ export const styles = css.create({
     right: 0,
     marginTop: spacing.xs,
     lineHeight: typeScale.lineHeight1,
+    // Past one line the message reaches over what follows: it must not take its clicks.
+    pointerEvents: 'none',
   },
   rootHanging: {
     position: 'relative',

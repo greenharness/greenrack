@@ -53,13 +53,19 @@ function describedByIds(
   return ids.filter(Boolean).join(' ') || undefined
 }
 
+// The error line's style: in the Field's flow (`'below'`, also when unset), or
+// hanging out of it.
+function errorStyle(placement?: ErrorPlacement) {
+  return [styles.error, placement === 'hanging' && styles.errorHanging]
+}
+
 function ownError(fieldContext: FieldContextValue, errorCount: number): ReactNode {
   if (fieldContext.nativeError === undefined || errorCount > 0) return null
   return (
     <html.span
       id={fieldContext.errorId}
       role="alert"
-      style={[styles.error, fieldContext.errorPlacement === 'hanging' && styles.errorHanging]}
+      style={errorStyle(fieldContext.errorPlacement)}
     >
       {fieldContext.errorMessage ?? fieldContext.nativeError}
     </html.span>
@@ -406,11 +412,7 @@ function Error({children}: ErrorProps) {
   if (!ctx?.invalid && !content) return null
 
   return (
-    <html.span
-      id={ctx?.errorId}
-      role="alert"
-      style={[styles.error, ctx?.errorPlacement === 'hanging' && styles.errorHanging]}
-    >
+    <html.span id={ctx?.errorId} role="alert" style={errorStyle(ctx?.errorPlacement)}>
       {content}
     </html.span>
   )

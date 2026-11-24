@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from '@storybook/react'
 import {useState} from 'react'
 import {Schema} from 'effect'
-import {expect, fn, waitFor} from 'storybook/test'
+import {expect, fn, waitFor, within} from 'storybook/test'
 import {css, html} from 'react-strict-dom'
 import {Field} from './Field'
 import {Input} from '../Input/Input'
@@ -626,12 +626,10 @@ const rowStyles = css.create({
   // The room one hanging error line takes under the row.
   reserve: {paddingBottom: sizes.fieldErrorReserve},
   frame: {width: sizes.pageXs},
+  narrow: {width: sizes.fieldMinWSm},
 })
 
-function bottomSpread(canvas: {
-  getAllByRole: (role: string) => HTMLElement[]
-  getByRole: (role: string, options: {name: string}) => HTMLElement
-}) {
+function bottomSpread(canvas: ReturnType<typeof within>) {
   const bottoms = [
     ...canvas.getAllByRole('textbox'),
     canvas.getByRole('button', {name: 'Mark posted'}),
@@ -695,7 +693,7 @@ export const InlineRowWithError: Story = {
     )
     await userEvent.click(canvas.getByRole('button', {name: 'Toggle error'}))
     await waitFor(() => expect(canvas.queryByRole('alert')).not.toBeInTheDocument())
-    await expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5)
+    await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
   },
 }
 
@@ -748,5 +746,41 @@ export const HangingErrorSideLabel: Story = {
     await expect(alert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       input.getBoundingClientRect().bottom,
     )
+  },
+}
+
+/** The browser's own message, shown by Field.Root itself (no Field.Error), in a
+ *  narrow Field: it hangs under the control, the row stays aligned, and the
+ *  message wraps inside the Field's width. */
+export const HangingNativeMessage: Story = {
+  render: () => (
+    <html.form>
+      <html.div style={rowStyles.reserve}>
+        <Inline gap="sm" align="end">
+          <html.div style={rowStyles.narrow}>
+            <Field.Root errorPlacement="hanging">
+              <Field.Label>Date</Field.Label>
+              <Input required placeholder="2026-11-24" />
+            </Field.Root>
+          </html.div>
+          <Button type="submit">Mark posted</Button>
+        </Inline>
+      </html.div>
+      <html.p>Next row</html.p>
+    </html.form>
+  ),
+  play: async ({canvas, userEvent}) => {
+    const input = canvas.getByRole('textbox') as HTMLInputElement
+    await expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5)
+    await userEvent.click(canvas.getByRole('button', {name: 'Mark posted'}))
+    const alert = await canvas.findByRole('alert')
+    await expect(alert.textContent).toBe(input.validationMessage)
+    await expect(alert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      input.getBoundingClientRect().bottom,
+    )
+    await expect(alert.getBoundingClientRect().width).toBeLessThanOrEqual(
+      input.getBoundingClientRect().width + 0.5,
+    )
+    await waitFor(() => expect(bottomSpread(canvas)).toBeLessThanOrEqual(0.5))
   },
 }
