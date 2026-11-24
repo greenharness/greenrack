@@ -492,6 +492,7 @@ Optical nudges below and between the scale (`microSpacing` from `@greenharness/g
 | `heroReserve` | 272px |
 | `heroMaxH` | 720px |
 | `qrCode` | 260px |
+| `fieldErrorReserve` | 20px |
 
 ### Borders
 

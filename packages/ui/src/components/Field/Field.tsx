@@ -11,7 +11,7 @@ import {
 import {html} from 'react-strict-dom'
 import {useFormContext as useRHFFormContext, useController} from 'react-hook-form'
 import {FieldContext, useFieldContext} from './FieldContext'
-import type {FieldContextValue} from './FieldContext'
+import type {ErrorPlacement, FieldContextValue} from './FieldContext'
 import {useFormContext} from '../Form/FormContext'
 import type {LabelPosition} from '../Form/FormContext'
 import {styles} from './styles.css'
@@ -53,10 +53,20 @@ function describedByIds(
   return ids.filter(Boolean).join(' ') || undefined
 }
 
+// The error line's style: in the Field's flow (`'below'`, also when unset), or
+// hanging out of it.
+function errorStyle(placement?: ErrorPlacement) {
+  return [styles.error, placement === 'hanging' && styles.errorHanging]
+}
+
 function ownError(fieldContext: FieldContextValue, errorCount: number): ReactNode {
   if (fieldContext.nativeError === undefined || errorCount > 0) return null
   return (
-    <html.span id={fieldContext.errorId} role="alert" style={styles.error}>
+    <html.span
+      id={fieldContext.errorId}
+      role="alert"
+      style={errorStyle(fieldContext.errorPlacement)}
+    >
       {fieldContext.errorMessage ?? fieldContext.nativeError}
     </html.span>
   )
@@ -74,6 +84,8 @@ interface RootProps {
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
+  /** Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align="end"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down. */
+  errorPlacement?: ErrorPlacement
   children: ReactNode
 }
 
@@ -106,6 +118,7 @@ function ControlledRoot({
   required,
   disabled,
   labelPosition,
+  errorPlacement,
   children,
 }: {
   name: string
@@ -115,6 +128,7 @@ function ControlledRoot({
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
+  errorPlacement?: ErrorPlacement
   children: ReactNode
 }) {
   const id = useId()
@@ -145,6 +159,7 @@ function ControlledRoot({
       required,
       disabled: effectiveDisabled,
       labelPosition: effectiveLabelPosition,
+      errorPlacement,
       necessityIndicator: effectiveNecessityIndicator,
       field: {
         value: field.value,
@@ -167,6 +182,7 @@ function ControlledRoot({
       required,
       effectiveDisabled,
       effectiveLabelPosition,
+      errorPlacement,
       effectiveNecessityIndicator,
       field.value,
       field.onChange,
@@ -184,7 +200,11 @@ function ControlledRoot({
 
   return (
     <FieldContext.Provider value={ctx}>
-      <FieldLayout labelPosition={effectiveLabelPosition} ownError={ownError(ctx, errorCount)}>
+      <FieldLayout
+        labelPosition={effectiveLabelPosition}
+        errorPlacement={errorPlacement}
+        ownError={ownError(ctx, errorCount)}
+      >
         {children}
       </FieldLayout>
     </FieldContext.Provider>
@@ -198,6 +218,7 @@ function StaticRoot({
   required,
   disabled,
   labelPosition = 'top',
+  errorPlacement,
   children,
 }: {
   group: boolean
@@ -205,6 +226,7 @@ function StaticRoot({
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
+  errorPlacement?: ErrorPlacement
   children: ReactNode
 }) {
   const id = useId()
@@ -228,6 +250,7 @@ function StaticRoot({
       required,
       disabled,
       labelPosition,
+      errorPlacement,
       nativeError,
       setNativeError,
       registerError,
@@ -241,6 +264,7 @@ function StaticRoot({
       required,
       disabled,
       labelPosition,
+      errorPlacement,
       nativeError,
       setNativeError,
       registerError,
@@ -251,7 +275,11 @@ function StaticRoot({
 
   return (
     <FieldContext.Provider value={ctx}>
-      <FieldLayout labelPosition={labelPosition} ownError={ownError(ctx, errorCount)}>
+      <FieldLayout
+        labelPosition={labelPosition}
+        errorPlacement={errorPlacement}
+        ownError={ownError(ctx, errorCount)}
+      >
         {children}
       </FieldLayout>
     </FieldContext.Provider>
@@ -260,19 +288,24 @@ function StaticRoot({
 
 // --- FieldLayout ---
 // When labelPosition is 'side', separates Label from other children
-// and wraps the non-label children in a content column.
+// and wraps the non-label children in a content column. A hanging error is
+// anchored to the element that holds it: the root, or the content column when
+// the label sits at the side, so it hangs under the control, not the label.
 function FieldLayout({
   labelPosition,
+  errorPlacement,
   ownError,
   children,
 }: {
   labelPosition: LabelPosition
+  errorPlacement?: ErrorPlacement
   ownError: ReactNode
   children: ReactNode
 }) {
+  const hanging = errorPlacement === 'hanging'
   if (labelPosition !== 'side') {
     return (
-      <html.div style={styles.root}>
+      <html.div style={[styles.root, hanging && styles.rootHanging]}>
         {children}
         {ownError}
       </html.div>
@@ -293,7 +326,7 @@ function FieldLayout({
   return (
     <html.div style={styles.rootSide}>
       {labelNode}
-      <html.div style={styles.fieldContent}>
+      <html.div style={[styles.fieldContent, hanging && styles.rootHanging]}>
         {rest}
         {ownError}
       </html.div>
@@ -379,11 +412,13 @@ function Error({children}: ErrorProps) {
   if (!ctx?.invalid && !content) return null
 
   return (
-    <html.span id={ctx?.errorId} role="alert" style={styles.error}>
+    <html.span id={ctx?.errorId} role="alert" style={errorStyle(ctx?.errorPlacement)}>
       {content}
     </html.span>
   )
 }
+
+export type {ErrorPlacement}
 
 export const Field = {
   Root,

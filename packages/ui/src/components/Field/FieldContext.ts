@@ -1,6 +1,9 @@
 import {createContext, useContext, useEffect, useRef} from 'react'
 import type {LabelPosition, NecessityIndicator} from '../Form/FormContext'
 
+/** Where a Field's own error line sits: `'below'` is in the Field's flow; `'hanging'` is out of it, under the control, so the Field keeps the height of its label and control and a row of Fields stays aligned on its inputs. */
+export type ErrorPlacement = 'below' | 'hanging'
+
 interface FieldContextValue {
   controlId: string
   /** id of the Field.Label — what a GROUP control points `aria-labelledby` at. */
@@ -15,6 +18,7 @@ interface FieldContextValue {
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
+  errorPlacement?: ErrorPlacement
   necessityIndicator?: NecessityIndicator
   field?: {
     value: unknown

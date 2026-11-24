@@ -115,4 +115,10 @@ export const sizes = css.defineVars({
   heroMaxH: '720px',
   // A QR code another device scans from across a desk (Happier's add-phone pairing code).
   qrCode: '260px',
+  // The room a Field's error line takes under a row when it hangs out of the
+  // row's flow (Field errorPlacement="hanging"): one fontSizeXs line at
+  // lineHeight1 (16px) plus spacing.xs (4px).
+  // The web reserve is calc(lineHeight1 + spacing.xs), which grows with the text;
+  // this px value is its default-size equal, for where there is no calc (native).
+  fieldErrorReserve: '20px',
 })

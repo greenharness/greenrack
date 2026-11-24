@@ -249,6 +249,7 @@ export const SIZES_PX = {
   heroReserve: 272,
   heroMaxH: 720,
   qrCode: 260,
+  fieldErrorReserve: 20,
 } as const
 
 // Email-only measures: no CSS variable (mail clients cannot read them) and not
