@@ -32,8 +32,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// prints nothing for a protocol it does not speak.
 const PROTOCOL: &str = "1";
 const NAME: &str = "greenrack-first-touch";
-/// The CLI the hook starts. The floor is the first release with `hook first-touch`.
-const PACKAGE: &str = "@greenharness/greenrack-cli@^7.11.0";
+/// The CLI the hook starts, written once for `PACKAGE` and `HELP`. The floor is
+/// the first release with `hook first-touch`: the CLI's `FIRST_TOUCH_MIN_CLI`,
+/// which the release checks this line against.
+macro_rules! package {
+    () => {
+        "@greenharness/greenrack-cli@^7.11.0"
+    };
+}
+const PACKAGE: &str = package!();
 /// `package.json` text that marks a consumer, the CLI's exact test aside.
 const NEEDLES: [&str; 1] = ["@greenharness/greenrack-"];
 /// A repository with its own session hook keeps it.
@@ -53,12 +60,16 @@ const LOG_LIMIT: u64 = 1_000_000;
 const LOG_KEEP: usize = 2000;
 /// Claude Code saves hook context above 10,000 characters to a file.
 const OUTPUT_LIMIT: usize = 9_900;
-const HELP: &str = "greenrack-first-touch: a Claude Code hook; Claude Code runs it
+const HELP: &str = concat!(
+    "greenrack-first-touch: a Claude Code hook; Claude Code runs it
 with the event on stdin. Install it with:
-  npx -y @greenharness/greenrack-cli@^7.11.0 hook install --user
+  npx -y ",
+    package!(),
+    " hook install --user
   --protocol  the protocol it speaks with the CLI
   --status    its last failure and back-offs, as JSON
-  --version   its name and protocol";
+  --version   its name and protocol"
+);
 
 /// The event as Claude Code sends it: only ids and paths are read, so a
 /// Write's content is skipped without building a value for it.

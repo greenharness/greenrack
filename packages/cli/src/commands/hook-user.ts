@@ -39,9 +39,16 @@ export const FIRST_TOUCH_PROTOCOL = '1'
 export const FIRST_TOUCH_MATCHER = 'Read|Edit|Write|MultiEdit|NotebookEdit|Bash'
 /** Seconds Claude Code gives the hook: the binary's own limit is 10. */
 export const FIRST_TOUCH_TIMEOUT = 15
+/**
+ * The first release with `hook first-touch` and `hook install --user`. The
+ * binary's `PACKAGE` and the grh manifest name the same floor, and the release
+ * checks them against it (`scripts/check-pin-major.mjs`).
+ */
+export const FIRST_TOUCH_MIN_CLI = '7.11.0'
+const CLI = `@greenharness/greenrack-cli@^${FIRST_TOUCH_MIN_CLI}`
 /** The npx form: a grh or npx setup has no `greenrack` on PATH. */
-export const INSTALL_COMMAND = 'npx -y @greenharness/greenrack-cli@^7.11.0 hook install --user'
-const UNINSTALL_COMMAND = 'npx -y @greenharness/greenrack-cli@^7.11.0 hook uninstall --user'
+export const INSTALL_COMMAND = `npx -y ${CLI} hook install --user`
+const UNINSTALL_COMMAND = `npx -y ${CLI} hook uninstall --user`
 const RESTART = 'restart Claude Code sessions'
 const WIDTH = 79
 

@@ -21,8 +21,9 @@ import {
   HOOK_SCRIPT_PATH,
 } from '../src/hook-script.js'
 import {SKILL_MIN_CLI} from '../src/skill-template.js'
+import {FIRST_TOUCH_MIN_CLI} from '../src/commands/hook-user.js'
 // @ts-expect-error — a plain .mjs release script, no types
-import {pinMajorProblems} from '../scripts/check-pin-major.mjs'
+import {firstTouchFloorProblems, pinMajorProblems} from '../scripts/check-pin-major.mjs'
 
 // Every test here starts real processes: sh or dash, then the hook's own
 // rm/find/sort/cksum/cat and a stub npx, about ten spawns per run. Measured
@@ -61,7 +62,40 @@ describe('the CLI floors', () => {
     const script = fileURLToPath(new URL('../scripts/check-pin-major.mjs', import.meta.url))
     const next = `${Number(HOOK_MIN_CLI.split('.')[0]) + 1}.0.0`
     expect(spawnSync('node', [script, next]).status).toBe(1)
-    expect(spawnSync('node', [script, HOOK_MIN_CLI]).status).toBe(0)
+    expect(spawnSync('node', [script, FIRST_TOUCH_MIN_CLI]).status).toBe(0)
+  })
+})
+
+describe('the first-touch floor', () => {
+  const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8')
+  const hookUser = src('commands/hook-user.ts')
+  const mainRs = read('../../../crates/first-touch/src/main.rs')
+  const manifest = read('../greenharness.toml')
+  const pin = `@greenharness/greenrack-cli@^${FIRST_TOUCH_MIN_CLI}`
+
+  it('is the one the binary and the grh manifest name', () => {
+    expect(firstTouchFloorProblems(FIRST_TOUCH_MIN_CLI, hookUser, mainRs, manifest)).toEqual([])
+    expect(mainRs).toContain(`"${pin}"`)
+  })
+
+  it('refuses a release below it, and takes one at or above it', () => {
+    const [major, minor] = FIRST_TOUCH_MIN_CLI.split('.').map(Number)
+    expect(firstTouchFloorProblems(`${major}.${minor - 1}.9`, hookUser, mainRs, manifest)).toEqual([
+      expect.stringContaining('FIRST_TOUCH_MIN_CLI'),
+    ])
+    expect(firstTouchFloorProblems(`v${major}.${minor}.1`, hookUser, mainRs, manifest)).toEqual([])
+    expect(firstTouchFloorProblems(`${major + 1}.0.0`, hookUser, mainRs, manifest)).toEqual([])
+  })
+
+  it('names a copy left at an older floor', () => {
+    const oldRs = mainRs.replace(pin, '@greenharness/greenrack-cli@^7.7.0')
+    expect(firstTouchFloorProblems(FIRST_TOUCH_MIN_CLI, hookUser, oldRs, manifest)).toEqual([
+      expect.stringContaining('main.rs'),
+    ])
+    const oldToml = manifest.replace(pin, '@greenharness/greenrack-cli@^7.7.0')
+    expect(firstTouchFloorProblems(FIRST_TOUCH_MIN_CLI, hookUser, mainRs, oldToml)).toEqual([
+      expect.stringContaining('greenharness.toml'),
+    ])
   })
 })
 
