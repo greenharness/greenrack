@@ -174,10 +174,10 @@ describe('Combobox.native Input accessibility', () => {
 })
 
 describe('Field.Label registers its text', () => {
-  function renderLabel(children: unknown, ctx: Record<string, unknown>) {
+  function renderLabel(children: unknown, fieldContextOverrides: Record<string, unknown>) {
     const unregister = vi.fn()
     const registerLabel = vi.fn(() => unregister)
-    fieldContext._cur = {labelId: 'l', controlId: 'c', registerLabel, ...ctx}
+    fieldContext._cur = {labelId: 'l', controlId: 'c', registerLabel, ...fieldContextOverrides}
     runtime.cursor = 0
     runtime.effects = []
     ;(Field.Label as (props: unknown) => unknown)({children})
