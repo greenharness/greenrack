@@ -11,6 +11,9 @@ export const styles = css.create({
     overflow: 'hidden',
   },
   viewport: {
+    // Positioned: the containing block of visually hidden text and live regions
+    // inside it, which would otherwise escape it and lengthen an outer scroll.
+    position: 'relative',
     width: '100%',
     // Native has no border-box reset (the web's global-reset.css); declare it.
     boxSizing: 'border-box',
