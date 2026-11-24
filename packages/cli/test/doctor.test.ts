@@ -517,9 +517,9 @@ describe('greenrack doctor', () => {
 
 describe('session hook runs doctor', () => {
   it('pins doctor to the same floor as the catalog', () => {
-    expect(HOOK_SCRIPT).toContain(
-      `npx -y @greenharness/greenrack-cli@^${HOOK_MIN_CLI} doctor --session`,
-    )
+    expect(HOOK_SCRIPT).toContain(`cli="npx -y @greenharness/greenrack-cli@^${HOOK_MIN_CLI}"`)
+    expect(HOOK_SCRIPT).toContain('bounded $cli hook session-start')
+    expect(HOOK_SCRIPT).toContain('bounded $cli doctor --session')
   })
 
   it('re-runs doctor only when a file it reads changes', () => {

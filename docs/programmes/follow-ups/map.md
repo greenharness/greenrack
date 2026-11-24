@@ -20,10 +20,11 @@ boundary.
 - [The Field's aria-describedby names only mounted parts](f04-field-describedby-names-an-absent-description.md): Field.Description registers with its Root, and one `describedBy` on the context feeds all seven controls; the error id dangled too and is fixed with it (greenrack#231).
 - [The Combobox reopens on ArrowDown after Escape and reads its Field](f05-combobox-escape-then-arrowdown-and-field-props.md): a closed-state listener opens the list on ArrowDown; Root puts Field `disabled` and `required` on the context for the input, trigger and hidden value (greenrack#234). Filed f10 and f11.
 - [A native Combobox inside Field.Root is named by its Field.Label](f06-combobox-native-reads-field-label.md): Field.Label registers its text (with its necessity text) on the Field as `labelText`, and the native `Combobox.Input` takes it after `aria-label` (greenrack PR). Filed f12.
+- [The session hook prefers the lockfile-pinned greenrack binary](f07-hook-prefers-the-local-greenrack-binary.md): the generated script runs the repo root's `node_modules/.bin/greenrack` when its version is in `^7.0.0`, else npx; the local version joins the cache pin and the doctor key (greenrack PR).
 
 ## Handoff
 
-2026-11-24, boundary 3 (f06 closed: a native Combobox inside `Field.Root` is named by its `Field.Label`; `Field.Label` registers its text on the Field as `labelText`, patch changeset `combobox-native-field-label`, released with the next greenrack-ui version; filed f12, the same gap in `Select.native`). Rebased cleanly onto f112's `errorPlacement` (greenrack#235), which edits the same Field files. Next: f07, f08, f09, f10, f11, f12.
+2026-11-24, boundary 3 (f07 closed: the generated SessionStart hook runs the repo root's lockfile-pinned `node_modules/.bin/greenrack` when its version is in `^7.0.0`, npx otherwise; minor changeset `hook-prefers-local-cli`. Consumers' `hook install --check` reads stale after the release until they rerun `hook install`). Next: f08, f09, f10, f11, f12.
 
 ## Not yet specified
 
