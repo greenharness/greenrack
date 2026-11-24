@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 plan-id: p-01M86XM5GSWZ57AM4PV3WBBQVC
 branch: fix/field-errors-everywhere
 repos: [greenrack, social-planner, decisions]
@@ -116,7 +116,7 @@ Close f121 and f112 (`docs/programmes/follow-ups/map.md` in decisions). After th
 
 ## Verification
 
-Phase 1 and 2 observed 2026-11-24 (Phases 3 to 5 pending: release, adoption, close).
+All five phases observed 2026-11-24.
 
 - **Audit (Phase 1):** 144 stories driven in Chromium at 1280 and 390 (Dialog, Select, Video, ThemeProvider, ToggleGroup, CheckboxGroup, Textarea and most Combobox/RadioGroup stories cannot show a Field error). Findings B1 to B11 above.
 - **Storybook tests (Chromium, vitest):** full suite 695 of 695 on the first implementation; after the review fixes `Field`, `Form`, `Popover`, `Input` and `Textarea` 91 of 91 (`Field` alone 33 of 33). ToggleGroup and VirtualList failed once under a host load average of 300 and passed on rerun, unrelated to this change.
@@ -126,6 +126,10 @@ Phase 1 and 2 observed 2026-11-24 (Phases 3 to 5 pending: release, adoption, clo
 - **Found only by the browser:** a second refused submit in `form--server-validation-errors` left focus on the button (the first fix focused only new errors). Fixed in `dccc613a` (focus each refusal, once per submit); the story now asserts it.
 - **Not done, carried:** VoiceOver and NVDA announce check; the five-person hallway test of (a); a sibling-re-render count test, a React Native render test (no RN harness in this repo) and a 200 % text pass; a development warning for a Field in a row that nothing names.
 - **Deliberate:** B6 (hanging message unselectable) and B10 (an open Combobox listbox covers its error line). The hanging stories stay on `Inline`, one field and a button, and fit at 390.
+
+- **Release (Phase 3):** tag `v7.10.0` at `0c4a8f09` (the squash merge of #239); the Release run concluded `success`; all seven `@greenharness/greenrack-*` packages answer `7.10.0` on npm and `latest` is `7.10.0` (the registry answered 404 for `ui` for about ten minutes after the workflow logged it published, then 200); the published `ui` tarball holds the row's `aria-atomic` live region.
+- **Adoption (Phase 4):** social-planner#90 (`9dc8d90`), released as `v0.7.0` (CI, image, release and chart-update runs `success`); homelab#1297 bumped the HelmRelease: chart 0.7.0 `deployed`, `Ready=True`, both pods on image `0.7.0`, the deployment rolled out, `/health` `{"status":"ok"}` in the pod and 200 through mTLS, and the running bundle holds the row's code and no `HangingRow`. The four rows were checked in a real browser on the production build of the pushed tree at 1280, a 32 px root font and 390 (overlap 0 px, one alert per row, `aria-describedby` resolving, focus on the first field in error); the production site is behind Authelia, so it was not driven in a browser. At 390 the app shell leaves the content column about 150 px wide: filed as f123.
+- **Close (Phase 5):** f121 and f112 closed in decisions (#365); f122 (these leftovers) and f123 filed.
 
 ## Deviations from the plan
 
