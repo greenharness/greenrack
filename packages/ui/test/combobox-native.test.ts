@@ -201,6 +201,12 @@ describe('Combobox.native in a disabled or required Field', () => {
 
     fieldContext._cur = {labelText: 'Fruit (required)', required: true, necessityIndicator: 'label'}
     expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Fruit (required)')
+    expect(
+      renderInput({placeholder: 'Pick', 'aria-label': 'Favourite'}).props.accessibilityLabel,
+    ).toBe('Favourite (required)')
+
+    fieldContext._cur = {required: true, necessityIndicator: 'label'}
+    expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Pick (required)')
 
     fieldContext._cur = {required: true}
     expect(renderInput({placeholder: 'Pick'}).props.accessibilityLabel).toBe('Pick (required)')

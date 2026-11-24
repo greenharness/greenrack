@@ -32,12 +32,15 @@ already read for `labelText`:
 - **Required:** React Native 0.81 has no required accessibility state (`AccessibilityState` has no
   such key, and no `aria-required`), so the label carries it: " (required)", the text the web
   label reads, is appended to whatever names the field (`aria-label`, `labelText`, the shown
-  value or the placeholder), except when `necessityIndicator="label"`, where `labelText`
-  already ends with it.
+  value or the placeholder), except when `labelText` names the field and
+  `necessityIndicator="label"`, so it already ends with it.
 - **Proof:** two `combobox-native.test.ts` cases: a disabled Field (the `disabled` prop, the
   accessibility state, a press that calls no `onOpenChange`; the enabled case beside it), and a
-  required one (icon indicator, `aria-label`, label indicator not doubled, no label, no Field).
+  required one (icon indicator, `aria-label`, label indicator not doubled but kept for `aria-label` or no label, no Field).
   Both fail on `origin/main` and pass with the change; 8 of 8 pass. No React Native app in this
   repository renders it, so the unit cases are the check, as in f06.
 - The meta's "native reads neither" note now says what native does; `registry.json` regenerated.
   Patch changeset `combobox-native-field-state`.
+- **Implementation review:** approve-with-changes. Fixed: the suffix was dropped whenever
+  `necessityIndicator="label"`, also for a field named by `aria-label` or the placeholder; now
+  only when `labelText` names it. 80k tokens, 60 s.

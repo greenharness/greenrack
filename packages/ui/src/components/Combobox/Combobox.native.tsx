@@ -181,10 +181,14 @@ function Input({
   const name = ariaLabel ?? field?.labelText
   // A disabled Field opens no sheet. React Native has no required state, so a
   // required Field rides in the label as the text the web label reads, unless
-  // Field.Label already carries it (necessityIndicator="label").
+  // Field.Label's text names the field and already carries it
+  // (necessityIndicator="label").
   const disabled = Boolean(field?.disabled)
-  const requiredSuffix =
-    field?.required && field.necessityIndicator !== 'label' ? ' (required)' : ''
+  const labelCarriesIt =
+    ariaLabel === undefined &&
+    field?.labelText !== undefined &&
+    field.necessityIndicator === 'label'
+  const requiredSuffix = field?.required && !labelCarriesIt ? ' (required)' : ''
   const label = name ?? display ?? placeholder
 
   useEffect(() => {
