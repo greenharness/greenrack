@@ -20,6 +20,7 @@ import {Inline} from '../Inline/Inline'
 import {Fieldset} from '../Fieldset/Fieldset'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
 import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
+import {typeScale} from '@greenharness/greenrack-tokens/tokens/typography.css'
 
 const meta: Meta = {
   title: 'Components/Field',
@@ -624,7 +625,8 @@ export const NativeValidationInForm: Story = {
 
 const rowStyles = css.create({
   // The room one hanging error line takes under the row.
-  reserve: {paddingBottom: sizes.fieldErrorReserve},
+  // One error line, scaling with the text: the web form of sizes.fieldErrorReserve.
+  reserve: {paddingBottom: `calc(${typeScale.lineHeight1} + ${spacing.xs})`},
   frame: {width: sizes.pageXs},
   narrow: {width: sizes.fieldMinWSm},
 })
@@ -751,7 +753,9 @@ export const HangingErrorSideLabel: Story = {
 
 /** The browser's own message, shown by Field.Root itself (no Field.Error), in a
  *  narrow Field: it hangs under the control, the row stays aligned, and the
- *  message wraps inside the Field's width. */
+ *  message wraps inside the Field's width. The Field is 80px wide on purpose: the
+ *  message wraps past the one-line room and covers "Next row", the limit
+ *  Field.meta documents; this is not the intended layout. */
 export const HangingNativeMessage: Story = {
   render: () => (
     <html.form>
