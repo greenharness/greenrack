@@ -30,6 +30,7 @@ vi.mock('react', () => {
       return context
     },
     useContext: (context: Ctx) => context._cur,
+    isValidElement: (node: unknown) => typeof node === 'object' && node !== null && 'props' in node,
     useId: () => 'id',
     useMemo: <T>(make: () => T) => make(),
     useCallback: <T>(callback: T) => callback,
@@ -61,6 +62,7 @@ vi.mock('react-strict-dom', () => ({html: new Proxy({}, {get: (_t, name) => Stri
 vi.mock('@greenharness/greenrack-tokens/keys', () => ({DURATION_MS: {base: 0}}))
 const emptyStyles = {styles: new Proxy({}, {get: () => ({})})}
 vi.mock('../src/components/Combobox/styles.css', () => emptyStyles)
+vi.mock('../src/components/Field/styles.css', () => emptyStyles)
 vi.mock('../src/components/Combobox/native.css', () => ({nativeStyles: emptyStyles.styles}))
 vi.mock('../src/components/Select/native.css', () => ({nativeStyles: emptyStyles.styles}))
 vi.mock('../src/components/Listbox/native.css', () => ({sheetStyles: emptyStyles.styles}))
@@ -73,6 +75,9 @@ vi.mock('../src/shared/accessibilityFocus.native', () => ({focusForAccessibility
 vi.mock('../src/shared/focusInput.native', () => ({focusInput: vi.fn()}))
 
 const {Combobox} = await import('../src/components/Combobox/Combobox.native')
+const {FieldContext} = await import('../src/components/Field/FieldContext')
+const {Field} = await import('../src/components/Field/Field')
+const fieldContext = FieldContext as unknown as Ctx
 
 interface El {
   type: unknown
@@ -110,6 +115,7 @@ function renderInput(props: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   runtime.slots = []
+  fieldContext._cur = null
 })
 
 describe('Combobox.native onOpenChange', () => {
@@ -144,5 +150,61 @@ describe('Combobox.native Input accessibility', () => {
     const emptyNamed = renderInput({placeholder: 'Pick', 'aria-label': 'Fruit'})
     expect(emptyNamed.props.accessibilityLabel).toBe('Fruit')
     expect(emptyNamed.props.accessibilityValue).toBeUndefined()
+  })
+
+  it('inside Field.Root names the field by its Field.Label, aria-label first', () => {
+    renderRoot({defaultValue: 'b', initialLabels: {b: 'Banana'}})
+    fieldContext._cur = {labelText: 'Fruit'}
+    const labelled = renderInput({placeholder: 'Pick'})
+    expect(labelled.props.accessibilityLabel).toBe('Fruit')
+    expect(labelled.props.accessibilityValue).toEqual({text: 'Banana'})
+
+    const own = renderInput({placeholder: 'Pick', 'aria-label': 'Favourite'})
+    expect(own.props.accessibilityLabel).toBe('Favourite')
+    expect(own.props.accessibilityValue).toEqual({text: 'Banana'})
+
+    runtime.slots = []
+    fieldContext._cur = null
+    renderRoot()
+    fieldContext._cur = {labelText: 'Fruit'}
+    const empty = renderInput({placeholder: 'Pick'})
+    expect(empty.props.accessibilityLabel).toBe('Fruit')
+    expect(empty.props.accessibilityValue).toBeUndefined()
+  })
+})
+
+describe('Field.Label registers its text', () => {
+  function renderLabel(children: unknown, ctx: Record<string, unknown>) {
+    const unregister = vi.fn()
+    const registerLabel = vi.fn(() => unregister)
+    fieldContext._cur = {labelId: 'l', controlId: 'c', registerLabel, ...ctx}
+    runtime.cursor = 0
+    runtime.effects = []
+    ;(Field.Label as (props: unknown) => unknown)({children})
+    const cleanups = runtime.effects.map((effect) => (effect as () => unknown)())
+    return {registerLabel, unregister, cleanups}
+  }
+
+  it('flattens its children and unregisters on cleanup', () => {
+    const {registerLabel, unregister, cleanups} = renderLabel(
+      ['Fruit', {type: 'span', props: {children: ' basket'}}],
+      {},
+    )
+    expect(registerLabel).toHaveBeenCalledWith('Fruit basket')
+    for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup()
+    expect(unregister).toHaveBeenCalledOnce()
+  })
+
+  it('adds the necessity text the web label reads, not the hidden asterisk', () => {
+    expect(
+      renderLabel('Fruit', {necessityIndicator: 'label', required: true}).registerLabel,
+    ).toHaveBeenCalledWith('Fruit (required)')
+    expect(
+      renderLabel('Fruit', {necessityIndicator: 'icon', required: true}).registerLabel,
+    ).toHaveBeenCalledWith('Fruit')
+  })
+
+  it('registers nothing without text', () => {
+    expect(renderLabel(null, {}).registerLabel).not.toHaveBeenCalled()
   })
 })
