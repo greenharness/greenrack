@@ -177,8 +177,19 @@ function Input({
   const display = value ? (labels[value] ?? value) : null
   // aria-label, else the enclosing Field.Label's text: either names the field,
   // and the shown value rides in its accessibility value.
-  const fieldLabel = useFieldContext()?.labelText
-  const name = ariaLabel ?? fieldLabel
+  const field = useFieldContext()
+  const name = ariaLabel ?? field?.labelText
+  // A disabled Field opens no sheet. React Native has no required state, so a
+  // required Field rides in the label as the text the web label reads, unless
+  // Field.Label's text names the field and already carries it
+  // (necessityIndicator="label").
+  const disabled = Boolean(field?.disabled)
+  const labelCarriesIt =
+    ariaLabel === undefined &&
+    field?.labelText !== undefined &&
+    field.necessityIndicator === 'label'
+  const requiredSuffix = field?.required && !labelCarriesIt ? ' (required)' : ''
+  const label = name ?? display ?? placeholder
 
   useEffect(() => {
     setPlaceholder(placeholder)
@@ -187,13 +198,18 @@ function Input({
   return (
     <NativePressable
       ref={triggerRef as RefObject<never>}
-      onPress={() => setOpen(true)}
+      disabled={disabled}
+      onPress={() => {
+        if (!disabled) setOpen(true)
+      }}
       accessibilityRole="combobox"
-      accessibilityLabel={name ?? display ?? placeholder}
+      accessibilityLabel={label === undefined ? undefined : label + requiredSuffix}
       accessibilityValue={name && display ? {text: display} : undefined}
-      accessibilityState={{expanded: open}}
+      accessibilityState={{expanded: open, disabled}}
     >
-      <html.div style={[styles.inputWrapper, nativeStyles.field]}>
+      <html.div
+        style={[styles.inputWrapper, nativeStyles.field, disabled && styles.inputWrapperDisabled]}
+      >
         <html.span style={[nativeStyles.fieldText, !display && nativeStyles.fieldPlaceholder]}>
           {display ?? placeholder}
         </html.span>
