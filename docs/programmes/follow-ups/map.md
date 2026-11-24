@@ -21,10 +21,11 @@ boundary.
 - [The Combobox reopens on ArrowDown after Escape and reads its Field](f05-combobox-escape-then-arrowdown-and-field-props.md): a closed-state listener opens the list on ArrowDown; Root puts Field `disabled` and `required` on the context for the input, trigger and hidden value (greenrack#234). Filed f10 and f11.
 - [A native Combobox inside Field.Root is named by its Field.Label](f06-combobox-native-reads-field-label.md): Field.Label registers its text (with its necessity text) on the Field as `labelText`, and the native `Combobox.Input` takes it after `aria-label` (greenrack PR). Filed f12.
 - [The session hook prefers the lockfile-pinned greenrack binary](f07-hook-prefers-the-local-greenrack-binary.md): the generated script runs the repo root's `node_modules/.bin/greenrack` when its version is in `^7.0.0`, else npx; the local version joins the cache pin and the doctor key (greenrack PR).
+- [Visually hidden text stays inside inner scrollers](f08-hidden-text-escapes-inner-scrollers.md): `ScrollArea.Viewport`, both `SplitPane` panes and the `Dialog`, `Drawer`, `Panel` and `DetailPanel` bodies are positioned; `VirtualList` and `Aside` already were (greenrack PR). Filed f13.
 
 ## Handoff
 
-2026-11-24, boundary 3 (f07 closed: the generated SessionStart hook runs the repo root's lockfile-pinned `node_modules/.bin/greenrack` when its version is in `^7.0.0`, npx otherwise; minor changeset `hook-prefers-local-cli`. Consumers' `hook install --check` reads stale after the release until they rerun `hook install`). Next: f08, f09, f10, f11, f12.
+2026-11-24, boundary 3 (f08 closed: six inner scrollers are `position: relative` (`ScrollArea.Viewport`, both `SplitPane` panes, the `Dialog`, `Drawer`, `Panel` and `DetailPanel` bodies), so visually hidden text low in one no longer lengthens the page or a clipped popup; `VirtualList` and `Aside` were already contained. Patch changeset `hidden-text-inner-scrollers`, unreleased. Lesson: Drawer touch-drag stories time out at 15 s under a parallel multi-directory run and pass alone). Next: f09, f10, f11, f12, f13.
 
 ## Not yet specified
 
