@@ -165,7 +165,7 @@ describe('greenharness.toml', () => {
   })
 
   it('installs the first-touch hook through greenrack, and reads its status as JSON', () => {
-    const pin = '@greenharness/greenrack-cli@^7.7.0'
+    const pin = '@greenharness/greenrack-cli@^7.11.0'
     // The hook delivers the index: a session_context would print it twice.
     expect(manifest.arrays.session_context).toBeUndefined()
     expect(manifest.table.tool).toEqual({bin: 'npx'})

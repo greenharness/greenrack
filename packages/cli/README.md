@@ -197,7 +197,7 @@ that names `@greenharness/greenrack-`.
 ## The first-touch hook (`hook install --user`)
 
 ```
-npx -y @greenharness/greenrack-cli@^7.7.0 hook install --user
+npx -y @greenharness/greenrack-cli@^7.11.0 hook install --user
 ```
 
 installs the index for every Claude Code session on the machine, with or without grh, on macOS,

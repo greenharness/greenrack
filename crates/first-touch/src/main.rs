@@ -33,7 +33,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const PROTOCOL: &str = "1";
 const NAME: &str = "greenrack-first-touch";
 /// The CLI the hook starts. The floor is the first release with `hook first-touch`.
-const PACKAGE: &str = "@greenharness/greenrack-cli@^7.7.0";
+const PACKAGE: &str = "@greenharness/greenrack-cli@^7.11.0";
 /// `package.json` text that marks a consumer, the CLI's exact test aside.
 const NEEDLES: [&str; 1] = ["@greenharness/greenrack-"];
 /// A repository with its own session hook keeps it.
@@ -55,7 +55,7 @@ const LOG_KEEP: usize = 2000;
 const OUTPUT_LIMIT: usize = 9_900;
 const HELP: &str = "greenrack-first-touch: a Claude Code hook; Claude Code runs it
 with the event on stdin. Install it with:
-  npx -y @greenharness/greenrack-cli@^7 hook install --user
+  npx -y @greenharness/greenrack-cli@^7.11.0 hook install --user
   --protocol  the protocol it speaks with the CLI
   --status    its last failure and back-offs, as JSON
   --version   its name and protocol";

@@ -75,7 +75,7 @@ describe('greenrack hook first-touch', () => {
       'greenrack index unavailable:',
       '  timeout',
       'check it with:',
-      '  npx -y @greenharness/greenrack-cli@^7 hook install --user --check',
+      '  npx -y @greenharness/greenrack-cli@^7.11.0 hook install --user --check',
     ])
   })
 

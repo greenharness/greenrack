@@ -37,11 +37,11 @@ args = ["-y", "-p", "@greenharness/greenrack-cli@^7", "-p", "@modelcontextprotoc
 bin = "npx"
 
 [tool.machine]
-install = ["{bin}", "-y", "@greenharness/greenrack-cli@^7.7.0", "hook", "install", "--user"]
-uninstall = ["{bin}", "-y", "@greenharness/greenrack-cli@^7.7.0", "hook", "uninstall", "--user"]
+install = ["{bin}", "-y", "@greenharness/greenrack-cli@^7.11.0", "hook", "install", "--user"]
+uninstall = ["{bin}", "-y", "@greenharness/greenrack-cli@^7.11.0", "hook", "uninstall", "--user"]
 
 [tool.machine.status]
-args = ["-y", "@greenharness/greenrack-cli@^7.7.0", "hook", "install", "--user", "--check", "--json"]
+args = ["-y", "@greenharness/greenrack-cli@^7.11.0", "hook", "install", "--user", "--check", "--json"]
 json = ["state"]
 
 [[doctor]]
