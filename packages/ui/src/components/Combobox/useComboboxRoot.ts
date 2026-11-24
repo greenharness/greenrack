@@ -151,6 +151,23 @@ export function useComboboxRoot(options: ComboboxStateOptions) {
     })
   }, [query, labels])
 
+  // Closed: ArrowDown (Alt+ArrowDown too) reopens the list, as after Escape,
+  // highlighting the chosen option or the first; every other key is the
+  // input's own.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || open) return
+
+    function handleClosedKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'ArrowDown' || e.target !== inputRef.current) return
+      e.preventDefault()
+      openPopup()
+    }
+
+    root.addEventListener('keydown', handleClosedKeyDown)
+    return () => root.removeEventListener('keydown', handleClosedKeyDown)
+  }, [open, openPopup])
+
   // Keyboard navigation
   useEffect(() => {
     const root = rootRef.current
@@ -233,7 +250,8 @@ export function useComboboxRoot(options: ComboboxStateOptions) {
     highlightedOption.element.scrollIntoView({block: 'nearest'})
   }, [highlightedId, query, setHighlightedId])
 
-  const ctx: ComboboxContextValue = useMemo(
+  // The Field's disabled and required are added by Root.
+  const ctx: Omit<ComboboxContextValue, 'disabled' | 'required'> = useMemo(
     () => ({
       open,
       openPopup,

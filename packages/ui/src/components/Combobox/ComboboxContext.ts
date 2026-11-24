@@ -24,6 +24,10 @@ export interface ComboboxContextValue {
   shownCount: number
   inputRef: React.RefObject<HTMLInputElement | null>
   rootRef: React.RefObject<HTMLDivElement | null>
+  /** The enclosing Field is disabled: the input, the trigger and the hidden value are. */
+  disabled: boolean
+  /** The enclosing Field is required: the input is. */
+  required: boolean
 }
 
 export const ComboboxContext = createContext<ComboboxContextValue | null>(null)

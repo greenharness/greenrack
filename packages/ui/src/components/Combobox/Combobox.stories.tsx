@@ -629,3 +629,79 @@ export const InvalidInsideField: Story = {
     await expect(input).toHaveAccessibleDescription('Choose a fruit from the list.')
   },
 }
+
+export const EscapeThenArrowDownReopens: Story = {
+  tags: TEST_ONLY,
+  render: () => (
+    <Combobox.Root defaultValue="cherry" initialLabels={fruitLabels}>
+      <Combobox.Input aria-label="Fruit" />
+      <FruitList />
+    </Combobox.Root>
+  ),
+  play: async ({canvas, userEvent}) => {
+    const input = canvas.getByRole('combobox')
+    await userEvent.click(input)
+    await waitFor(() => expect(optionCount()).toBe(fruits.length))
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(optionCount()).toBe(0))
+    await expect(input).toHaveFocus()
+    await expect(input).toHaveAttribute('aria-expanded', 'false')
+    // ArrowDown on the closed field opens it on the chosen option, not the next one.
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() => expect(optionCount()).toBe(fruits.length))
+    await expect(input).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() =>
+      expect(input.getAttribute('aria-activedescendant')).toBe(
+        screen.getByRole('option', {name: 'Cherry'}).id,
+      ),
+    )
+    // Other keys stay the input's own while closed: Enter commits nothing.
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(optionCount()).toBe(0))
+    await userEvent.keyboard('{Enter}')
+    await expect(input).toHaveValue('Cherry')
+    await expect(input).toHaveAttribute('aria-expanded', 'false')
+  },
+}
+
+export const DisabledInsideField: Story = {
+  render: () => (
+    <Field.Root disabled>
+      <Field.Label>Pick a fruit</Field.Label>
+      <Combobox.Root name="fruit">
+        <Combobox.Input>
+          <Combobox.Trigger />
+        </Combobox.Input>
+        <FruitList />
+      </Combobox.Root>
+    </Field.Root>
+  ),
+  play: async ({canvas, canvasElement, userEvent}) => {
+    const input = canvas.getByRole('combobox', {name: 'Pick a fruit'})
+    await expect(input).toBeDisabled()
+    const trigger = canvas.getByRole('button', {name: 'Open'})
+    await expect(trigger).toBeDisabled()
+    await userEvent.click(trigger)
+    await expect(input).toHaveAttribute('aria-expanded', 'false')
+    await expect(optionCount()).toBe(0)
+    // A disabled field posts no value.
+    await expect(canvasElement.querySelector('input[type="hidden"][name="fruit"]')).toBeDisabled()
+  },
+}
+
+export const RequiredInsideField: Story = {
+  render: () => (
+    <Field.Root required>
+      <Field.Label>Pick a fruit</Field.Label>
+      <Combobox.Root>
+        <Combobox.Input />
+        <FruitList />
+      </Combobox.Root>
+    </Field.Root>
+  ),
+  play: async ({canvas}) => {
+    const input = canvas.getByRole('combobox', {name: /Pick a fruit/})
+    await expect(input).toBeRequired()
+    await expect(input).toBeEnabled()
+  },
+}
