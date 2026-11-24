@@ -2,7 +2,7 @@ import type {ComponentMeta} from '../component-meta'
 
 export const meta: ComponentMeta = {
   description:
-    'Compound form field with label, description, and error display. Inside Form, auto-binds to react-hook-form via name prop. Works standalone with manual invalid prop. A native validation message from an Input or Textarea (required, type, pattern) is shown by Field.Error; explicit Error children and form errors take precedence. Field.Root shows the native message itself when it has no Field.Error. `errorPlacement` (`below` by default) puts the error line in the Field\'s flow, so the Field grows by one line when it shows. `hanging` takes it out of the flow, under the control (`position: absolute` under the Field, or under the content column when `labelPosition="side"`): the Field keeps the height of its label and control, and an `Inline align="end"` row stays aligned on its inputs and its button. The line hangs below the row, so leave room under the row: on the web `paddingBottom: calc(${typeScale.lineHeight1} + ${spacing.xs})` (one error line, which grows with the text size), and `sizes.fieldErrorReserve` (20px, the same at the default text size) where there is no calc, as on native. It is the line only: the gap to the next row still comes from the gap of the container. A message that wraps onto a second line (a narrow Field) reaches past that room and overlaps what follows. A `Field.Description` stays in the flow. The prop is on the Field only; a `Form` does not pass it down as it does `labelPosition`.',
+    'Compound form field with label, description, and error display. Inside Form, auto-binds to react-hook-form via name prop. Works standalone with manual invalid prop. A native validation message from an Input or Textarea (required, type, pattern) is shown by Field.Error; explicit Error children and form errors take precedence. Field.Root shows the native message itself when it has no Field.Error. Alone, the error line is in the Field\'s flow, so the Field grows by one line when it shows and what follows moves down (it overlaps nothing). `Field.Row` is a row of Fields (and a button) that wraps on a narrow page and shows every Field\'s error in one line under the whole row, each led by its field\'s name: the inputs and the button never move, a long message wraps instead of covering what follows, and a second error joins the line without re-announcing the first (the line is one live region, `aria-atomic="false"`). `errorLabel` on Field.Root names a Field whose label is not plain text. `errorPlacement="hanging"` takes the error out of the flow, under the control (`position: absolute`), for one short line: leave room under the row (`paddingBottom: calc(${typeScale.lineHeight1} + ${spacing.xs})`, `sizes.fieldErrorReserve` where there is no calc); a message that wraps reaches over what follows, so a row that can show a long message, or more than one error, is a `Field.Row`. On React Native `Field.Row` is a wrapping row and each Field keeps its error below, so a control can shift when an error shows. A `Field.Description` stays in the flow.',
   whenToUse: [
     'Any form input that needs a label and/or error message',
     'Standalone labeled input (without Form) with manual error display',
@@ -10,11 +10,11 @@ export const meta: ComponentMeta = {
   ],
   whenNotToUse: [
     'Bare input without label — use Input directly (rare)',
-    'A row of Fields with an `Inline align="end"` button where one shows an error: that is `errorPlacement="hanging"`, not a different layout',
+    'A row of Fields and a button where an error must not move the inputs: that is `Field.Row`, not an `Inline` of Fields with `errorPlacement="hanging"` (hanging is for one short line)',
   ],
   anatomy: {
     required: ['Root'],
-    optional: ['Label', 'Description', 'Error'],
+    optional: ['Label', 'Description', 'Error', 'Row'],
   },
   relatedTo: [
     {
@@ -60,17 +60,20 @@ export const meta: ComponentMeta = {
   </ToggleGroup>
 </Field.Root>
 
-// A row of Fields and a button, aligned on the inputs whatever error lines show
-<html.div style={styles.rowReserve /* paddingBottom: calc(lineHeight1 + spacing.xs) */}>
-  <Inline gap="sm" align="end">
-    <Field.Root invalid={dateInvalid} errorPlacement="hanging">
-      <Field.Label>Date</Field.Label>
-      <Input />
-      <Field.Error>Enter a date</Field.Error>
-    </Field.Root>
-    <Button>Mark posted</Button>
-  </Inline>
-</html.div>
+// A row of Fields and a button: errors show in one line under the whole row,
+// the inputs and the button never move
+<Field.Row>
+  <Field.Root invalid={dateInvalid}>
+    <Field.Label>Date</Field.Label>
+    <Input />
+    <Field.Error>Enter a date</Field.Error>
+  </Field.Root>
+  <Field.Root>
+    <Field.Label>Time</Field.Label>
+    <Input />
+  </Field.Root>
+  <Button>Mark posted</Button>
+</Field.Row>
 
 // Standalone (manual error)
 <Field.Root invalid>

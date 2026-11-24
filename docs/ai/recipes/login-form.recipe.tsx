@@ -47,7 +47,7 @@ export function LoginFormRecipe() {
                 <Field.Error />
               </Field.Root>
 
-              <Button type="submit" disabled={!formState.isValid}>
+              <Button type="submit" disabled={formState.isSubmitting}>
                 Log in
               </Button>
             </Fieldset.Root>

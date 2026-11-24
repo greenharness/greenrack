@@ -13,9 +13,10 @@ import {useFormContext as useRHFFormContext, useController} from 'react-hook-for
 import {FieldContext, useFieldContext} from './FieldContext'
 import type {ErrorPlacement, FieldContextValue} from './FieldContext'
 import {useFormContext} from '../Form/FormContext'
-import type {LabelPosition} from '../Form/FormContext'
+import type {LabelPosition, NecessityIndicator} from '../Form/FormContext'
 import {styles} from './styles.css'
 import {textOf} from '../../shared/textOf'
+import {Row, RowBoundary, RowError, useRowSlot} from './FieldRow'
 
 // Native error state shared by both roots, with a count of mounted Field.Error
 // parts: Root shows the native message itself only while the count is zero.
@@ -72,8 +73,35 @@ function errorStyle(placement?: ErrorPlacement) {
   return [styles.error, placement === 'hanging' && styles.errorHanging]
 }
 
+// The suffix a screen reader reads on the web: the " (required)" text is in
+// the label, the " *" icon is aria-hidden.
+function necessitySuffix(indicator: NecessityIndicator | undefined, required?: boolean): string {
+  return indicator === 'label' ? (required ? ' (required)' : ' (optional)') : ''
+}
+
+// What leads a message in a row's line: the field's name, without its necessity
+// suffix; `errorLabel` names a Field whose label is not plain text.
+function rowLabelOf(
+  errorLabel: string | undefined,
+  labelText: string | undefined,
+  indicator: NecessityIndicator | undefined,
+  required: boolean | undefined,
+): string | undefined {
+  if (errorLabel) return errorLabel
+  if (!labelText) return undefined
+  return labelText.slice(0, labelText.length - necessitySuffix(indicator, required).length)
+}
+
 function ownError(fieldContext: FieldContextValue, errorCount: number): ReactNode {
   if (fieldContext.nativeError === undefined || errorCount > 0) return null
+  if (fieldContext.row) {
+    // In a row the message lives in the row's line, in the Field's own slot.
+    return fieldContext.row.slot ? (
+      <RowError slot={fieldContext.row.slot} label={fieldContext.row.label}>
+        {fieldContext.errorMessage ?? fieldContext.nativeError}
+      </RowError>
+    ) : null
+  }
   return (
     <html.span
       id={fieldContext.errorId}
@@ -97,8 +125,11 @@ interface RootProps {
   required?: boolean
   disabled?: boolean
   labelPosition?: LabelPosition
-  /** Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align="end"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down. */
+  /** `'hanging'` is deprecated: a row of Fields is a `Field.Row`, which shows its errors in one line under the whole row and covers nothing; `'hanging'` is removed in the next major.
+   *  Where the error line sits. `'below'` (default) puts it in the Field's flow, so the Field grows by one line when it shows. `'hanging'` takes it out of the flow, under the control, so a row of Fields (an `Inline align="end"` with a button) stays aligned on its inputs; leave one error line of room under the row: on the web `calc(typeScale.lineHeight1 + spacing.xs)`, which grows with the text; `sizes.fieldErrorReserve` where there is no calc. Set on the Field only: unlike `labelPosition`, a `Form` does not pass it down. */
   errorPlacement?: ErrorPlacement
+  /** The name that leads this Field's message in a `Field.Row`'s line, for a Field whose label is not plain text (an icon, JSX). Defaults to the label's text. */
+  errorLabel?: string
   children: ReactNode
 }
 
@@ -132,6 +163,7 @@ function ControlledRoot({
   disabled,
   labelPosition,
   errorPlacement,
+  errorLabel,
   children,
 }: {
   name: string
@@ -142,6 +174,7 @@ function ControlledRoot({
   disabled?: boolean
   labelPosition?: LabelPosition
   errorPlacement?: ErrorPlacement
+  errorLabel?: string
   children: ReactNode
 }) {
   const id = useId()
@@ -156,6 +189,11 @@ function ControlledRoot({
     hasDescription,
     invalid,
     errorCount > 0 || nativeError !== undefined,
+  )
+  const {rootRef, inRow, slot, fallbackLabel} = useRowSlot(
+    `${id}-error`,
+    `${id}-control`,
+    invalid && (errorCount > 0 || nativeError !== undefined),
   )
 
   const effectiveDisabled = disabled ?? formCtx.disabled
@@ -174,6 +212,14 @@ function ControlledRoot({
       disabled: effectiveDisabled,
       labelPosition: effectiveLabelPosition,
       errorPlacement,
+      row: inRow
+        ? {
+            slot,
+            label:
+              rowLabelOf(errorLabel, labelText, effectiveNecessityIndicator, required) ??
+              fallbackLabel,
+          }
+        : undefined,
       necessityIndicator: effectiveNecessityIndicator,
       field: {
         value: field.value,
@@ -199,6 +245,10 @@ function ControlledRoot({
       effectiveDisabled,
       effectiveLabelPosition,
       errorPlacement,
+      inRow,
+      slot,
+      fallbackLabel,
+      errorLabel,
       effectiveNecessityIndicator,
       field.value,
       field.onChange,
@@ -221,6 +271,7 @@ function ControlledRoot({
       <FieldLayout
         labelPosition={effectiveLabelPosition}
         errorPlacement={errorPlacement}
+        rootRef={rootRef}
         ownError={ownError(ctx, errorCount)}
       >
         {children}
@@ -237,6 +288,7 @@ function StaticRoot({
   disabled,
   labelPosition = 'top',
   errorPlacement,
+  errorLabel,
   children,
 }: {
   group: boolean
@@ -245,6 +297,7 @@ function StaticRoot({
   disabled?: boolean
   labelPosition?: LabelPosition
   errorPlacement?: ErrorPlacement
+  errorLabel?: string
   children: ReactNode
 }) {
   const id = useId()
@@ -258,6 +311,11 @@ function StaticRoot({
     invalid,
     errorCount > 0 || nativeError !== undefined,
   )
+  const {rootRef, inRow, slot, fallbackLabel} = useRowSlot(
+    `${id}-error`,
+    `${id}-control`,
+    invalid && (errorCount > 0 || nativeError !== undefined),
+  )
   const ctx = useMemo(
     () => ({
       controlId: `${id}-control`,
@@ -270,6 +328,9 @@ function StaticRoot({
       disabled,
       labelPosition,
       errorPlacement,
+      row: inRow
+        ? {slot, label: rowLabelOf(errorLabel, labelText, undefined, required) ?? fallbackLabel}
+        : undefined,
       nativeError,
       setNativeError,
       registerError,
@@ -286,6 +347,10 @@ function StaticRoot({
       disabled,
       labelPosition,
       errorPlacement,
+      inRow,
+      slot,
+      fallbackLabel,
+      errorLabel,
       nativeError,
       setNativeError,
       registerError,
@@ -301,6 +366,7 @@ function StaticRoot({
       <FieldLayout
         labelPosition={labelPosition}
         errorPlacement={errorPlacement}
+        rootRef={rootRef}
         ownError={ownError(ctx, errorCount)}
       >
         {children}
@@ -317,19 +383,21 @@ function StaticRoot({
 function FieldLayout({
   labelPosition,
   errorPlacement,
+  rootRef,
   ownError,
   children,
 }: {
   labelPosition: LabelPosition
   errorPlacement?: ErrorPlacement
+  rootRef: ReturnType<typeof useRowSlot>['rootRef']
   ownError: ReactNode
   children: ReactNode
 }) {
   const hanging = errorPlacement === 'hanging'
   if (labelPosition !== 'side') {
     return (
-      <html.div style={[styles.root, hanging && styles.rootHanging]}>
-        {children}
+      <html.div ref={rootRef} style={[styles.root, hanging && styles.rootHanging]}>
+        <RowBoundary>{children}</RowBoundary>
         {ownError}
       </html.div>
     )
@@ -347,10 +415,10 @@ function FieldLayout({
   })
 
   return (
-    <html.div style={styles.rootSide}>
+    <html.div ref={rootRef} style={styles.rootSide}>
       {labelNode}
       <html.div style={[styles.fieldContent, hanging && styles.rootHanging]}>
-        {rest}
+        <RowBoundary>{rest}</RowBoundary>
         {ownError}
       </html.div>
     </html.div>
@@ -368,7 +436,7 @@ function Label({children}: LabelProps) {
   const indicator = ctx?.necessityIndicator
   // The suffix a screen reader reads on the web: the " (required)" text is in
   // the label, the " *" icon is aria-hidden.
-  const suffix = indicator === 'label' ? (ctx?.required ? ' (required)' : ' (optional)') : ''
+  const suffix = necessitySuffix(indicator, ctx?.required)
   const text = textOf(children).trim()
   const registerLabel = ctx?.registerLabel
   useLayoutEffect(() => {
@@ -441,6 +509,15 @@ function Error({children}: ErrorProps) {
   const registerError = ctx?.registerError
   useLayoutEffect(() => registerError?.(), [registerError])
   const content = [children, ctx?.errorMessage, ctx?.nativeError].find(rendersSomething)
+  if (ctx?.row) {
+    // In a row the message lives in the row's line, in this Field's slot; with
+    // no message there is nothing to name.
+    return ctx.row.slot && rendersSomething(content) ? (
+      <RowError slot={ctx.row.slot} label={ctx.row.label}>
+        {content}
+      </RowError>
+    ) : null
+  }
   if (!ctx?.invalid && !content) return null
 
   return (
@@ -457,4 +534,5 @@ export const Field = {
   Label,
   Description,
   Error,
+  Row,
 }

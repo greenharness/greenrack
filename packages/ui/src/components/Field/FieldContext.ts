@@ -1,7 +1,10 @@
 import {createContext, useContext, useEffect, useRef} from 'react'
 import type {LabelPosition, NecessityIndicator} from '../Form/FormContext'
 
-/** Where a Field's own error line sits: `'below'` is in the Field's flow; `'hanging'` is out of it, under the control, so the Field keeps the height of its label and control and a row of Fields stays aligned on its inputs. */
+/** A Field's place in its row's line, opaque outside FieldRow (a DOM element on the web). */
+export type RowSlot = object & {readonly __rowSlot: true}
+
+/** Where a Field's own error line sits: `'below'` is in the Field's flow; `'hanging'` is out of it, under the control, so the Field keeps the height of its label and control and a row of Fields stays aligned on its inputs. `'hanging'` is for one short line and is deprecated in favour of `Field.Row`: a message that wraps reaches over what follows. It is removed in the next major. */
 export type ErrorPlacement = 'below' | 'hanging'
 
 interface FieldContextValue {
@@ -19,6 +22,9 @@ interface FieldContextValue {
   disabled?: boolean
   labelPosition?: LabelPosition
   errorPlacement?: ErrorPlacement
+  /** Set when the Field sits in a `Field.Row`: its error shows in the row's line,
+   *  in `slot` (null until the line has made it), led by `label`. */
+  row?: {slot: RowSlot | null; label?: string}
   necessityIndicator?: NecessityIndicator
   field?: {
     value: unknown

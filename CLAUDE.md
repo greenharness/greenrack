@@ -179,7 +179,7 @@ These components **must** be wrapped in their `.Root`:
 
 | Component     | Sub-components                          | Standalone behavior                                                             |
 | ------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
-| `Field`       | `Root`, `Label`, `Description`, `Error` | Static labels/errors; inside `Form` auto-binds to react-hook-form               |
+| `Field`       | `Root`, `Label`, `Description`, `Error`, `Row` | Static labels/errors; inside `Form` auto-binds to react-hook-form               |
 | `Fieldset`    | `Root`, `Legend`                        | Groups form controls with gap                                                   |
 | `ToggleGroup` | (wraps `Toggle` children)               | Toggle works alone; group adds multi/single select                              |
 | `InputGroup`  | `Root`, `Addon`                         | Input works alone; group adds prefix/suffix addons                              |
@@ -218,7 +218,7 @@ These components **must** be wrapped in their `.Root`:
 | **DragDrop** | Move items between zones by pointer (mouse, pen and touch through one pointer-event path; touch holds briefly, then drags) or by keyboard (a Handle per item: Space picks up, arrows move, Space drops, Escape cancels) | compound: Handle, Item, Root, Zone |
 | **Drawer** | Modal sliding panel from a screen edge (right, left, or bottom) | compound: Body, Close, Description, Footer, Header, … |
 | **EmptyState** | Placeholder for empty content areas | `message`, `icon`, `action` |
-| **Field** | Compound form field with label, description, and error display | compound: Description, Error, Label, Root |
+| **Field** | Compound form field with label, description, and error display | compound: Description, Error, Label, Root, Row |
 | **Fieldset** | Groups related form controls with consistent gap spacing and an optional legend | compound: Legend, Root |
 | **FileTrigger** | A Button that opens the OS file picker | `accept`, `multiple`, `onSelect` |
 | **Form** | Form wrapper with Effect Schema validation and react-hook-form integration | `schema`, `defaultValues`, `onSubmit` |
@@ -321,7 +321,7 @@ const MySchema = Schema.Struct({
         <Field.Error />
       </Field.Root>
 
-      <Button type="submit" disabled={!formState.isValid}>
+      <Button type="submit" disabled={formState.isSubmitting}>
         Submit
       </Button>
     </Fieldset.Root>
@@ -976,7 +976,7 @@ export function LoginFormRecipe() {
                 <Field.Error />
               </Field.Root>
 
-              <Button type="submit" disabled={!formState.isValid}>
+              <Button type="submit" disabled={formState.isSubmitting}>
                 Log in
               </Button>
             </Fieldset.Root>

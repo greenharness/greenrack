@@ -59,6 +59,19 @@ export const styles = css.create({
     flex: 1,
     minWidth: 0,
   },
+  row: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  // The row's one error line: in flow, full width, wrapping freely. Empty (no
+  // box) until a Field adds its message; the gap comes once one has.
+  rowLine: {
+    fontSize: typography.fontSizeXs,
+    color: colors.errorText,
+  },
+  rowLineShown: {
+    marginTop: spacing.xs,
+  },
   necessityIcon: {
     color: colors.error,
   },

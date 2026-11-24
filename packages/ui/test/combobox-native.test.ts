@@ -69,6 +69,7 @@ vi.mock('../src/components/Listbox/native.css', () => ({sheetStyles: emptyStyles
 vi.mock('../src/components/Drawer/Drawer', () => ({Drawer: {Root: 'Drawer.Root'}}))
 vi.mock('../src/components/Listbox/Listbox', () => ({Listbox: {}}))
 vi.mock('../src/components/Button/Button', () => ({Button: 'Button'}))
+vi.mock('../src/components/Cluster/Cluster', () => ({Cluster: 'Cluster'}))
 vi.mock('../src/components/Icon/Icon', () => ({Icon: 'Icon'}))
 vi.mock('../src/components/SideNav/Chevron', () => ({Chevron: 'Chevron'}))
 vi.mock('../src/shared/accessibilityFocus.native', () => ({focusForAccessibility: vi.fn()}))

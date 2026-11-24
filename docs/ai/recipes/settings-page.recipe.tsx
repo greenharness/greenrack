@@ -1,5 +1,4 @@
 import {Schema} from 'effect'
-import {css, html} from 'react-strict-dom'
 import {PageShell} from '../../../packages/ui/src/components/PageShell'
 import {Tabs} from '../../../packages/ui/src/components/Tabs/Tabs'
 import {Form} from '../../../packages/ui/src/components/Form/Form'
@@ -58,7 +57,7 @@ export function SettingsPageRecipe() {
 
                       <Inline gap="sm" justify="end">
                         <Button variant="secondary">Cancel</Button>
-                        <Button type="submit" disabled={!formState.isValid}>
+                        <Button type="submit" disabled={formState.isSubmitting}>
                           Save changes
                         </Button>
                       </Inline>

@@ -3,6 +3,7 @@ import {expect, fn, waitFor, within} from 'storybook/test'
 import {useCallback, useId, useRef, useState} from 'react'
 import {css, html} from 'react-strict-dom'
 import {Textarea} from './Textarea'
+import {Field} from '../Field/Field'
 import {Listbox} from '../Listbox/Listbox'
 import {Button} from '../Button/Button'
 import {spacing} from '@greenharness/greenrack-tokens/tokens/spacing.css'
@@ -56,11 +57,21 @@ export const KeyboardEvents: Story = {
   },
 }
 
+/** The error variant is shown the way it is used: in a Field that says what is
+ *  wrong, so the red control has a message and `aria-describedby` names it. */
 export const Error: Story = {
   args: {variant: 'error', placeholder: 'Invalid content'},
+  render: (args) => (
+    <Field.Root invalid>
+      <Field.Label>Notes</Field.Label>
+      <Textarea {...args} />
+      <Field.Error>Enter some notes</Field.Error>
+    </Field.Root>
+  ),
   play: async ({canvas}) => {
     const textarea = canvas.getByPlaceholderText('Invalid content')
     await expect(textarea).toHaveAttribute('aria-invalid', 'true')
+    await expect(textarea).toHaveAccessibleDescription('Enter some notes')
   },
 }
 
@@ -87,7 +98,10 @@ export const AllVariants: Story = {
   render: () => (
     <html.div style={stackStyles.stack}>
       <Textarea placeholder="Default textarea" />
-      <Textarea variant="error" placeholder="Error textarea" />
+      <Field.Root invalid>
+        <Textarea variant="error" placeholder="Error textarea" aria-label="Error textarea" />
+        <Field.Error>Enter a value</Field.Error>
+      </Field.Root>
       <Textarea placeholder="Disabled" disabled />
     </html.div>
   ),

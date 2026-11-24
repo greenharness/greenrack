@@ -48,6 +48,8 @@ export function Form<T extends FieldValues>({
     reValidateMode: 'onChange',
   })
 
+  const submittedRef = useRef(false)
+
   // Sync server-side validation errors into RHF
   const prevErrorKeysRef = useRef<string[]>([])
   useEffect(() => {
@@ -62,12 +64,25 @@ export function Form<T extends FieldValues>({
     }
 
     // Set new errors
+    let first: string | undefined
     if (validationErrors) {
       for (const [key, message] of Object.entries(validationErrors)) {
         if (message) {
           methods.setError(key as Path<T>, {type: 'server', message: message as string})
+          first ??= key
         }
       }
+    }
+    // A submit the server then refused moves focus to the first field it names,
+    // as a submit the schema refuses does, each time it is refused. Once per
+    // submit: errors present on first render, or set later without a submit, do
+    // not take focus.
+    // The flag stays set through a render that clears the errors (an app that
+    // clears them when a submit starts), and until the next errors or an invalid
+    // submit.
+    if (first) {
+      if (submittedRef.current) methods.setFocus(first as Path<T>)
+      submittedRef.current = false
     }
 
     prevErrorKeysRef.current = nextKeys
@@ -78,6 +93,7 @@ export function Form<T extends FieldValues>({
   const onInvalid = useCallback(
     (errors: FieldErrors<T>) => {
       const firstField = Object.keys(errors)[0]
+      submittedRef.current = false
       if (firstField) {
         methods.setFocus(firstField as Path<T>)
       }
@@ -88,6 +104,7 @@ export function Form<T extends FieldValues>({
   const handleSubmit = useCallback(
     (e: Event) => {
       e.preventDefault()
+      submittedRef.current = true
       void methods.handleSubmit(onSubmit, onInvalid)()
     },
     [methods, onSubmit, onInvalid],
