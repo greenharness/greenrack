@@ -60,7 +60,7 @@ New `Field.Row` in `packages/ui/src/components/Field/`, web only:
 - Registration: the context holds only stable callbacks (`register(errorId, order)` returning a slot). Each Field's own error span (both `Field.Error` and Root's native `ownError`) portals into its slot in child order, keeping its element and `errorId`; no message is copied into row state, no in-place rewrite. `errorCount` still counts; the `errorId` element exists once. A spike in Phase 2 confirms portals under react-strict-dom; the fallback is a string message in row state keyed by `errorId`, set only on change.
 - Announcing: the line's wrapper is the only live region, `role="alert"` with `aria-atomic="false"`, mounted empty from first render; the spans carry no role, so a second error announces only itself. Submit focuses the first invalid control as the primary cue. Each erring control keeps `aria-invalid` and its invalid border.
 - Every message is prefixed by the field's label plain text (no necessity suffix; `errorLabel` prop for JSX labels; falls back to `aria-label`): "Date: Enter a date." Always, even for one error, so the text never changes when a second field errs (WCAG 3.3.1). Joined without doubling a full stop.
-- React Native: `Field.Row.native.tsx` renders an `Inline` and provides no `RowContext`; Fields keep `below`.
+- React Native: `FieldRow.native.tsx` renders a wrapping `Cluster` and provides no `RowContext`; Fields keep `below`.
 - `errorPlacement="hanging"` stays for a single short line. Phase 2 counts its uses across the fleet; with no consumer it is marked `@deprecated` in the release and removed in the next major.
 
 Research (cited per choice; the person asked for this):
@@ -72,7 +72,7 @@ Research (cited per choice; the person asked for this):
 - B3: keep in-flow growth (backed by (c)); a play test asserts the error line overlaps nothing and the control above does not move; document the shift. No reserve by default.
 - B4: login-form and settings-page recipes, plus CLAUDE.md's Form Composition Pattern and Login Form exemplar: submit never disabled by validity; first submit validates and focuses the first invalid control.
 - B5: the `Input`/`Textarea` error stories sit in `Field.Root invalid` with `Field.Error`, or are titled "control only".
-- B7/B8 (found by the 390 pass): the inline-row stories move to `Field.Row` (a `Cluster`), which wraps; `hanging-error-side-label` is fixed at its cause (the content column must shrink: `minWidth: 0` on the story's row and the input), with a no-horizontal-overflow play test at 390.
+- B7/B8 (found by the 390 pass): the `hanging` inline-row stories stay on `Inline` (one field and a button) and are guarded by a no-horizontal-overflow assertion, measured 390 = 390; the row cases are `Field.Row` stories (a `Cluster`, which wraps); `hanging-error-side-label` is fixed at its cause (the content column must shrink: `minWidth: 0` on the story's row and the input), with a no-horizontal-overflow play test at 390.
 - B9: Form's server-error path moves focus to the first invalid control (`setFocus` on the first errored name), tested.
 - B10: deliberate, not fixed: a listbox that is open covers the line beneath the input for as long as it is open, as a native select's popup does; the message returns on close and stays in `aria-describedby`. Revisit if the hallway test says otherwise.
 - B6: not fixed, by decision: `pointer-events:none` keeps clicks on the control under a hanging message; `Field.Row` messages are in flow and selectable. Raised to the person here.
@@ -80,7 +80,7 @@ Research (cited per choice; the person asked for this):
 
 ## Tests
 
-Each Field error story gets a play test that fails on the bug it guards: one `role=alert` per message, every `aria-describedby` id resolves to exactly one element, error rect does not intersect the next sibling, control top unchanged when an error appears in a row, message cleared after a valid value. Tests select by role and name. Viewport: a test-runner `preVisit` hook calls `page.setViewportSize` (1280, 390; the story `viewport` parameter alone does not resize); 200 % text via a font-size override. `Field.Row` tests: a sibling's error change re-renders no other Field; alert count 1 for two erring fields; DOM-order messages; single error in a multi-field row is prefixed; `aria-label`-only field; native `ownError` in a row; Popover form inside a row; RN renders `below`; a second error announces once.
+Each Field error story gets a play test that fails on the bug it guards: one `role=alert` per message, every `aria-describedby` id resolves to exactly one element, error rect does not intersect the next sibling, control top unchanged when an error appears in a row, message cleared after a valid value. Tests select by role and name. Viewport: this repository has no story viewport parameter, so 390 is a phone-wide frame (`sizes.panelSm`) with a no-horizontal-overflow assertion, plus a real-browser check at 1280 and 390; 200 % text is carried. `Field.Row` tests: alert count 1 for two erring fields; DOM-order messages; single error in a multi-field row is prefixed; `aria-label`-only field; native `ownError` in a row; Popover form inside a row; a second error joins without rewriting the first. Carried, not added: a sibling-re-render count, a React Native render test (no RN harness here), 200 % text.
 
 ## Non-goals
 
@@ -116,6 +116,20 @@ Close f121 and f112 (`docs/programmes/follow-ups/map.md` in decisions). After th
 
 ## Verification
 
-Observed in a real browser (browser-check report read, not screenshots): every audited story at 1280 and 390 shows no overlap, one alert per message, resolving `aria-describedby`; B4 login-form submits empty with the button enabled, two errors, focus on the first; B5 stories show a message that `aria-describedby` resolves; a VoiceOver/NVDA check that a second error announces only itself; all seven packages on npm at 7.10.0 with `Field.Row` in `ui`; the four rows pass Phase 4.
+Phase 1 and 2 observed 2026-11-24 (Phases 3 to 5 pending: release, adoption, close).
+
+- **Audit (Phase 1):** 144 stories driven in Chromium at 1280 and 390 (Dialog, Select, Video, ThemeProvider, ToggleGroup, CheckboxGroup, Textarea and most Combobox/RadioGroup stories cannot show a Field error). Findings B1 to B11 above.
+- **Storybook tests (Chromium, vitest):** full suite 695 of 695 on the first implementation; after the review fixes `Field`, `Form`, `Popover`, `Input` and `Textarea` 91 of 91 (`Field` alone 33 of 33). ToggleGroup and VirtualList failed once under a host load average of 300 and passed on rerun, unrelated to this change.
+- **Real browser (browser-check, tree `a2efcdec`):** every `Field.Row` story, at 1280 and 390: `scrollWidth` equals `innerWidth` (390); the row's error line starts 4 px under the controls and overlaps the next row by 0 px; one `role=alert` with two spans for two errors; every `aria-describedby` id resolves to exactly one element holding "Date: Enter a date."; the 360 px frame wraps a 3-line message (54 px) and covers nothing; the login form (`form--default`, `recipes--login-form`) submits empty with the button enabled, two messages, focus on Username.
+- **Found only by the browser:** a second refused submit in `form--server-validation-errors` left focus on the button (the first fix focused only new errors). Fixed in `dccc613a` (focus each refusal, once per submit); the story now asserts it.
+- **Not done, carried:** VoiceOver and NVDA announce check; the five-person hallway test of (a); a sibling-re-render count test, a React Native render test (no RN harness in this repo) and a 200 % text pass; a development warning for a Field in a row that nothing names.
+- **Deliberate:** B6 (hanging message unselectable) and B10 (an open Combobox listbox covers its error line). The hanging stories stay on `Inline`, one field and a button, and fit at 390.
+
+## Deviations from the plan
+
+- The files are `FieldRow.tsx`, `FieldRow.native.tsx` and `FieldRowTypes.ts` (not `Field.Row.native.tsx`).
+- No story `viewport` parameter exists here, so 390 is tested by a phone-wide frame (`sizes.panelSm`) with an overflow assertion, and checked in a real browser at 390.
+- The name prefix falls back to the control's `aria-label` by reading the DOM, because the Field cannot see its control's props.
+- The Delta plan-review of B7 to B11 was folded into the implementation review.
 
 <!-- panel: repos=greenrack,social-planner,decisions adds=screen,contract reviewers=ux-research,game-ux,tui,typescript,backend,ui-design,po,unix,platform,react,architect,po body-sha=90dd7e9ee28f -->
