@@ -23,10 +23,11 @@ boundary.
 - [The session hook prefers the lockfile-pinned greenrack binary](f07-hook-prefers-the-local-greenrack-binary.md): the generated script runs the repo root's `node_modules/.bin/greenrack` when its version is in `^7.0.0`, else npx; the local version joins the cache pin and the doctor key (greenrack PR).
 - [Visually hidden text stays inside inner scrollers](f08-hidden-text-escapes-inner-scrollers.md): `ScrollArea.Viewport`, both `SplitPane` panes and the `Dialog`, `Drawer`, `Panel` and `DetailPanel` bodies are positioned; `VirtualList` and `Aside` already were (greenrack PR). Filed f13.
 - [Checkbox, Switch and Slider read their Field](f09-checkbox-switch-slider-read-the-field.md): each takes the Field's control id, description, error, invalid and disabled as `Input` does; the Slider thumb names itself by `aria-labelledby` (not labelable); native takes `labelText` (greenrack PR). Filed f14.
+- [Input and Textarea take Field's required](f10-input-textarea-read-field-required.md): each takes `required ?? ctx?.required` beside its `disabled` fallback; an explicit `required={false}` wins (greenrack PR).
 
 ## Handoff
 
-2026-11-24, boundary 3 (f09 closed: `Checkbox`, `Switch` and `Slider` read their `Field.Root` (control id, `describedBy`, `invalid`, `disabled`); the Slider thumb takes `aria-labelledby` from a mounted Field.Label; on native, `labelText` names all three. Patch changeset `checkbox-switch-slider-read-field`, unreleased. Lesson: a `disabled = false` destructuring default hides a context fallback). Next: f10, f11, f12, f13, f14.
+2026-11-24, boundary 3 (f10 closed: `Input` and `Textarea` take their `Field.Root`'s `required` when their own is unset; `required={false}` still wins. Patch changesets `checkbox-switch-slider-read-field` and `input-textarea-field-required`, unreleased). Next: f11, f12, f13, f14.
 
 ## Not yet specified
 
