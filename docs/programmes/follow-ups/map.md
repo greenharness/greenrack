@@ -22,10 +22,11 @@ boundary.
 - [A native Combobox inside Field.Root is named by its Field.Label](f06-combobox-native-reads-field-label.md): Field.Label registers its text (with its necessity text) on the Field as `labelText`, and the native `Combobox.Input` takes it after `aria-label` (greenrack PR). Filed f12.
 - [The session hook prefers the lockfile-pinned greenrack binary](f07-hook-prefers-the-local-greenrack-binary.md): the generated script runs the repo root's `node_modules/.bin/greenrack` when its version is in `^7.0.0`, else npx; the local version joins the cache pin and the doctor key (greenrack PR).
 - [Visually hidden text stays inside inner scrollers](f08-hidden-text-escapes-inner-scrollers.md): `ScrollArea.Viewport`, both `SplitPane` panes and the `Dialog`, `Drawer`, `Panel` and `DetailPanel` bodies are positioned; `VirtualList` and `Aside` already were (greenrack PR). Filed f13.
+- [Checkbox, Switch and Slider read their Field](f09-checkbox-switch-slider-read-the-field.md): each takes the Field's control id, description, error, invalid and disabled as `Input` does; the Slider thumb names itself by `aria-labelledby` (not labelable); native takes `labelText` (greenrack PR). Filed f14.
 
 ## Handoff
 
-2026-11-24, boundary 3 (f08 closed: six inner scrollers are `position: relative` (`ScrollArea.Viewport`, both `SplitPane` panes, the `Dialog`, `Drawer`, `Panel` and `DetailPanel` bodies), so visually hidden text low in one no longer lengthens the page or a clipped popup; `VirtualList` and `Aside` were already contained. Patch changeset `hidden-text-inner-scrollers`, unreleased. Lesson: Drawer touch-drag stories time out at 15 s under a parallel multi-directory run and pass alone). Next: f09, f10, f11, f12, f13.
+2026-11-24, boundary 3 (f09 closed: `Checkbox`, `Switch` and `Slider` read their `Field.Root` (control id, `describedBy`, `invalid`, `disabled`); the Slider thumb takes `aria-labelledby` from a mounted Field.Label; on native, `labelText` names all three. Patch changeset `checkbox-switch-slider-read-field`, unreleased. Lesson: a `disabled = false` destructuring default hides a context fallback). Next: f10, f11, f12, f13, f14.
 
 ## Not yet specified
 
