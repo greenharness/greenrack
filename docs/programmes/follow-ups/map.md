@@ -26,10 +26,11 @@ boundary.
 - [Input and Textarea take Field's required](f10-input-textarea-read-field-required.md): each takes `required ?? ctx?.required` beside its `disabled` fallback; an explicit `required={false}` wins (greenrack PR).
 - [A native Combobox follows its Field's disabled and required](f11-combobox-native-reads-field-state.md): a disabled Field opens no sheet and reports disabled; React Native has no required state, so " (required)" rides in the accessibility label unless Field.Label already carries it (greenrack PR).
 - [A native Select inside Field.Root is named by its Field.Label](f12-select-native-reads-field-label.md): `Select.Trigger` takes `aria-label`, else `labelText`, with the chosen item as its accessibility value; unnamed, it still reads its children (greenrack PR). Filed f15.
+- [Visually hidden text stays inside the remaining scrollers](f13-hidden-text-in-remaining-scrollers.md): the AppShell rail body, `SteppedList`'s rows, the `Table`'s scroller and `CodeBlock`'s `pre` are positioned; the `Popover`, `Menu`, `Select` and `Listbox` popups are fixed, so they were contained already (greenrack PR).
 
 ## Handoff
 
-2026-11-25, boundary 3 (f12 closed: the native `Select.Trigger` is named by `aria-label`, else the Field.Label's `labelText`, with the chosen item as its accessibility value. Patch changesets `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`, unreleased). Next: f13, f14, f15 (filed from f12).
+2026-11-25, boundary 3 (f13 closed: the AppShell rail body, `SteppedList`'s rows, the `Table`'s scroller and `CodeBlock`'s `pre` are `position: relative`, and the four popups were already contained. Patch changeset `hidden-text-remaining-scrollers`, unreleased, beside `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`). Next: f14, f15.
 
 ## Not yet specified
 
