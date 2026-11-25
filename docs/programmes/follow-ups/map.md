@@ -28,10 +28,11 @@ boundary.
 - [A native Select inside Field.Root is named by its Field.Label](f12-select-native-reads-field-label.md): `Select.Trigger` takes `aria-label`, else `labelText`, with the chosen item as its accessibility value; unnamed, it still reads its children (greenrack PR). Filed f15.
 - [Visually hidden text stays inside the remaining scrollers](f13-hidden-text-in-remaining-scrollers.md): the AppShell rail body, `SteppedList`'s rows, the `Table`'s scroller and `CodeBlock`'s `pre` are positioned; the `Popover`, `Menu`, `Select` and `Listbox` popups are fixed, so they were contained already (greenrack PR).
 - [Checkbox, Switch and Slider bind to their Form field](f14-checkbox-switch-slider-bind-to-form.md): each binds to `ctx.field` while its own value prop is unset, through `useFieldBinding`; unlike `Input`, its own change callback still fires after the field's (greenrack PR).
+- [Select follows its Field's disabled and required](f15-select-reads-field-disabled-required.md): Root's `disabled` defaults to the Field's (its own wins); required is `aria-required` on the web and " (required)" in the native accessibility label unless Field.Label carries it; an unnamed native trigger carries no suffix (greenrack PR).
 
 ## Handoff
 
-2026-11-25, boundary 3 (f14 closed: `Checkbox`, `Switch` and `Slider` bind to their `Form` field when their own value prop is unset, through `useFieldBinding`. Patch changeset `checkbox-switch-slider-bind-form`, unreleased, beside `hidden-text-remaining-scrollers`, `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`). Next: f15.
+2026-11-25, boundary 3 (f15 closed: `Select` follows its Field's `disabled` and `required` on web and native. Patch changeset `select-field-disabled-required`, unreleased, beside `checkbox-switch-slider-bind-form`, `hidden-text-remaining-scrollers`, `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`). No open ticket left in this programme; the seven patch changesets await a release.
 
 ## Not yet specified
 
