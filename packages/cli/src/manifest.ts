@@ -83,7 +83,8 @@ export const COMMANDS: CommandSpec[] = [
       {
         name: 'event',
         required: true,
-        description: 'session-start (print the index) | install (wire both hooks into this repo)',
+        description:
+          'session-start (print the index) | install (wire both hooks into this repo; with --user, the first-touch hook for every session on this machine) | uninstall (--user only: remove that hook) | first-touch (run by the greenrack-first-touch hook: the index for GREENRACK_FIRST_TOUCH_ROOT, text for SessionStart or one PreToolUse JSON object)',
         valuesFrom: 'events',
       },
     ],
@@ -92,6 +93,12 @@ export const COMMANDS: CommandSpec[] = [
         name: 'check',
         type: 'boolean',
         description: 'install: report drift and exit 1 instead of writing (for CI)',
+      },
+      {
+        name: 'user',
+        type: 'boolean',
+        description:
+          'install / uninstall: the first-touch hook binary in the Claude config folder ($CLAUDE_CONFIG_DIR, else ~/.claude). --check exits 0 present, 1 absent or different, 2 invalid JSON or no binary for the platform, 3 unreadable settings; with --json it prints {"state": "present"|"absent"}',
       },
     ],
     returns: {
@@ -103,6 +110,9 @@ export const COMMANDS: CommandSpec[] = [
       'greenrack hook session-start',
       'greenrack hook install',
       'greenrack hook install --check',
+      'greenrack hook install --user',
+      'greenrack hook install --user --check --json',
+      'greenrack hook uninstall --user',
     ],
   },
   {
@@ -262,7 +272,7 @@ export function buildManifest(registry: Registry, version: string) {
       // Guides are fetched by name (guide:<skill>) and stay out of the manifest.
       names: lookupNames(registry).filter((name) => !name.startsWith('guide:')),
       kinds: ['components', 'recipes', 'tokens'],
-      events: ['session-start', 'install'],
+      events: ['session-start', 'install', 'uninstall', 'first-touch'],
       mockupActions: MOCKUP_SUBCOMMANDS,
       skillActions: ['install'],
     },

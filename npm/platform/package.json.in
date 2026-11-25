@@ -1,0 +1,25 @@
+{
+  "name": "__PKG__",
+  "version": "__VERSION__",
+  "description": "The greenrack-first-touch hook binary for __OS__/__CPU__",
+  "homepage": "https://github.com/greenharness/greenrack#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/greenharness/greenrack.git"
+  },
+  "license": "MIT",
+  "preferUnplugged": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "__OS__"
+  ],
+  "cpu": [
+    "__CPU__"
+  ],
+__LIBC__
+  "files": [
+    "bin/"
+  ]
+}

@@ -13,7 +13,9 @@ import {runManifest, cliVersion} from './commands/manifest.js'
 
 function emit(result: CommandResult, json: boolean): never {
   for (const note of result.notes ?? []) process.stderr.write(note + '\n')
-  if (result.exitCode === 2) {
+  // 2 (usage) and 3 (a file it cannot read or write) are errors: their words
+  // go to stderr. 1 is a report (`--check`'s drift), so it stays on stdout.
+  if (result.exitCode === 2 || result.exitCode === 3) {
     process.stderr.write(result.text.endsWith('\n') ? result.text : result.text + '\n')
     // A --json caller still gets its result on stdout; the failure is the exit status and stderr.
     if (json) process.stdout.write(JSON.stringify(result.data, null, 2) + '\n')
@@ -49,6 +51,7 @@ async function main(): Promise<void> {
         'source-only': {type: 'boolean', default: false},
         'no-color': {type: 'boolean', default: false},
         check: {type: 'boolean', default: false},
+        user: {type: 'boolean', default: false},
         force: {type: 'boolean', default: false},
         session: {type: 'boolean', default: false},
         'catalog-only': {type: 'boolean', default: false},
@@ -80,7 +83,9 @@ async function main(): Promise<void> {
   // version; warn (stderr only) when a locally installed ui differs. doctor
   // reports the same skew as one of its findings instead, and mockup under the
   // findings it may explain (an unknown-component newer than the checker).
-  if (!values.json && first !== 'doctor' && first !== 'mockup') {
+  // A hook's output is the agent's context: no warning rides along with it.
+  const fromHook = first === 'hook' && rest[0] === 'first-touch'
+  if (!values.json && first !== 'doctor' && first !== 'mockup' && !fromHook) {
     const skew = uiVersionSkew(process.cwd(), SCOPES)
     if (skew) {
       process.stderr.write(
@@ -101,8 +106,9 @@ async function main(): Promise<void> {
   }
   if (first === 'hook') {
     if (rest.length > 1) usageError('greenrack hook takes exactly one event')
-    const hookResult = runHook(registry, rest[0], {check: values.check})
-    if (rest[0] === 'install') pointToExtension()
+    const hookResult = runHook(registry, rest[0], {check: values.check, user: values.user})
+    // The grh pointer is for the repo install; grh itself runs the --user one.
+    if (rest[0] === 'install' && !values.user) pointToExtension()
     emit(hookResult, values.json)
   }
   if (first === 'skill') {

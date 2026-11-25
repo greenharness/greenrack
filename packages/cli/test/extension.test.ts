@@ -32,7 +32,10 @@ interface Manifest {
   arrays: Record<string, Array<Record<string, TomlValue>>>
 }
 
-/** The subset of TOML greenharness.toml uses: tables, arrays of tables, strings, string arrays. */
+/**
+ * The subset of TOML greenharness.toml uses: tables (dotted names kept whole,
+ * `tool.machine.status`), arrays of tables, strings, string arrays.
+ */
 function parseToml(source: string): Manifest {
   const out: Manifest = {table: {}, arrays: {}}
   let current: Record<string, TomlValue> | undefined
@@ -40,7 +43,7 @@ function parseToml(source: string): Manifest {
     const line = raw.trim()
     if (line === '' || line.startsWith('#')) continue
     const array = /^\[\[([\w-]+)\]\]$/.exec(line)
-    const table = /^\[([\w-]+)\]$/.exec(line)
+    const table = /^\[([\w-]+(?:\.[\w-]+)*)\]$/.exec(line)
     if (array) {
       current = {}
       ;(out.arrays[array[1]!] ??= []).push(current)
@@ -55,7 +58,10 @@ function parseToml(source: string): Manifest {
   return out
 }
 
-/** grh manifest v1 (grh docs/extension-manifest.md): every key it accepts, by section. */
+/**
+ * grh manifest v1, and the v2 `[tool]` tables this manifest uses (grh
+ * docs/extension-manifest.md): every key they accept, by section.
+ */
 const GRH_V1_KEYS: Record<string, string[]> = {
   extension: ['name', 'version', 'harness'],
   skill: ['path'],
@@ -63,6 +69,9 @@ const GRH_V1_KEYS: Record<string, string[]> = {
   mcp: ['name', 'command', 'args'],
   session_context: ['command'],
   doctor: ['command'],
+  tool: ['bin', 'bin_aliases'],
+  'tool.machine': ['install', 'uninstall', 'requires'],
+  'tool.machine.status': ['args', 'json', 'exit'],
 }
 
 function unknownKeys(manifest: Manifest): string[] {
@@ -110,7 +119,8 @@ describe('greenharness.toml', () => {
     )
     expect(unknownKeys(parseToml(withExtraKey))).toEqual(['skill.label'])
     expect(manifest.table.conform).toBeUndefined()
-    expect(manifest.table.extension).toMatchObject({name: 'design', harness: '>=0.1'})
+    // `[tool]` is manifest v2, which grh refuses unless the harness is 0.2 or later.
+    expect(manifest.table.extension).toMatchObject({name: 'design', harness: '>=0.2'})
   })
 
   it('holds a SKILL.md at every skill path and a file at the agent path', () => {
@@ -154,7 +164,31 @@ describe('greenharness.toml', () => {
     ])
   })
 
-  it('guards session_context and doctor: silent outside a greenrack consumer, once the hook is installed too', () => {
+  it('installs the first-touch hook through greenrack, and reads its status as JSON', () => {
+    const pin = '@greenharness/greenrack-cli@^7.11.0'
+    // The hook delivers the index: a session_context would print it twice.
+    expect(manifest.arrays.session_context).toBeUndefined()
+    expect(manifest.table.tool).toEqual({bin: 'npx'})
+    expect(manifest.table['tool.machine']).toEqual({
+      install: ['{bin}', '-y', pin, 'hook', 'install', '--user'],
+      uninstall: ['{bin}', '-y', pin, 'hook', 'uninstall', '--user'],
+    })
+    const status = manifest.table['tool.machine.status']!
+    expect(status).toEqual({
+      args: ['-y', pin, 'hook', 'install', '--user', '--check', '--json'],
+      json: ['state'],
+    })
+    // What grh reads: the status arguments after `-y <package>`, run on this build.
+    const claude = mkdtempSync(join(tmpdir(), 'greenrack-status-'))
+    const done = spawnSync(process.execPath, [bin, ...(status.args as string[]).slice(2)], {
+      encoding: 'utf8',
+      env: {...process.env, CLAUDE_CONFIG_DIR: claude, GREENRACK_FIRST_TOUCH_BIN: ''},
+    })
+    expect(done.status, done.stderr).toBe(1)
+    expect(JSON.parse(done.stdout)).toMatchObject({state: 'absent'})
+  })
+
+  it('guards doctor: silent outside a greenrack consumer, and in one with its own hook', () => {
     const git = (dir: string): string => {
       const done = spawnSync('git', ['init', '-q', dir], {encoding: 'utf8'})
       expect(done.status, done.stderr).toBe(0)
@@ -169,13 +203,8 @@ describe('greenharness.toml', () => {
           encoding: 'utf8',
         },
       )
-    const [sessionContext] = manifest.arrays.session_context!.map(
-      (entry) => entry.command as string,
-    )
     const [doctor] = manifest.arrays.doctor!.map((entry) => entry.command as string)
-    expect(run(git(bystander()), sessionContext!)).toMatchObject({status: 0, stdout: ''})
     expect(run(git(bystander()), doctor!)).toMatchObject({status: 0, stdout: ''})
-    expect(run(git(consumer()), sessionContext!).stdout).toBe('RAN context\n')
     expect(run(git(consumer()), doctor!).stdout).toBe('RAN doctor\n')
     const nested = git(mkdtempSync(join(tmpdir(), 'greenrack-nested-')))
     mkdirSync(join(nested, 'apps', 'web'), {recursive: true})
@@ -187,7 +216,6 @@ describe('greenharness.toml', () => {
     const hooked = git(consumer())
     mkdirSync(join(hooked, '.claude', 'hooks'), {recursive: true})
     writeFileSync(join(hooked, '.claude', 'hooks', 'greenrack-catalog.sh'), '')
-    expect(run(hooked, sessionContext!)).toMatchObject({status: 0, stdout: ''})
     expect(run(hooked, doctor!).stdout).toBe('RAN doctor\n')
   })
 
@@ -198,9 +226,6 @@ describe('greenharness.toml', () => {
         ['-c', command.replace(/npx -y @greenharness\/greenrack-cli@\^7/, 'echo RAN')],
         {cwd, encoding: 'utf8'},
       )
-    const [sessionContext] = manifest.arrays.session_context!.map(
-      (entry) => entry.command as string,
-    )
     const [doctor] = manifest.arrays.doctor!.map((entry) => entry.command as string)
     // A session started in a folder with no repository, such as ~/Developer, that holds one.
     const parent = mkdtempSync(join(tmpdir(), 'greenrack-parent-'))
@@ -212,14 +237,11 @@ describe('greenharness.toml', () => {
     )
     const init = spawnSync('git', ['init', '-q', app], {encoding: 'utf8'})
     expect(init.status, init.stderr).toBe(0)
-    for (const command of [sessionContext!, doctor!]) {
-      expect(run(parent, command)).toMatchObject({status: 0, stdout: '', stderr: ''})
-    }
-    expect(run(app, sessionContext!).stdout).toBe('RAN context\n')
+    expect(run(parent, doctor!)).toMatchObject({status: 0, stdout: '', stderr: ''})
+    expect(run(app, doctor!).stdout).toBe('RAN doctor\n')
     // A subfolder of the repository is judged by the whole repository.
     const sub = join(app, 'packages', 'x')
     mkdirSync(sub, {recursive: true})
-    expect(run(sub, sessionContext!).stdout).toBe('RAN context\n')
     expect(run(sub, doctor!).stdout).toBe('RAN doctor\n')
   })
 })
