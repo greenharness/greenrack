@@ -39,7 +39,8 @@ from the start, and its numbers are recorded in the Resolution.
 
 ## Resolution
 
-2026-11-25, greenrack PR. Four of the eight scrollers let the text escape, and each is now
+2026-11-25, greenrack PR. The patch changeset `hidden-text-remaining-scrollers` ships with the next
+`@greenharness/greenrack-ui` release, beside f09 to f12's. Four of the eight scrollers let the text escape, and each is now
 `position: 'relative'`: the AppShell `railBody`, `SteppedList`'s `rows`, the `Table`'s
 `scrollX` and `CodeBlock`'s `pre`. The four popups were already contained: the `Popover`,
 `Menu`, `Select` and `Listbox` popups are `position: fixed`, and each one is the scroller
