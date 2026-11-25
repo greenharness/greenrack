@@ -1,7 +1,9 @@
 import type {ReactNode} from 'react'
 
 export interface SliderProps {
-  /** Controlled value. */
+  /** Controlled value. Unset inside a `Form`'s `Field.Root name`, the form
+   *  field's number is shown and set instead (`defaultValue` then shows only
+   *  while the field holds no number: give the field a default). */
   value?: number
   /** Initial value (uncontrolled). Default: `min`. */
   defaultValue?: number

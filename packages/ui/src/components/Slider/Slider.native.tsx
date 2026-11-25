@@ -1,13 +1,17 @@
-import {useRef, useState} from 'react'
+import {useCallback, useRef, useState} from 'react'
 import {PanResponder, View} from 'react-native'
 import {html} from 'react-strict-dom'
 import {useControllableValue} from '../../hooks/useControllableValue'
 import {styles} from './styles.css'
 import {fractionOf, snapToStep, valueAtFraction} from './sliderMath'
 import type {SliderProps} from './Slider.types'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldBinding, useFieldContext} from '../Field/FieldContext'
 
 export type {SliderProps} from './Slider.types'
+
+/** A form field's value as the slider reads it: a finite number, else unset. */
+const fieldNumber = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined
 
 /**
  * Native Slider: a touch on the track sets the value and a drag moves it. The
@@ -32,10 +36,23 @@ export function Slider({
   const ctx = useFieldContext()
   const disabled = disabledProp ?? ctx?.disabled ?? false
   const range = {min, max, step}
+  // Inside a Form's Field.Root name, an uncontrolled slider shows and sets the
+  // form field; a field with no number yet shows `defaultValue ?? min`. The
+  // end of a drag, or an accessibility step, marks it touched.
+  const bound = useFieldBinding<number | undefined>(controlledValue, fieldNumber)
+  const bindChange = bound?.onChange
+  const touch = bound?.onBlur
+  const handleValueChange = useCallback(
+    (next: number) => {
+      bindChange?.(next)
+      onValueChange?.(next)
+    },
+    [bindChange, onValueChange],
+  )
   const [value, setValue] = useControllableValue(
-    controlledValue,
+    controlledValue ?? bound?.value,
     snapToStep(defaultValue ?? min, range),
-    onValueChange,
+    handleValueChange,
   )
   const current = snapToStep(value, range)
   const percent = fractionOf(current, range) * 100
@@ -43,8 +60,8 @@ export function Slider({
   const [trackWidth, setTrackWidth] = useState(0)
 
   // The responder is created once; it reads what changes through this ref.
-  const latest = useRef({current, range, trackWidth, disabled, setValue})
-  latest.current = {current, range, trackWidth, disabled, setValue}
+  const latest = useRef({current, range, trackWidth, disabled, setValue, touch})
+  latest.current = {current, range, trackWidth, disabled, setValue, touch}
   const dragStartFraction = useRef(0)
 
   const responder = useRef(
@@ -64,12 +81,14 @@ export function Slider({
         const next = valueAtFraction(dragStartFraction.current + gesture.dx / width, r)
         if (next !== now) set(next)
       },
+      onPanResponderRelease: () => latest.current.touch?.(),
     }),
   ).current
 
   const stepBy = (direction: 1 | -1) => {
     const next = snapToStep(current + direction * step, range)
     if (next !== current) setValue(next)
+    touch?.()
   }
 
   return (

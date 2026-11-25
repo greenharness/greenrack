@@ -4,7 +4,7 @@ import {useControllableValue} from '../../hooks/useControllableValue'
 import {styles} from './styles.css'
 import {visuallyHidden} from '../../styles/visually-hidden.css'
 import type {SwitchProps} from './Switch.types'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldBinding, useFieldContext} from '../Field/FieldContext'
 
 export type {SwitchProps} from './Switch.types'
 
@@ -22,10 +22,20 @@ export function Switch({
   // names it), its description and error, and its invalid and disabled state.
   const ctx = useFieldContext()
   const disabled = disabledProp ?? ctx?.disabled ?? false
+  // Inside a Form's Field.Root name, an uncontrolled switch shows and sets the form field.
+  const bound = useFieldBinding(controlledChecked, Boolean)
+  const bindChange = bound?.onChange
+  const handleCheckedChange = useCallback(
+    (next: boolean) => {
+      bindChange?.(next)
+      onCheckedChange?.(next)
+    },
+    [bindChange, onCheckedChange],
+  )
   const [checked, setChecked] = useControllableValue(
-    controlledChecked,
+    controlledChecked ?? bound?.value,
     defaultChecked,
-    onCheckedChange,
+    handleCheckedChange,
   )
   const handleClick = useCallback(() => {
     if (!disabled) setChecked(!checked)
@@ -39,8 +49,10 @@ export function Switch({
         type="checkbox"
         role="switch"
         id={ctx?.controlId}
-        name={name}
+        name={name ?? bound?.name}
         value={value}
+        ref={bound?.ref}
+        onBlur={bound?.onBlur}
         // The input always shows the Switch's state (controlled or internal),
         // so a click on the track, the input or a label all go through setChecked.
         checked={checked}
