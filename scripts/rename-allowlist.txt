@@ -26,6 +26,9 @@ packages/cli/test/cli.test.ts	the retired-scope skew test: no warning for a lite
 packages/cli/src/commands/hook.ts	the old duro CLI it migrates from, named in comments and output
 packages/cli/greenharness.toml	stays quiet beside a hook the old duro CLI wired (duro-catalog.sh): migration only
 
+crates/first-touch/src/main.rs	the legacy duro-catalog.sh hook it removes
+docs/programmes/follow-ups/	consumers named by repository (duro-app)
+
 # Other repositories (the t10 census, 2026-11-23; f117). Not read by
 # check-rename-allowlist.sh, which sees only this tree: a row here is
 # <repo>:<path>, the record of what the census command may list there.
@@ -37,11 +40,18 @@ website-builder:PLAN.md	planning history
 website-builder:AGENT-TASKS.md	planning history
 website-builder:SPIKES.md	planning history
 website-builder:spikes/	spike notes
-homelab:forgejo-runners/	the Forgejo repo is still duro-lexical-multi, until it is renamed
+homelab:kubernetes/homelab/apps/forgejo-runners/	the Forgejo repo is still duro-lexical-multi, until it is renamed
 duro-lexical-multi:	the repo keeps its name until renamed
 gh-site-import:homepage-mockups.html	mockup artboard with inlined tokens
-greenbelay:src/preview.rs	fixtures proving the old name is not detected
+greenbelay:crates/greenbelay-process/src/preview.rs	fixtures proving the old name is not detected
 greenbelay:tests/preview.rs	same
-grh:audit_golden.rs and its duro-greenharness.toml fixture	golden for the old names the audit must flag
-adr-lint:sync_typescript.rs	fixture for the old scope
+greenbelay:crates/greenbelay-guard/	guard rule and its corpus quote the old scope as sample input
+grh:tests/audit_golden.rs	golden for the old names the audit must flag
+grh:tests/fixtures/	the old-name and renamed fixtures that golden reads
+adr-lint:tests/sync_typescript.rs	fixture for the old scope
 kb-vision:	the 0.1.1 round-trip fixture
+website-builder:README.md	names duro-lexical-multi@0.2.0, the artifact the spike used
+ticket-vision:app/components/RichTextView.test.tsx	the comment names both lexical packages the test renders
+social-planner:PLAN.md	planning history
+social-planner:AGENT-TASKS.md	planning history
+decisions:docs/principles/measures.md	vendored rule wording, a source note
