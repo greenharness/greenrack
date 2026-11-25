@@ -28,6 +28,11 @@ const meta: Meta = {
 export default meta
 
 const styles = css.create({
+  swatch: {
+    height: sizes.touchTarget,
+    backgroundColor: colors.accent,
+    borderRadius: radii.sm,
+  },
   surface: {
     display: 'flex',
     flexDirection: 'column',
@@ -396,6 +401,33 @@ export const ServerRender: StoryObj = {
       root?.unmount()
       actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment
     }
+  },
+}
+
+/**
+ * A `system` ColorModeProvider with no `tokens` at all, as the server renders
+ * it and before any script runs (the markup is set as HTML and never
+ * hydrated): the surface paints the DS theme of the viewer's OS, light or
+ * dark. Switch the OS scheme (or the browser's rendering emulation) and
+ * reload: every swatch follows.
+ */
+export const SystemBeforeHydration: StoryObj = {
+  render: () => {
+    const markup = renderToString(
+      <ColorModeProvider defaultPreference="system" storageKey={null}>
+        <html.div data-testid="bare-surface" style={styles.surface}>
+          <Text>DS values, first paint</Text>
+          <html.div style={styles.swatch} />
+        </html.div>
+      </ColorModeProvider>,
+    )
+    return (
+      <html.div
+        ref={(node) => {
+          if (node) node.innerHTML = markup
+        }}
+      />
+    )
   },
 }
 
