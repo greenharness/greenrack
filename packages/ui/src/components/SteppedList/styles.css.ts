@@ -43,7 +43,10 @@ export const styles = css.create({
     paddingRight: spacing.ms,
     paddingBottom: spacing.xs,
   },
+  // Positioned, so visually hidden text low in the rows is placed against
+  // this scroller, not against an outer box it would lengthen.
   rows: {
+    position: 'relative',
     overflowY: 'auto',
   },
   // Dynamic style: simple identifier params only (StyleX constraint)

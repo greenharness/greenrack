@@ -341,6 +341,9 @@ export const styles = css.create({
   // data-table behavior. In stack mode the grid collapses to one column, so
   // nothing overflows and no scrollbar appears.
   scrollX: {
+    // Positioned, so visually hidden text in a far column is placed against
+    // this scroller, not against the frame, which would widen the page.
+    position: 'relative',
     overflowX: 'auto',
     // Contain the scroll to this axis; vertical growth (rows) is natural.
     overflowY: 'visible',
