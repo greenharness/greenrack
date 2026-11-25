@@ -305,6 +305,24 @@ checkSubset('SHADOWS', shadowsCss, keys.SHADOWS, (s) => s)
   }
 }
 
+// raw `lightShadows` is what the web ThemeProvider emits for a `system`
+// provider: every entry must be the light theme's own.
+{
+  const lightShadowsCss = extractCallArg(
+    join(srcDir, 'themes', 'light.css.ts'),
+    'createTheme',
+    1,
+    'lightShadows',
+  )
+  const same = JSON.stringify(lightShadowsCss) === JSON.stringify(rawModule.lightShadows)
+  if (same) {
+    console.log('✓ raw lightShadows match light.css.ts')
+  } else {
+    console.error('✗ drift: raw lightShadows differ from lightShadows in themes/light.css.ts')
+    failures++
+  }
+}
+
 const easingCss = extractCallArg(join(srcDir, 'tokens', 'motion.css.ts'), 'defineVars', 0, 'easing')
 checkSubset('EASINGS', easingCss, keys.EASINGS, (s) => s)
 

@@ -18,7 +18,7 @@ import {
   type ThemeTokens,
   type ThemeTokensByMode,
 } from './overrides'
-import {modeRules, overrideRule, variableFromReference} from './overrideRule'
+import {modeRules, overrideRule, systemLightRule, variableFromReference} from './overrideRule'
 import {SchemeSourceContext} from './schemeSource'
 import {TOKEN_GROUPS} from './tokenGroups'
 import {warnDropped} from './warnDropped'
@@ -58,10 +58,10 @@ interface ThemeProviderProps {
    * ColorModeProvider on `system` the server cannot see the OS scheme, so the
    * provider it drives holds the flat values in its base rule and lays each
    * mode on them in a `prefers-color-scheme` block, so every value it sets is
-   * right before hydration; a nested provider is pinned to its own theme. The
-   * theme's own values (a colour or shadow key the tokens leave out) are the
-   * dark theme's until hydration, so give every colour and shadow key the page
-   * shows in both `light` and `dark`. A nested provider
+   * right before hydration; a nested provider is pinned to its own theme. A
+   * colour or shadow key the tokens leave out takes the DS light theme's value
+   * under `prefers-color-scheme: light` and the dark theme's otherwise, also
+   * before hydration. A nested provider
    * that follows the mode (`theme={useColorMode().theme}`) paints `dark` until
    * hydration under `system`: pass the tokens to ColorModeProvider instead.
    * Native takes the flat groups and the theme's mode; `contrast` does not
@@ -136,6 +136,7 @@ export function ThemeProvider({theme = 'dark', overrides, tokens, children}: The
     const base = source === 'system' && mode ? effective.tokens : stateTokens(effective, mode)
     const rules = [
       overrideRule(scope, base, variableOf),
+      source === 'system' && mode ? systemLightRule(scope, effective.tokens, variableOf) : null,
       modeRules(scope, effective.modes, mode, source, variableOf),
     ].filter((part): part is string => part !== null)
     return rules.length === 0 ? null : rules.join(' ')

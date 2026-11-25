@@ -1,5 +1,10 @@
 import {describe, expect, it} from 'vitest'
-import {isSafeColor, modeRules, overrideRule} from '../src/components/ThemeProvider/overrideRule'
+import {
+  isSafeColor,
+  modeRules,
+  overrideRule,
+  systemLightRule,
+} from '../src/components/ThemeProvider/overrideRule'
 
 const variableOf = (_group: string, key: string) =>
   key === 'bg' ? '--bg-x1' : key === 'accent' ? '--accent-x2' : null
@@ -76,5 +81,26 @@ describe('ThemeProvider mode rules', () => {
     const partial = {...modes, contrastLight: {}, contrastDark: {}}
     expect(modeRules('s', partial, 'dark', 'system', variableOf)).not.toContain('prefers-contrast')
     expect(modeRules('s', partial, 'dark', 'pinned', variableOf)).toBeNull()
+  })
+})
+
+describe('the DS light theme under a system provider', () => {
+  const any = (_group: string, key: string) => `--${key}`
+
+  it('emits its colours and shadows under prefers-color-scheme: light', () => {
+    const rule = systemLightRule('s', {}, any) ?? ''
+    expect(rule.startsWith('@media (prefers-color-scheme: light) { [data-gr-theme="s"]')).toBe(true)
+    expect(rule).toContain('--bg: #ffffff;')
+    expect(rule).toContain('--sm: 0 2px 4px rgba(0, 0, 0, 0.08);')
+  })
+
+  it('leaves out a key the flat tokens set, which holds in every mode', () => {
+    const rule = systemLightRule('s', {colors: {bg: '#101010'}}, any) ?? ''
+    expect(rule).not.toContain('--bg:')
+    expect(rule).toContain('--bgCard:')
+  })
+
+  it('has nothing to emit when no key maps to a variable', () => {
+    expect(systemLightRule('s', {}, () => null)).toBeNull()
   })
 })

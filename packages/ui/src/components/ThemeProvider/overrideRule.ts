@@ -5,6 +5,7 @@
  */
 import {isSafeColor, THEMABLE_GROUPS, validateTokens} from '@greenharness/greenrack-tokens/theme'
 import type {ModeName, ThemableGroup, ThemeTokens} from '@greenharness/greenrack-tokens/theme'
+import {lightColors, lightShadows} from '@greenharness/greenrack-tokens/raw'
 import type {SchemeSource} from './schemeSource'
 import type {ModeLayers} from './overrides'
 
@@ -46,6 +47,32 @@ export function overrideRule(
   const lines = declarations(tokens, variableOf)
   if (lines.length === 0) return null
   return `${selectorOf(scope)} { ${lines.join(' ')} }`
+}
+
+/**
+ * The DS light theme's own values under `prefers-color-scheme: light`, for a
+ * provider that follows the system: its server render carries the dark theme
+ * (the server cannot see the OS), so a key the tokens leave out would paint
+ * dark on a light OS until hydration. A key the flat tokens set is left out:
+ * the flat value holds in every mode and the base rule already carries it.
+ * Emit it before `modeRules`, which lays the app's light values over it.
+ */
+export function systemLightRule(
+  scope: string,
+  flat: ThemeTokens,
+  variableOf: VariableOf,
+): string | null {
+  const lines = (['colors', 'shadows'] as const).flatMap((group) => {
+    const values: Record<string, string> = group === 'colors' ? lightColors : lightShadows
+    const set = (flat[group] ?? {}) as Record<string, unknown>
+    return Object.entries(values).flatMap(([key, value]) => {
+      const variable = key in set ? null : variableOf(group, key)
+      return variable ? [`${variable}: ${value};`] : []
+    })
+  })
+  return lines.length === 0
+    ? null
+    : `@media (prefers-color-scheme: light) { ${selectorOf(scope)} { ${lines.join(' ')} } }`
 }
 
 /**

@@ -416,6 +416,16 @@ export const lightColors: RawColors = {
   onScrimMuted: 'rgba(255, 255, 255, 0.72)',
 }
 
+// Light theme shadows — match `lightShadows` in `themes/light.css.ts`. The
+// web ThemeProvider emits them with `lightColors` for a `system` provider.
+export const lightShadows = {
+  sm: '0 2px 4px rgba(0, 0, 0, 0.08)',
+  md: '0 4px 12px rgba(0, 0, 0, 0.12)',
+  lg: '0 8px 24px rgba(0, 0, 0, 0.16)',
+  dropReady: 'inset 0 0 0 1px #d4d4d4',
+  dropOver: 'inset 0 0 0 2px #1e40af',
+} as const
+
 // High-contrast theme — matches the overrides in `themes/high-contrast.css.ts`.
 export const highContrastColors: RawColors = {
   bg: '#000000',

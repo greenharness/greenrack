@@ -345,7 +345,25 @@ export const ServerRender: StoryObj = {
         </ThemeProvider>
       </ColorModeProvider>,
     )
-    await expect(siblings.split('@media (prefers-color-scheme: light)').length - 1).toBe(2)
+    // Each carries the DS light theme's block and its own mode block.
+    await expect(siblings.split('@media (prefers-color-scheme: light)').length - 1).toBe(4)
+
+    // No `tokens` at all: the DS light theme's own values paint the runner's
+    // scheme from the markup alone (a key the app leaves out).
+    const bare = renderToString(
+      <ColorModeProvider defaultPreference="system" storageKey={null}>
+        <html.div data-testid="bare-surface" style={styles.surface} />
+      </ColorModeProvider>,
+    )
+    host.innerHTML = bare
+    const bareLight = matchMedia('(prefers-color-scheme: light)').matches
+    const bareSurface = host.querySelector('[data-testid="bare-surface"]') as HTMLElement
+    await expect(getComputedStyle(bareSurface).backgroundColor).toBe(
+      bareLight ? 'rgb(255, 255, 255)' : 'rgb(15, 15, 15)',
+    )
+    await expect(getComputedStyle(bareSurface).color).toBe(
+      bareLight ? 'rgb(26, 26, 26)' : 'rgb(229, 229, 229)',
+    )
 
     // The markup alone, with no script run on it yet: the media blocks paint
     // the runner's scheme on the follower, and the island stays dark.

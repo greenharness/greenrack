@@ -105,8 +105,8 @@ interface ColorModeProviderProps {
    * where they differ (`{colors, light: {colors}, dark: {colors}, contrast: {light, dark}}`,
    * see ThemeProvider `tokens`). Under `system` that provider also emits
    * `prefers-color-scheme` blocks, so a server render is right on every OS
-   * before hydration for each value the tokens set; a colour or shadow key
-   * they leave out shows the dark theme's value until hydration. Pass a
+   * before hydration; a colour or shadow key the tokens leave out takes the
+   * DS light theme's value on a light OS and the dark theme's otherwise. Pass a
    * module constant or a memoised value: a new object each render re-runs the
    * validation and re-renders every consumer. With `applyTheme={false}` pass
    * them to your own ThemeProvider: every ThemeProvider directly under this
