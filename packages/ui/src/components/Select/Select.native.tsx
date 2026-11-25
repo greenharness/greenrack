@@ -20,7 +20,8 @@ import {nativeStyles} from './native.css'
 import {sheetStyles} from '../Listbox/native.css'
 import {Chevron} from '../SideNav/Chevron'
 import {useTooltipHint} from '../Tooltip/TooltipHint'
-import {focusForAccessibility} from '../../shared/accessibilityFocus'
+import {useFieldContext} from '../Field/FieldContext'
+import {focusForAccessibility} from '../../shared/accessibilityFocus.native'
 import {textOf} from '../../shared/textOf'
 import type {ControlSize} from '../../shared/types'
 
@@ -130,15 +131,22 @@ function Trigger({
   'aria-label'?: string
   size?: ControlSize
 }) {
-  const {open, disabled, setOpen, triggerRef} = useSelect()
+  const {value, labels, open, disabled, setOpen, triggerRef} = useSelect()
   const hint = useTooltipHint()
+  // aria-label, else the enclosing Field.Label's text names the trigger, and
+  // the chosen item rides in its accessibility value. Unnamed, the trigger
+  // reads its children (the shown value or the placeholder).
+  const field = useFieldContext()
+  const name = ariaLabel ?? field?.labelText
+  const display = value ? (labels[value] ?? value) : null
   return (
     <NativePressable
       ref={triggerRef as RefObject<never>}
       disabled={disabled}
       onPress={() => setOpen(true)}
       accessibilityRole="combobox"
-      accessibilityLabel={ariaLabel}
+      accessibilityLabel={name}
+      accessibilityValue={name && display ? {text: display} : undefined}
       accessibilityHint={hint}
       accessibilityState={{expanded: open, disabled}}
     >

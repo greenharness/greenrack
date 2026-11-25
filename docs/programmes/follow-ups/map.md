@@ -25,10 +25,11 @@ boundary.
 - [Checkbox, Switch and Slider read their Field](f09-checkbox-switch-slider-read-the-field.md): each takes the Field's control id, description, error, invalid and disabled as `Input` does; the Slider thumb names itself by `aria-labelledby` (not labelable); native takes `labelText` (greenrack PR). Filed f14.
 - [Input and Textarea take Field's required](f10-input-textarea-read-field-required.md): each takes `required ?? ctx?.required` beside its `disabled` fallback; an explicit `required={false}` wins (greenrack PR).
 - [A native Combobox follows its Field's disabled and required](f11-combobox-native-reads-field-state.md): a disabled Field opens no sheet and reports disabled; React Native has no required state, so " (required)" rides in the accessibility label unless Field.Label already carries it (greenrack PR).
+- [A native Select inside Field.Root is named by its Field.Label](f12-select-native-reads-field-label.md): `Select.Trigger` takes `aria-label`, else `labelText`, with the chosen item as its accessibility value; unnamed, it still reads its children (greenrack PR). Filed f15.
 
 ## Handoff
 
-2026-11-25, boundary 3 (f11 closed: the native `Combobox.Input` reads its Field's `disabled` (no sheet, disabled state) and `required` (" (required)" in its accessibility label). Patch changesets `checkbox-switch-slider-read-field`, `input-textarea-field-required` and `combobox-native-field-state`, unreleased). Next: f12, f13, f14.
+2026-11-25, boundary 3 (f12 closed: the native `Select.Trigger` is named by `aria-label`, else the Field.Label's `labelText`, with the chosen item as its accessibility value. Patch changesets `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`, unreleased). Next: f13, f14, f15 (filed from f12).
 
 ## Not yet specified
 
