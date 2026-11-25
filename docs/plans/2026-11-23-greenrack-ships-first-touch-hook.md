@@ -254,8 +254,9 @@ install --user` writes the new ones and the template is patched from the
 - 2026-11-23 — the person published the six `0.0.0-reserved` placeholders and
   set their trusted publishers; all six resolve on the registry 276 s later.
 - 2026-11-23 — the exec-form entries carry `args: []`: the binary reads only
-  its first argument, `--protocol`. Phase 4's real session proves that Claude
-  Code accepts an empty `args`.
+  its first argument, `--protocol`. This session proved it on 2026-11-25: after
+  Phase 5's install, Claude Code ran the exec-form entries with an empty
+  `args` and printed the index on a first touch.
 
 - 2026-11-24 — the release is 7.11.0, not 7.7.0: tags v7.7.0 to v7.10.0 shipped from main while this branch was built, and none of them has `hook first-touch` or `hook install --user`. The binary, the manifest, the README and both `--user` commands now pin `@^7.11.0`, so a cached older CLI cannot satisfy the floor. The release `dry_run` dispatch (run 45496105370, tag v7.7.0, before this change) passed all eight jobs: six builds, the name preflight, and the publish job, which packed each package, printed `dry run, not published` and touched no release.
 
@@ -263,7 +264,9 @@ install --user` writes the new ones and the template is patched from the
   platform package with `ENEEDAUTH` until the person corrected the six trusted
   publisher entries; the re-run reused the release's binaries. The checks of
   Phase 4 ran on a temporary config instead of a `claude -p` session, for the
-  same events at no model cost. The live drift (a greenbelay hook, `model`,
+  same events at no model cost. The real `~/.claude.json` changes every few
+  seconds under running sessions, so its `mcpServers` stand in for the
+  byte-identical check. The live drift (a greenbelay hook, `model`,
   `promptCacheTtl`) stays out of the template: `model` is the person's choice.
 
 ## Verification
@@ -333,29 +336,33 @@ install --user` writes the new ones and the template is patched from the
   Observed on the published 7.11.0 (2026-11-25): `--check` exit 1 on an empty
   `CLAUDE_CONFIG_DIR`, exit 0 and `{"state":"present"}` after install, exit 1
   after uninstall. Instead of a `claude -p` session, the installed binary ran
-  three events: the first read in greenrack printed one 3,731-byte index, the
+  the events directly. A SessionStart in `~/Developer/Perso` printed nothing
+  (run on the real 7.11.0 install after Phase 5); the first read in greenrack printed one 3,731-byte index, the
   second and a read in `amont` printed nothing. `grh install --extension` and
   `grh uninstall ext:design` placed and removed both entries, the binary, 29
   skill and agent files and the MCP server, all in the temporary folder.
   `grh status` does not report the extension (greenharness/grh#64). The real
   `settings.json` was byte-identical; the real `~/.claude.json` is rewritten by
   running sessions every few seconds, so its `mcpServers` were compared
-  instead: unchanged. With the registry unreachable the status command exits
-  1 and prints nothing, which grh reads as unknown.
+  instead: unchanged. `grh status` itself was not observed offline (grh#64);
+  with the registry unreachable and an empty npm cache, the status command
+  grh runs exits 1 with no stdout, which `json = ["state"]` reads as unknown.
 - Phase 5: the template renders identical to the live `settings.json`; the same
   three-read session through the real wiring gives the same result.
   Observed: the template rendered from the patched source equals the live
   file for every greenrack entry; the three differences left (a greenbelay
   hook, `model`, `promptCacheTtl`) were there before and are not this plan's.
-  The real wiring: first read one index, second and `amont` nothing.
+  The real wiring: a SessionStart in `~/Developer/Perso` printed nothing and
+  one in greenrack the index; the first read one index, the second and
+  `amont` nothing; Claude Code itself ran the new entries in this session.
 
 ## Implementation review
 
-- implementation-review (opus): approve-with-changes three rounds, then approve on the 7.11.0 floor and approve-with-changes on its release check; 3 blocking fixed; 135k, 88k, 121k, 83k, 80k.
+- implementation-review (opus): approve-with-changes three rounds, then approve on the 7.11.0 floor and approve-with-changes on its release check; 3 blocking fixed; 135k, 88k, 121k, 83k, 80k. Plan close: approve-with-changes, 5 record fixes (start event, offline wording, empty-`args` proof, carried deviations); 73k.
 - Profiles (opus), final tree: all seven approve after two deltas; backend and architect asked for one floor owner plus a release check, done in `check-pin-major.mjs`.
 - deliberate: `f`/`result` in the install tests are the file's convention (73 and 47 uses); renaming one test splits it.
 - deliberate: unchecked `--status` `reason`/`root` cannot crash `--check`; `+` joins; unit-test folders left on failure; release assets only this workflow writes. Floor check: a malformed or rc tag (release.yaml refuses non-semver first), CI-only error wording, short names, the script's name.
-- Carried: a real Windows run, and a cold `npx` over the cap after a release; the dry run passed (run 45496105370).
+- Carried: a real Windows run, and a cold `npx` over the cap after a release; the dry run passed (run 45496105370). `grh status` does not report the extension (greenharness/grh#64).
 
 ## Outcome
 
