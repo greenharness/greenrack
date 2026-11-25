@@ -109,7 +109,10 @@ export const styles = css.create({
     paddingLeft: spacing.md,
     paddingRight: spacing.md,
   },
+  // Positioned, so visually hidden text low in the rail is placed against
+  // this scroller, not against the rail, where it would overflow below it.
   railBody: {
+    position: 'relative',
     flexGrow: 1,
     minHeight: 0,
     overflowY: 'auto',

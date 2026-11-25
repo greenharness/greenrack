@@ -25,6 +25,9 @@ export const styles = css.create({
     paddingLeft: spacing.xs,
   },
   pre: {
+    // Positioned, so visually hidden text at the end of a long line is placed
+    // against this scroller, not against an outer box it would widen.
+    position: 'relative',
     margin: 0,
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
