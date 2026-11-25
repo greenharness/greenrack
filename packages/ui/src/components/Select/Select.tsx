@@ -32,7 +32,10 @@ interface RootProps {
   initialLabels?: Record<string, string>
   /** Called when the list opens or closes (to start work only once someone is choosing). */
   onOpenChange?: (open: boolean) => void
-  /** The whole control is disabled: the trigger is a disabled button and does not open. */
+  /**
+   * The whole control is disabled: the trigger is a disabled button and does not open, and a
+   * `name`d Select posts no value. Default: the enclosing Field.Root's `disabled`.
+   */
   disabled?: boolean
   children: ReactNode
 }
@@ -44,9 +47,11 @@ function Root({
   onValueChange,
   initialLabels,
   onOpenChange,
-  disabled = false,
+  disabled: disabledProp,
   children,
 }: RootProps) {
+  const field = useFieldContext()
+  const disabled = disabledProp ?? Boolean(field?.disabled)
   const {ctx: rootCtx, rootRef} = useSelectRoot({
     defaultValue,
     value,
@@ -59,7 +64,9 @@ function Root({
   return (
     <SelectContext.Provider value={ctx}>
       <html.div ref={rootRef} style={styles.root}>
-        {name && <html.input type="hidden" name={name} value={ctx.value ?? ''} />}
+        {name && (
+          <html.input type="hidden" name={name} value={ctx.value ?? ''} disabled={disabled} />
+        )}
         {children}
       </html.div>
     </SelectContext.Provider>
@@ -108,6 +115,7 @@ function Trigger({
       aria-activedescendant={highlightedId ?? undefined}
       aria-describedby={describedBy || undefined}
       aria-invalid={fieldCtx?.invalid || undefined}
+      aria-required={fieldCtx?.required || undefined}
       style={[
         styles.trigger,
         size === 'small' && styles.triggerSmall,

@@ -31,7 +31,7 @@ a Switch and a Slider each in a `Field.Root name`, submits the values they were 
 shows and clears their errors, shown by a story, merged on green. Or a recorded reason they
 stay unbound, with the docs saying how to bind them by hand.
 
-## Answer
+## Resolution
 
 Yes: each binds to `ctx.field` when its own value prop is unset (`checked` for `Checkbox`
 and `Switch`, `value` for `Slider`), through one hook, `useFieldBinding` in

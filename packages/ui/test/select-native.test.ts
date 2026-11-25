@@ -122,4 +122,34 @@ describe('Select.native Trigger accessibility', () => {
     fieldContext._cur = {labelText: 'Fruit'}
     expect(renderTrigger().props.accessibilityValue).toEqual({text: 'kiwi'})
   })
+
+  it('inside a disabled Field is disabled, unless its Root says otherwise', () => {
+    fieldContext._cur = {labelText: 'Fruit', disabled: true}
+    renderRoot()
+    const disabled = renderTrigger()
+    expect(disabled.props.disabled).toBe(true)
+    expect(disabled.props.accessibilityState).toEqual({expanded: false, disabled: true})
+
+    renderRoot({disabled: false})
+    const enabled = renderTrigger()
+    expect(enabled.props.disabled).toBe(false)
+    expect(enabled.props.accessibilityState).toEqual({expanded: false, disabled: false})
+  })
+
+  it('inside a required Field says so in its name', () => {
+    fieldContext._cur = {labelText: 'Fruit', required: true}
+    renderRoot()
+    expect(renderTrigger().props.accessibilityLabel).toBe('Fruit (required)')
+    expect(renderTrigger({'aria-label': 'Favourite'}).props.accessibilityLabel).toBe(
+      'Favourite (required)',
+    )
+
+    // Field.Label's text already carries it.
+    fieldContext._cur = {labelText: 'Fruit *', required: true, necessityIndicator: 'label'}
+    expect(renderTrigger().props.accessibilityLabel).toBe('Fruit *')
+
+    // Unnamed, the trigger reads its children.
+    fieldContext._cur = {required: true}
+    expect(renderTrigger().props.accessibilityLabel).toBeUndefined()
+  })
 })

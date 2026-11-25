@@ -2,6 +2,7 @@ import type {Meta, StoryObj} from '@storybook/react'
 import {expect, fn, screen, waitFor} from 'storybook/test'
 import {css, html} from 'react-strict-dom'
 import {Dialog} from '../Dialog/Dialog'
+import {Field} from '../Field/Field'
 import {Select} from './Select'
 
 const meta: Meta = {
@@ -378,6 +379,81 @@ export const DisabledControl: Story = {
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await expect(screen.queryByRole('listbox')).toBeNull()
     await expect(onDisabledOpenChange).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * Inside a disabled Field.Root the Select is disabled too: the trigger does not open and a
+ * `name`d Select posts no value. Its own `disabled={false}` still wins.
+ */
+export const DisabledInsideField: Story = {
+  render: () => (
+    <html.div>
+      <Field.Root disabled>
+        <Field.Label>Visibility</Field.Label>
+        <Select.Root name="visibility" defaultValue="private" onOpenChange={onDisabledOpenChange}>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Icon />
+          </Select.Trigger>
+          <Select.Popup label="Visibility">
+            <Select.Item value="private">Private</Select.Item>
+            <Select.Item value="public">Public</Select.Item>
+          </Select.Popup>
+        </Select.Root>
+      </Field.Root>
+      <Field.Root disabled>
+        <Field.Label>Region</Field.Label>
+        <Select.Root defaultValue="eu" disabled={false}>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Icon />
+          </Select.Trigger>
+          <Select.Popup label="Region">
+            <Select.Item value="eu">Europe</Select.Item>
+            <Select.Item value="us">United States</Select.Item>
+          </Select.Popup>
+        </Select.Root>
+      </Field.Root>
+    </html.div>
+  ),
+  play: async ({canvas, canvasElement, userEvent}) => {
+    onDisabledOpenChange.mockClear()
+    const trigger = canvas.getByRole('combobox', {name: 'Visibility'})
+    await expect(trigger).toBeDisabled()
+    await userEvent.click(trigger)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect(screen.queryByRole('listbox')).toBeNull()
+    await expect(onDisabledOpenChange).not.toHaveBeenCalled()
+    // A disabled field posts no value.
+    await expect(
+      canvasElement.querySelector('input[type="hidden"][name="visibility"]'),
+    ).toBeDisabled()
+    await expect(canvas.getByRole('combobox', {name: 'Region'})).toBeEnabled()
+  },
+}
+
+/** Inside a required Field.Root the trigger is announced as required. */
+export const RequiredInsideField: Story = {
+  render: () => (
+    <Field.Root required>
+      <Field.Label>Visibility</Field.Label>
+      <Select.Root defaultValue="private">
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Icon />
+        </Select.Trigger>
+        <Select.Popup label="Visibility">
+          <Select.Item value="private">Private</Select.Item>
+          <Select.Item value="public">Public</Select.Item>
+        </Select.Popup>
+      </Select.Root>
+    </Field.Root>
+  ),
+  play: async ({canvas}) => {
+    const trigger = canvas.getByRole('combobox', {name: /Visibility/})
+    await expect(trigger).toBeRequired()
+    await expect(trigger).toBeEnabled()
   },
 }
 
