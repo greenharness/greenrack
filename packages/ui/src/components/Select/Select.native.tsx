@@ -63,7 +63,7 @@ interface RootProps {
   initialLabels?: Record<string, string>
   /** Called when the sheet opens or closes. */
   onOpenChange?: (open: boolean) => void
-  /** The whole control is disabled: the trigger does not open the sheet. */
+  /** The whole control is disabled: the trigger does not open the sheet. Default: the enclosing Field.Root's `disabled`. */
   disabled?: boolean
   children: ReactNode
 }
@@ -80,9 +80,11 @@ function Root({
   onValueChange,
   initialLabels,
   onOpenChange,
-  disabled = false,
+  disabled: disabledProp,
   children,
 }: RootProps) {
+  const field = useFieldContext()
+  const disabled = disabledProp ?? Boolean(field?.disabled)
   const state = useSelectState({defaultValue, value, onValueChange, initialLabels, onOpenChange})
   const {open, setOpen, setValue} = state
   const listboxId = useId()
@@ -139,13 +141,22 @@ function Trigger({
   const field = useFieldContext()
   const name = ariaLabel ?? field?.labelText
   const display = value ? (labels[value] ?? value) : null
+  // React Native has no required state, so a required Field rides in the
+  // name as the text the web label reads, unless Field.Label's text names
+  // the trigger and already carries it (necessityIndicator="label"), as the
+  // native Combobox does (f11). Unnamed, the trigger reads its children.
+  const labelCarriesIt =
+    ariaLabel === undefined &&
+    field?.labelText !== undefined &&
+    field.necessityIndicator === 'label'
+  const requiredSuffix = field?.required && !labelCarriesIt ? ' (required)' : ''
   return (
     <NativePressable
       ref={triggerRef as RefObject<never>}
       disabled={disabled}
       onPress={() => setOpen(true)}
       accessibilityRole="combobox"
-      accessibilityLabel={name}
+      accessibilityLabel={name === undefined ? undefined : name + requiredSuffix}
       accessibilityValue={name && display ? {text: display} : undefined}
       accessibilityHint={hint}
       accessibilityState={{expanded: open, disabled}}
