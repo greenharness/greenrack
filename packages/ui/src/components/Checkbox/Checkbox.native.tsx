@@ -1,7 +1,7 @@
 import {type ReactNode, useState, useCallback} from 'react'
 import {html} from 'react-strict-dom'
 import {styles} from './styles.css'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldBinding, useFieldContext} from '../Field/FieldContext'
 
 interface CheckboxProps {
   name?: string
@@ -30,9 +30,14 @@ export function Checkbox({
   const ctx = useFieldContext()
   const disabled = disabledProp ?? ctx?.disabled ?? false
   const label = !children ? (ariaLabel ?? ctx?.labelText) : undefined
-  const isControlled = controlledChecked !== undefined
+  // Inside a Form's Field.Root name, an uncontrolled checkbox shows and sets the form field.
+  const bound = useFieldBinding(controlledChecked, Boolean)
+  const shownChecked = controlledChecked ?? bound?.value
+  const isControlled = shownChecked !== undefined
   const [internalChecked, setInternalChecked] = useState(defaultChecked)
-  const isChecked = isControlled ? controlledChecked : internalChecked
+  const isChecked = isControlled ? shownChecked : internalChecked
+  const bindChange = bound?.onChange
+  const bindBlur = bound?.onBlur
 
   // RSD only makes <button> pressable and has no <input type=checkbox>, so the
   // whole row is a button and we synthesize the change payload that consumers
@@ -43,14 +48,19 @@ export function Checkbox({
     if (!isControlled) {
       setInternalChecked(next)
     }
+    // A press is the whole interaction on native (no focus to leave): it sets
+    // the field and marks it touched.
+    bindChange?.(next)
+    bindBlur?.()
     onChange?.({
       target: {checked: next, name, value},
     } as unknown as React.ChangeEvent<HTMLInputElement>)
-  }, [disabled, isChecked, isControlled, onChange, name, value])
+  }, [disabled, isChecked, isControlled, onChange, name, value, bindChange, bindBlur])
 
   return (
     <html.button
       type="button"
+      ref={bound?.ref}
       onClick={handlePress}
       disabled={disabled}
       role="checkbox"

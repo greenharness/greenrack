@@ -3,7 +3,7 @@ import {html} from 'react-strict-dom'
 import {useControllableValue} from '../../hooks/useControllableValue'
 import {styles} from './styles.css'
 import type {SwitchProps} from './Switch.types'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldBinding, useFieldContext} from '../Field/FieldContext'
 
 export type {SwitchProps} from './Switch.types'
 
@@ -25,10 +25,23 @@ export function Switch({
   const ctx = useFieldContext()
   const disabled = disabledProp ?? ctx?.disabled ?? false
   const label = !children ? (ariaLabel ?? ctx?.labelText) : undefined
+  // Inside a Form's Field.Root name, an uncontrolled switch shows and sets the
+  // form field; a press is the whole interaction here, so it also marks it touched.
+  const bound = useFieldBinding(controlledChecked, Boolean)
+  const bindChange = bound?.onChange
+  const bindBlur = bound?.onBlur
+  const handleCheckedChange = useCallback(
+    (next: boolean) => {
+      bindChange?.(next)
+      bindBlur?.()
+      onCheckedChange?.(next)
+    },
+    [bindChange, bindBlur, onCheckedChange],
+  )
   const [checked, setChecked] = useControllableValue(
-    controlledChecked,
+    controlledChecked ?? bound?.value,
     defaultChecked,
-    onCheckedChange,
+    handleCheckedChange,
   )
   const handleClick = useCallback(() => {
     if (!disabled) setChecked(!checked)
@@ -38,6 +51,7 @@ export function Switch({
     <html.label style={[styles.root, styles.nativeFlex, disabled && styles.rootDisabled]}>
       <html.button
         type="button"
+        ref={bound?.ref}
         role="switch"
         aria-checked={checked}
         aria-label={label}

@@ -1,7 +1,8 @@
 import type {ReactNode} from 'react'
 
 export interface SwitchProps {
-  /** Controlled checked state. */
+  /** Controlled checked state. Unset inside a `Form`'s `Field.Root name`, the
+   *  form field's boolean is shown and set instead (`defaultChecked` is then unused). */
   checked?: boolean
   /** Initial checked state (uncontrolled). */
   defaultChecked?: boolean

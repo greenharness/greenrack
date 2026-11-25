@@ -9,6 +9,9 @@ import {Input} from '../Input/Input'
 import {Textarea} from '../Textarea/Textarea'
 import {Fieldset} from '../Fieldset/Fieldset'
 import {Button} from '../Button/Button'
+import {Checkbox} from '../Checkbox/Checkbox'
+import {Switch} from '../Switch/Switch'
+import {Slider} from '../Slider/Slider'
 import {sizes} from '@greenharness/greenrack-tokens/tokens/sizes.css'
 
 const meta: Meta = {
@@ -230,6 +233,90 @@ export const SuccessfulSubmit: Story = {
 
     // No errors should be present
     expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
+  },
+}
+
+const PreferencesSchema = Schema.Struct({
+  terms: Schema.Boolean.pipe(
+    Schema.filter((accepted) => accepted || 'Accept the terms to continue'),
+  ),
+  updates: Schema.Boolean.pipe(Schema.filter((on) => on || 'Turn on updates to continue')),
+  volume: Schema.Number.pipe(
+    Schema.greaterThanOrEqualTo(50, {message: () => 'Set the volume to 50 or more'}),
+  ),
+})
+
+const preferencesSubmit = fn()
+
+// Checkbox, Switch and Slider inside a Field.Root name bind to the form field
+// as Input does: the schema's boolean and number are what they were set to.
+export const CheckboxSwitchSliderBind: Story = {
+  name: 'Checkbox, Switch and Slider bind',
+  render: () => (
+    <html.div style={wrapStyles.wrap}>
+      <Form
+        schema={PreferencesSchema}
+        defaultValues={{terms: false, updates: false, volume: 0}}
+        onSubmit={preferencesSubmit}
+      >
+        <Fieldset.Root gap="md">
+          <Field.Root name="terms">
+            <Field.Label>I accept the terms</Field.Label>
+            <Checkbox />
+            <Field.Error />
+          </Field.Root>
+
+          <Field.Root name="updates">
+            <Field.Label>Email me updates</Field.Label>
+            <Switch />
+            <Field.Error />
+          </Field.Root>
+
+          <Field.Root name="volume">
+            <Field.Label>Volume</Field.Label>
+            <Slider step={10} showValue />
+            <Field.Error />
+          </Field.Root>
+
+          <Button type="submit">Save</Button>
+        </Fieldset.Root>
+      </Form>
+    </html.div>
+  ),
+  play: async ({canvas}) => {
+    preferencesSubmit.mockClear()
+    await userEvent.click(canvas.getByRole('button', {name: 'Save'}))
+
+    // The schema refuses the defaults: each control shows its own error.
+    await expect(await canvas.findByText('Accept the terms to continue')).toBeInTheDocument()
+    await expect(canvas.getByText('Turn on updates to continue')).toBeInTheDocument()
+    await expect(canvas.getByText('Set the volume to 50 or more')).toBeInTheDocument()
+    await expect(preferencesSubmit).not.toHaveBeenCalled()
+
+    const terms = canvas.getByRole('checkbox', {name: 'I accept the terms'})
+    await expect(terms).toHaveAttribute('aria-invalid', 'true')
+
+    // Setting each control clears its error.
+    await userEvent.click(terms)
+    await userEvent.click(canvas.getByRole('switch', {name: 'Email me updates'}))
+    const volume = canvas.getByRole('slider', {name: 'Volume'})
+    volume.focus()
+    await userEvent.keyboard('{End}')
+    await expect(volume).toHaveAttribute('aria-valuenow', '100')
+    await waitFor(() => expect(canvas.queryByRole('alert')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(canvas.queryByText('Set the volume to 50 or more')).not.toBeInTheDocument(),
+    )
+    await expect(terms).not.toHaveAttribute('aria-invalid')
+
+    // The form submits the values they were set to.
+    await userEvent.click(canvas.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(preferencesSubmit).toHaveBeenCalledTimes(1))
+    await expect(preferencesSubmit.mock.calls[0]?.[0]).toEqual({
+      terms: true,
+      updates: true,
+      volume: 100,
+    })
   },
 }
 

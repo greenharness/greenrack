@@ -91,6 +91,53 @@ describe('native controls inside Field.Root', () => {
     expect(render(Slider, {children: 'Mine'}, 'View').props.accessibilityLabel).toBe('Mine')
   })
 
+  it('Checkbox and Switch inside a Form show the field and set it on a press, touched', () => {
+    for (const control of [Checkbox, Switch]) {
+      const onChange = vi.fn()
+      const onBlur = vi.fn()
+      const ref = () => {}
+      fieldContext._cur = {field: {value: true, onChange, onBlur, ref, name: 'opt'}}
+      const button = render(control, {}, 'button')
+      expect(button.props['aria-checked']).toBe(true)
+      expect(button.props.ref).toBe(ref)
+      button.props.onClick()
+      // A plain boolean, never the synthesized event.
+      expect(onChange).toHaveBeenCalledWith(false)
+      expect(onBlur).toHaveBeenCalledTimes(1)
+      // An own value prop wins and leaves the field alone.
+      onChange.mockClear()
+      const own = render(control, {checked: false}, 'button')
+      expect(own.props['aria-checked']).toBe(false)
+      own.props.onClick()
+      expect(onChange).not.toHaveBeenCalled()
+    }
+  })
+
+  it('Checkbox and Switch call their own callback too when bound', () => {
+    const field = {value: false, onChange: vi.fn(), onBlur: vi.fn(), ref: () => {}, name: 'opt'}
+    fieldContext._cur = {field}
+    const onChange = vi.fn()
+    render(Checkbox, {onChange}, 'button').props.onClick()
+    expect(onChange.mock.calls[0]?.[0].target.checked).toBe(true)
+    const onCheckedChange = vi.fn()
+    render(Switch, {onCheckedChange}, 'button').props.onClick()
+    expect(onCheckedChange).toHaveBeenCalledWith(true)
+    expect(field.onChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('Slider inside a Form shows the field number and sets it on a step, touched', () => {
+    const field = {value: 40, onChange: vi.fn(), onBlur: vi.fn(), ref: () => {}, name: 'vol'}
+    fieldContext._cur = {field}
+    const view = render(Slider, {step: 10}, 'View')
+    expect(view.props.accessibilityValue.now).toBe(40)
+    view.props.onAccessibilityAction({nativeEvent: {actionName: 'increment'}})
+    expect(field.onChange).toHaveBeenCalledWith(50)
+    expect(field.onBlur).toHaveBeenCalledTimes(1)
+    // A field with no number yet shows defaultValue.
+    fieldContext._cur = {field: {...field, value: undefined}}
+    expect(render(Slider, {defaultValue: 30}, 'View').props.accessibilityValue.now).toBe(30)
+  })
+
   it('outside a Field each keeps its own name and is enabled', () => {
     expect(render(Checkbox, {}, 'button').props['aria-label']).toBeUndefined()
     expect(render(Switch, {}, 'button').props.disabled).toBe(false)

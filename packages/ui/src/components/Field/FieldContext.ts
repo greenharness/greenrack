@@ -61,6 +61,40 @@ export function useFieldContext() {
   return useContext(FieldContext)
 }
 
+/** A value control's binding to its Form field (see useFieldBinding). */
+export interface FieldBinding<T> {
+  /** The field's value, as the control reads it. */
+  value: T
+  /** Writes a plain value (never an event) to the field. */
+  onChange: (value: T) => void
+  /** Marks the field touched. */
+  onBlur: () => void
+  ref: React.RefCallback<unknown>
+  name: string
+}
+
+/** Binds a boolean or number control (Checkbox, Switch, Slider) to the
+ *  react-hook-form field of its `Field.Root name` inside a `Form`, when the
+ *  control's own value prop (`controlled`) is unset: the control shows the
+ *  field's value, writes each change to it (then calls its own change
+ *  callback too, unlike Input, whose `onChange` replaces the field's) and
+ *  marks it touched on blur. `read` turns the field's value into the
+ *  control's. Null outside a Form, or when the control is controlled. */
+export function useFieldBinding<T>(
+  controlled: T | undefined,
+  read: (value: unknown) => T,
+): FieldBinding<T> | null {
+  const field = useFieldContext()?.field
+  if (!field || controlled !== undefined) return null
+  return {
+    value: read(field.value),
+    onChange: field.onChange,
+    onBlur: field.onBlur,
+    ref: field.ref,
+    name: field.name,
+  }
+}
+
 interface NativeValidityTarget {
   value: string
   willValidate: boolean

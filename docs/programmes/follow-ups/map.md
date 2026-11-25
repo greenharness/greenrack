@@ -27,10 +27,11 @@ boundary.
 - [A native Combobox follows its Field's disabled and required](f11-combobox-native-reads-field-state.md): a disabled Field opens no sheet and reports disabled; React Native has no required state, so " (required)" rides in the accessibility label unless Field.Label already carries it (greenrack PR).
 - [A native Select inside Field.Root is named by its Field.Label](f12-select-native-reads-field-label.md): `Select.Trigger` takes `aria-label`, else `labelText`, with the chosen item as its accessibility value; unnamed, it still reads its children (greenrack PR). Filed f15.
 - [Visually hidden text stays inside the remaining scrollers](f13-hidden-text-in-remaining-scrollers.md): the AppShell rail body, `SteppedList`'s rows, the `Table`'s scroller and `CodeBlock`'s `pre` are positioned; the `Popover`, `Menu`, `Select` and `Listbox` popups are fixed, so they were contained already (greenrack PR).
+- [Checkbox, Switch and Slider bind to their Form field](f14-checkbox-switch-slider-bind-to-form.md): each binds to `ctx.field` while its own value prop is unset, through `useFieldBinding`; unlike `Input`, its own change callback still fires after the field's (greenrack PR).
 
 ## Handoff
 
-2026-11-25, boundary 3 (f13 closed: the AppShell rail body, `SteppedList`'s rows, the `Table`'s scroller and `CodeBlock`'s `pre` are `position: relative`, and the four popups were already contained. Patch changeset `hidden-text-remaining-scrollers`, unreleased, beside `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`). Next: f14, f15.
+2026-11-25, boundary 3 (f14 closed: `Checkbox`, `Switch` and `Slider` bind to their `Form` field when their own value prop is unset, through `useFieldBinding`. Patch changeset `checkbox-switch-slider-bind-form`, unreleased, beside `hidden-text-remaining-scrollers`, `checkbox-switch-slider-read-field`, `input-textarea-field-required`, `combobox-native-field-state` and `select-native-field-label`). Next: f15.
 
 ## Not yet specified
 

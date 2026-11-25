@@ -2,11 +2,13 @@ import {type ReactNode, useState, useCallback} from 'react'
 import {html} from 'react-strict-dom'
 import {styles} from './styles.css'
 import {visuallyHidden} from '../../styles/visually-hidden.css'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldBinding, useFieldContext} from '../Field/FieldContext'
 
 interface CheckboxProps {
   name?: string
   value?: string
+  /** Controlled checked state. Unset inside a `Form`'s `Field.Root name`, the
+   *  form field's boolean is shown and set instead (`defaultChecked` is then unused). */
   checked?: boolean
   defaultChecked?: boolean
   /** Prevents interaction. Default: the enclosing Field's `disabled`, else false. */
@@ -31,9 +33,13 @@ export function Checkbox({
   // names it), its description and error, and its invalid and disabled state.
   const ctx = useFieldContext()
   const disabled = disabledProp ?? ctx?.disabled ?? false
-  const isControlled = controlledChecked !== undefined
+  // Inside a Form's Field.Root name, an uncontrolled checkbox shows and sets the form field.
+  const bound = useFieldBinding(controlledChecked, Boolean)
+  const shownChecked = controlledChecked ?? bound?.value
+  const isControlled = shownChecked !== undefined
   const [internalChecked, setInternalChecked] = useState(defaultChecked)
-  const isChecked = isControlled ? controlledChecked : internalChecked
+  const isChecked = isControlled ? shownChecked : internalChecked
+  const bindChange = bound?.onChange
 
   // The real <input type=checkbox> drives toggling, a11y and form submit.
   const handleChange = useCallback(
@@ -41,9 +47,10 @@ export function Checkbox({
       if (!isControlled) {
         setInternalChecked(e.target.checked)
       }
+      bindChange?.(e.target.checked)
       onChange?.(e)
     },
-    [isControlled, onChange],
+    [isControlled, onChange, bindChange],
   )
 
   return (
@@ -51,8 +58,10 @@ export function Checkbox({
       <html.input
         type="checkbox"
         id={ctx?.controlId}
-        name={name}
+        name={name ?? bound?.name}
         value={value}
+        ref={bound?.ref}
+        onBlur={bound?.onBlur}
         // Always the shown state (controlled or internal), so the input never
         // switches between uncontrolled and controlled.
         checked={isChecked}

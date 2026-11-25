@@ -5,9 +5,13 @@ import {useControllableValue} from '../../hooks/useControllableValue'
 import {styles} from './styles.css'
 import {fractionOf, snapToStep, valueAfterKey, valueAtFraction} from './sliderMath'
 import type {SliderProps} from './Slider.types'
-import {useFieldContext} from '../Field/FieldContext'
+import {useFieldBinding, useFieldContext} from '../Field/FieldContext'
 
 export type {SliderProps} from './Slider.types'
+
+/** A form field's value as the slider reads it: a finite number, else unset. */
+const fieldNumber = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined
 
 export function Slider({
   value: controlledValue,
@@ -28,10 +32,21 @@ export function Slider({
   // it, so the thumb points aria-labelledby at a mounted Field.Label instead.
   const fieldLabelId = ctx?.labelText !== undefined ? ctx.labelId : undefined
   const range = {min, max, step}
+  // Inside a Form's Field.Root name, an uncontrolled slider shows and sets the
+  // form field; a field with no number yet shows `defaultValue ?? min`.
+  const bound = useFieldBinding<number | undefined>(controlledValue, fieldNumber)
+  const bindChange = bound?.onChange
+  const handleValueChange = useCallback(
+    (next: number) => {
+      bindChange?.(next)
+      onValueChange?.(next)
+    },
+    [bindChange, onValueChange],
+  )
   const [value, setValue] = useControllableValue(
-    controlledValue,
+    controlledValue ?? bound?.value,
     snapToStep(defaultValue ?? min, range),
-    onValueChange,
+    handleValueChange,
   )
   const current = snapToStep(value, range)
   const percent = fractionOf(current, range) * 100
@@ -98,7 +113,9 @@ export function Slider({
         <html.div style={[styles.fill, styles.fillWidth(percent)]} />
         <html.div
           role="slider"
+          ref={bound?.ref}
           id={ctx?.controlId}
+          onBlur={bound?.onBlur}
           tabIndex={disabled ? -1 : 0}
           aria-label={children ? undefined : ariaLabel}
           aria-labelledby={children ? labelId : ariaLabel ? undefined : fieldLabelId}
