@@ -79,9 +79,6 @@ importers:
       '@arethetypeswrong/cli':
         specifier: 0.18.5
         version: 0.18.5
-      '@aval-adr/eslint-config':
-        specifier: ^0.16.0
-        version: 0.16.0(eslint@9.39.5)(typescript-eslint@8.67.0(eslint@9.39.5)(typescript@5.9.3))
       '@greenharness/greengate':
         specifier: ^4.11.0
         version: 4.11.0
@@ -94,6 +91,9 @@ importers:
       '@greenharness/greenrack-eslint-plugin':
         specifier: workspace:*
         version: link:packages/eslint-plugin
+      '@greenharness/greenspotter-eslint-config':
+        specifier: ^0.20.1
+        version: 0.20.1(eslint@9.39.5)(typescript-eslint@8.67.0(eslint@9.39.5)(typescript@5.9.3))
       '@storybook/addon-a11y':
         specifier: ^10.2.13
         version: 10.2.13(storybook@10.6.3(@types/react@19.2.14)(prettier@3.8.1)(react@19.2.4))
@@ -220,9 +220,9 @@ importers:
         specifier: ^8.56.0
         version: 8.67.0(eslint@9.39.5)(typescript@5.9.3)
     devDependencies:
-      '@aval-adr/eslint-config':
-        specifier: ^0.16.0
-        version: 0.16.0(eslint@9.39.5)(typescript-eslint@8.67.0(eslint@9.39.5)(typescript@5.9.3))
+      '@greenharness/greenspotter-eslint-config':
+        specifier: ^0.20.1
+        version: 0.20.1(eslint@9.39.5)(typescript-eslint@8.67.0(eslint@9.39.5)(typescript@5.9.3))
       eslint:
         specifier: ^9.20.0
         version: 9.39.5
@@ -406,12 +406,6 @@ packages:
   '@arethetypeswrong/core@0.18.5':
     resolution: {integrity: sha512-9ytjzGwxjm9Uz7I9avfbt5vlQt6uk9uRRESzJjqrznl6WKvI6dwYTo+vJ3U02Wrq/mR3iql/PzhvHhKdJIAjDQ==}
     engines: {node: '>=20'}
-
-  '@aval-adr/eslint-config@0.16.0':
-    resolution: {integrity: sha512-u0qsvj4WQjd3Y6LqN4jJ9vBuOb/aqUHzvLXcPF9zIS1akk5pfC8mXGqB9jY2Y1FQXl7NatqUs5j7h+G0bPCpCA==}
-    peerDependencies:
-      eslint: ^9.0.0 || ^10.0.0
-      typescript-eslint: ^8.0.0
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -1187,6 +1181,12 @@ packages:
     resolution: {integrity: sha512-FMmoCI5dot7C9s7EF9ki0yGnTAubnyIqjJpFEroeVwAQuIBvRH2k9LzQPpz7yZ6PACxV74IvjbhpBtYEkUpa/A==}
     engines: {node: '>=18'}
     hasBin: true
+
+  '@greenharness/greenspotter-eslint-config@0.20.1':
+    resolution: {integrity: sha512-eeGixHhSMJ6Xtr/ETfhI90m6nibCn659L+He3pGR1RWEPDrXNK5mem8fBET8uYKEqmwbQAfDC72G88HUxbDzgw==}
+    peerDependencies:
+      eslint: ^9.0.0 || ^10.0.0
+      typescript-eslint: ^8.0.0
 
   '@hono/node-server@2.1.8':
     resolution: {integrity: sha512-jdf7FHh6A1lzjpHHQUgxsg2GeER2vMetnAOfeActzcoli6jamlK+NAwL6Dsr5Fl3BS3tYUQzCdtZjU8Qxv7bEA==}
@@ -4976,15 +4976,6 @@ snapshots:
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.1
 
-  '@aval-adr/eslint-config@0.16.0(eslint@9.39.5)(typescript-eslint@8.67.0(eslint@9.39.5)(typescript@5.9.3))':
-    dependencies:
-      '@effect/eslint-plugin': 0.3.2
-      '@eslint-community/eslint-plugin-eslint-comments': 4.8.1(eslint@9.39.5)
-      '@eslint/js': 9.39.5
-      eslint: 9.39.5
-      eslint-config-prettier: 10.1.8(eslint@9.39.5)
-      typescript-eslint: 8.67.0(eslint@9.39.5)(typescript@5.9.3)
-
   '@babel/code-frame@7.29.0':
     dependencies:
       '@babel/helper-validator-identifier': 7.28.5
@@ -5802,6 +5793,15 @@ snapshots:
       '@greenharness/greengate-linux-x64-gnu': 4.11.0
       '@greenharness/greengate-linux-x64-musl': 4.11.0
       '@greenharness/greengate-win32-x64': 4.11.0
+
+  '@greenharness/greenspotter-eslint-config@0.20.1(eslint@9.39.5)(typescript-eslint@8.67.0(eslint@9.39.5)(typescript@5.9.3))':
+    dependencies:
+      '@effect/eslint-plugin': 0.3.2
+      '@eslint-community/eslint-plugin-eslint-comments': 4.8.1(eslint@9.39.5)
+      '@eslint/js': 9.39.5
+      eslint: 9.39.5
+      eslint-config-prettier: 10.1.8(eslint@9.39.5)
+      typescript-eslint: 8.67.0(eslint@9.39.5)(typescript@5.9.3)
 
   '@hono/node-server@2.1.8(hono@4.13.18)':
     dependencies:

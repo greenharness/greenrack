@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
-    "@aval-adr/eslint-config": "^0.16.0",
+    "@greenharness/greenspotter-eslint-config": "^0.20.1",
     "@greenharness/greengate": "^4.11.0",
     "@greenharness/greenrack-cli": "workspace:*",
     "@greenharness/greenrack-eslint-config": "workspace:^",

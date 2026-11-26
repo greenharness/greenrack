@@ -1,5 +1,5 @@
 import greenrack from '@greenharness/greenrack-eslint-plugin'
-import {base, tests} from '@aval-adr/eslint-config'
+import {base, tests} from '@greenharness/greenspotter-eslint-config'
 import reactHooks from 'eslint-plugin-react-hooks'
 import tsParser from '@typescript-eslint/parser'
 

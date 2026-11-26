@@ -32,7 +32,7 @@
 ## Architecture
 
 - **Monorepo** managed by pnpm workspaces
-- **Packages:** `@greenharness/greenrack-ui` (components), `@greenharness/greenrack-tokens` (design tokens), `@greenharness/greenrack-eslint-plugin` (lint rules enforcing the Critical Rules below — `greenrack.configs.recommended`), `@greenharness/greenrack-eslint-config` (shareable flat config for consumer repos: the `react` preset only, bundling the plugin plus the UI policy — UI imports only from `@greenharness/greenrack-ui`; the `base`, `effect` and `tests` presets come from `@aval-adr/eslint-config`, which it extends)
+- **Packages:** `@greenharness/greenrack-ui` (components), `@greenharness/greenrack-tokens` (design tokens), `@greenharness/greenrack-eslint-plugin` (lint rules enforcing the Critical Rules below — `greenrack.configs.recommended`), `@greenharness/greenrack-eslint-config` (shareable flat config for consumer repos: the `react` preset only, bundling the plugin plus the UI policy — UI imports only from `@greenharness/greenrack-ui`; the `base`, `effect` and `tests` presets come from `@greenharness/greenspotter-eslint-config`, which it extends)
 - **Rendering:** [react-strict-dom](https://github.com/nicklockwood/react-strict-dom) — all elements use `html.*` (e.g. `html.div`, `html.button`), **never** raw `<div>` or `<span>`
 - **Styling:** `css.create()` from `react-strict-dom` with token references
 - **Form validation:** Effect Schema + react-hook-form via `@hookform/resolvers` — `Form` imports from `@greenharness/greenrack-ui/form` (4.0.0); `react-hook-form` is a required peer, `@hookform/resolvers` and `effect` are needed only by apps that import that subpath
