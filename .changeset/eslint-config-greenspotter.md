@@ -1,5 +1,5 @@
 ---
-'@greenharness/greenrack-eslint-config': major
+'@greenharness/greenrack-eslint-config': minor
 '@greenharness/greenrack-cli': patch
 ---
 

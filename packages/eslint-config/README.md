@@ -132,7 +132,7 @@ import {greenspotter} from '@greenharness/greenspotter-eslint-config'
 export default [...react, ...greenspotter()]
 ```
 
-## Migrating from 5.x
+## Migrating to greenspotter-eslint-config (7.12)
 
 - Add `@greenharness/greenspotter-eslint-config` (`^0.20.1`) beside this package.
 - Import `base`, `effect`, `tests` and `greenspotter` from it; keep `react` from here.
