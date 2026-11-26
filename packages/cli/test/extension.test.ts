@@ -268,7 +268,7 @@ describe('the skills and the agent', () => {
     expect(agent).toContain('tools: Read, Grep, Glob, mcp__greenrack__greenrack_lookup')
     expect(agent).toContain('no design system in this repository')
     expect(agent).toContain('no decision was checked')
-    expect(agent).toContain('`aval resolve <key>` outranks this')
+    expect(agent).toContain('`greentopo resolve <key>` outranks this')
     expect(agent).toContain('```design-lookup')
   })
 })

@@ -1,11 +1,11 @@
 import reactHooks from 'eslint-plugin-react-hooks'
 import greenrack from '@greenharness/greenrack-eslint-plugin'
-import {base} from '@aval-adr/eslint-config'
+import {base} from '@greenharness/greenspotter-eslint-config'
 
 /**
  * The greenrack design-system and UI-library policy, on top of the harness's
- * `base` from @aval-adr/eslint-config. `base`, `effect`, `tests` and
- * `adrLint` come from @aval-adr/eslint-config directly; this package keeps
+ * `base` from @greenharness/greenspotter-eslint-config. `base`, `effect`, `tests` and
+ * `greenspotter` come from @greenharness/greenspotter-eslint-config directly; this package keeps
  * only `react`, which carries what only the design system knows: the greenrack
  * plugin rules and the foreign-UI and Lexical import bans.
  */

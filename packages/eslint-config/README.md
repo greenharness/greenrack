@@ -7,12 +7,12 @@ activates on the presence of a root ESLint config) and in CI.
 
 Requires ESLint 9 or 10 (flat config). It keeps only the design-system and
 UI-library policy, as `react`. The general conventions (`base`, `effect`,
-`tests`) and the decided-rule bridge (`adrLint`) come from
-[`@aval-adr/eslint-config`](https://www.npmjs.com/package/@aval-adr/eslint-config),
+`tests`) and the decided-rule bridge (`greenspotter`) come from
+[`@greenharness/greenspotter-eslint-config`](https://www.npmjs.com/package/@greenharness/greenspotter-eslint-config),
 which this package extends and declares as a peer: install both.
 
 ```sh
-pnpm add -D @greenharness/greenrack-eslint-config @aval-adr/eslint-config
+pnpm add -D @greenharness/greenrack-eslint-config @greenharness/greenspotter-eslint-config
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ pnpm add -D @greenharness/greenrack-eslint-config @aval-adr/eslint-config
 ```js
 // eslint.config.js (repo root — amont only detects a ROOT config)
 import {react} from '@greenharness/greenrack-eslint-config'
-import {effect, tests} from '@aval-adr/eslint-config'
+import {effect, tests} from '@greenharness/greenspotter-eslint-config'
 
 export default [
   {ignores: ['**/dist/**', '**/build/**']},
@@ -33,16 +33,16 @@ export default [
 
 ## Presets
 
-| Preset   | From                                    | Composes                                                             | For                                     |
-| -------- | --------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
-| `react`  | `@greenharness/greenrack-eslint-config` | aval `base` + classic react-hooks + the greenrack plugin + UI policy | RSD / `@greenharness/greenrack-ui` apps |
-| `base`   | `@aval-adr/eslint-config`               | `@eslint/js` + `typescript-eslint` recommended, prettier interop     | every TypeScript package                |
-| `effect` | `@aval-adr/eslint-config`               | `base` + `@effect` plugin + server-stack policy                      | Effect services                         |
-| `tests`  | `@aval-adr/eslint-config`               | accessibility-first selectors (self-scoped to test/e2e files)        | any repo with tests                     |
+| Preset   | From                                       | Composes                                                                     | For                                     |
+| -------- | ------------------------------------------ | ---------------------------------------------------------------------------- | --------------------------------------- |
+| `react`  | `@greenharness/greenrack-eslint-config`    | greenspotter `base` + classic react-hooks + the greenrack plugin + UI policy | RSD / `@greenharness/greenrack-ui` apps |
+| `base`   | `@greenharness/greenspotter-eslint-config` | `@eslint/js` + `typescript-eslint` recommended, prettier interop             | every TypeScript package                |
+| `effect` | `@greenharness/greenspotter-eslint-config` | `base` + `@effect` plugin + server-stack policy                              | Effect services                         |
+| `tests`  | `@greenharness/greenspotter-eslint-config` | accessibility-first selectors (self-scoped to test/e2e files)                | any repo with tests                     |
 
 `react` reports its import bans as `greenrack/no-restricted-imports`, apart from
-`effect`'s `@typescript-eslint/no-restricted-imports` and adr-lint's
-`adr-lint/no-restricted-imports`, so composing them keeps every ban: none of
+`effect`'s `@typescript-eslint/no-restricted-imports` and greenspotter's
+`greenspotter/no-restricted-imports`, so composing them keeps every ban: none of
 the three overrides another.
 
 A repository that scopes `react` to part of its tree restates its import bans
@@ -72,7 +72,7 @@ export default [
   text goes through `@fredericrous/greenrack-lexical`, never raw `lexical`. It
   also carries everything in `@greenharness/greenrack-eslint-plugin`: html.\* elements,
   deep token imports, token values and the form kit.
-- `effect` and `tests` are documented with `@aval-adr/eslint-config`.
+- `effect` and `tests` are documented with `@greenharness/greenspotter-eslint-config`.
 
 Severity is the one gating line: `error` gates at commit and CI, `warn`
 informs everywhere. Don't add `--max-warnings=0` — promote a rule to
@@ -119,22 +119,22 @@ Flat config is last-wins — scope an override after the preset:
 }
 ```
 
-## adr-lint rules (opt-in)
+## greenspotter rules (opt-in)
 
-`adrLint` and `adrLintTyped` add the decided code rules a linter matches
-exactly. Import them from `@aval-adr/eslint-config` and put them last. Their
+`greenspotter` and `greenspotterTyped` add the decided code rules a linter matches
+exactly. Import them from `@greenharness/greenspotter-eslint-config` and put them last. Their
 bans have their own rule id, so no `stack` option is needed (6.0 drops it):
 
 ```js
 import {react} from '@greenharness/greenrack-eslint-config'
-import {adrLint} from '@aval-adr/eslint-config'
+import {greenspotter} from '@greenharness/greenspotter-eslint-config'
 
-export default [...react, ...adrLint()]
+export default [...react, ...greenspotter()]
 ```
 
 ## Migrating from 5.x
 
-- Add `@aval-adr/eslint-config` (`^0.16.0`) beside this package.
-- Import `base`, `effect`, `tests` and `adrLint` from it; keep `react` from here.
-- Drop `stack` from an `adrLint` call.
+- Add `@greenharness/greenspotter-eslint-config` (`^0.20.1`) beside this package.
+- Import `base`, `effect`, `tests` and `greenspotter` from it; keep `react` from here.
+- Drop `stack` from a `greenspotter` call.
 - An override of `no-restricted-imports` for the UI bans becomes `greenrack/no-restricted-imports`.

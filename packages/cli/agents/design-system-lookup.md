@@ -41,7 +41,7 @@ to learn what already exists there.
 ## Decisions
 
 The brief may carry a decisions block. Cite a decision only by its key, as "when the
-decisions part is installed, `aval resolve <key>` outranks this". When the brief carries no decisions block, say that no decision was
+decisions part is installed, `greentopo resolve <key>` outranks this". When the brief carries no decisions block, say that no decision was
 checked. Never run or require a decisions tool yourself.
 
 ## Answer

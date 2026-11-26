@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {ESLint} from 'eslint'
 import {greenrackPlugin, react, uiImportBans} from '../src/index.js'
-import {effect} from '@aval-adr/eslint-config'
+import {effect} from '@greenharness/greenspotter-eslint-config'
 
 /**
  * Fixture-consumer smoke tests: run the real ESLint engine over sample code
