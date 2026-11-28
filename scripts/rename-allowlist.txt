@@ -55,3 +55,4 @@ ticket-vision:app/components/RichTextView.test.tsx	the comment names both lexica
 social-planner:PLAN.md	planning history
 social-planner:AGENT-TASKS.md	planning history
 decisions:docs/principles/measures.md	vendored rule wording, a source note
+happier:attestations/	dated S5 inventories of the Duro-era port: evidence, never edited
